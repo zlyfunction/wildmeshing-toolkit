@@ -23,6 +23,7 @@ public:
 class FaceAttributes
 {
 public:
+    double area_3d;
 };
 
 class ExtremeOpt : public wmtk::TriMesh
@@ -38,14 +39,15 @@ ExtremeOpt() {};
 virtual ~ExtremeOpt() {};
 
 
-// Store the per-vertex attributes
+// Store the per-vertex and per-face attributes
 wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
+wmtk::AttributeCollection<FaceAttributes> face_attrs;
 
 // Initializes the mesh
 void create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv);
 
 // Exports V and F of the stored mesh
-void export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F);
+void export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv);
 
 // Writes a triangle mesh in OBJ format
 void write_obj(const std::string& path);

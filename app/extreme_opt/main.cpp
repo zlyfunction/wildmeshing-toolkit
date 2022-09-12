@@ -30,9 +30,12 @@ int main(int argc, char** argv)
     extremeopt.create_mesh(V,F,uv);
     assert(extremeopt.check_mesh_connectivity_validity());
 
+    // TODO: do smoothing
+    extremeopt.smooth_all_vertices();
+
     // Do the mesh optimization
     // extremeopt.optimize();
-    extremeopt.consolidate_mesh();
+    // extremeopt.consolidate_mesh();
 
     // Save the optimized mesh
     // extremeopt.write_mesh(output_file);

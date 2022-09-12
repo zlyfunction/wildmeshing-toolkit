@@ -8,10 +8,43 @@
 #include <array>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TriQualityUtils.hpp>
-
+#include <Eigen/Sparse>
+#include <igl/local_basis.h>
+#include <igl/grad.h>
+#include <igl/cat.h>
 
 #include <limits>
 #include <optional>
+
+void get_grad_op(Eigen::MatrixXd &V, const Eigen::MatrixXi &F, Eigen::SparseMatrix<double> &grad_op)
+{
+    Eigen::MatrixXd F1, F2, F3;
+    igl::local_basis(V, F, F1, F2, F3);
+    Eigen::SparseMatrix<double> G;
+    igl::grad(V, F, G, false);
+    auto face_proj = [](Eigen::MatrixXd &F) {
+        std::vector<Eigen::Triplet<double>> IJV;
+        int f_num = F.rows();
+        for (int i = 0; i < F.rows(); i++) {
+        IJV.push_back(Eigen::Triplet<double>(i, i, F(i, 0)));
+        IJV.push_back(Eigen::Triplet<double>(i, i + f_num, F(i, 1)));
+        IJV.push_back(Eigen::Triplet<double>(i, i + 2 * f_num, F(i, 2)));
+        }
+        Eigen::SparseMatrix<double> P(f_num, 3 * f_num);
+        P.setFromTriplets(IJV.begin(), IJV.end());
+        return P;
+    };
+
+    Eigen::SparseMatrix<double> Dx = face_proj(F1) * G;
+    Eigen::SparseMatrix<double> Dy = face_proj(F2) * G;
+
+    Eigen::SparseMatrix<double> hstack = igl::cat(1, Dx, Dy);
+    Eigen::SparseMatrix<double> empty(hstack.rows(), hstack.cols());
+
+    grad_op = igl::cat(1, igl::cat(2, hstack, empty), igl::cat(2, empty, hstack));
+}
+
+
 bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
 {
     if (vertex_attrs[t.vid(*this)].fixed)
@@ -25,18 +58,51 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     // Newton iterations are encapsulated here.
     wmtk::logger().trace("Newton iteration for vertex smoothing.");
     auto vid = t.vid(*this);
+    
+    std::cout << "vertex " << vid << std::endl;
 
+    auto vid_onering = get_one_ring_vids_for_vertex(vid);
     auto locs = get_one_ring_tris_for_vertex(t);
     assert(locs.size() > 0);
+    
+    // get local (V, F)
+    Eigen::MatrixXd V_local(vid_onering.size(), 3);
+    for (size_t i = 0; i < vid_onering.size(); i++)
+    {
+        V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
+    }
+    std::vector<int> v_map(vertex_attrs.size(), -1);
+    for (size_t i = 0; i < vid_onering.size(); i++)
+    {
+        v_map[vid_onering[i]] = i;
+    }
+    Eigen::MatrixXi F_local(locs.size(), 3);
+    for (size_t i = 0; i < locs.size(); i++)
+    {
+        int t_id = locs[i].fid(*this);
+        auto local_tuples = oriented_tri_vertices(locs[i]);
+        for (size_t j = 0; j < 3; j++)
+        {
+            F_local(i, j) = v_map[local_tuples[j].vid(*this)];
+        }
+    }
 
-    write_obj("smooth_after_1.obj");
+    Eigen::SparseMatrix<double> G_local;
+    get_grad_op(V_local, F_local, G_local);
+    std::cout << "G_local: \n" << G_local << std::endl;
 
+    // std::cout << "V_local:\n" << V_local << "F_local:\n" << F_local << std::endl;
+    return true;
+    
+    
     // Computes the maximal error around the one ring
     // that is needed to ensure the operation will decrease the error measure
     auto max_quality = 0.;
     for (auto& tri : locs) {
         max_quality = std::max(max_quality, get_quality(tri));
     }
+
+
 
     assert(max_quality > 0); // If max quality is zero it is likely that the triangles are flipped
 

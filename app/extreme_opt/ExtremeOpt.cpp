@@ -4,38 +4,51 @@
 #include <wmtk/utils/AMIPS2D.h>
 #include <igl/predicates/predicates.h>
 #include <tbb/concurrent_vector.h>
-
+#include <igl/doublearea.h>
 namespace extremeopt {
 
 void ExtremeOpt::create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv)
 {
     // Register attributes
     p_vertex_attrs = &vertex_attrs;
+    p_face_attrs = &face_attrs;
 
+    Eigen::VectorXd dblarea;
+    igl::doublearea(V, F, dblarea);
+    
     // Convert from eigen to internal representation (TODO: move to utils and remove it from all app)
     std::vector<std::array<size_t, 3>> tri(F.rows());
     
-    for (int i = 0; i < F.rows(); i++) 
+    for (int i = 0; i < F.rows(); i++)
+    {
         for (int j = 0; j < 3; j++) 
             tri[i][j] = (size_t)F(i, j);
+    }
     
     // Initialize the trimesh class which handles connectivity
     wmtk::TriMesh::create_mesh(V.rows(), tri);
-
+    
+    // Save the face area in the face attributes
+    for (int i = 0; i < F.rows(); i++)
+    {
+        face_attrs[i].area_3d = dblarea[i];
+    }
     // Save the vertex position in the vertex attributes
     for (unsigned i = 0; i<V.rows();++i)
     {
         vertex_attrs[i].pos << uv.row(i)[0], uv.row(i)[1];
-        vertex_attrs[i].pos << V.row(i)[0], V.row(i)[1], V.row(i)[2];
+        vertex_attrs[i].pos_3d << V.row(i)[0], V.row(i)[1], V.row(i)[2];
     }
 }
 
-void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F)
+void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv)
 {
-    V = Eigen::MatrixXd::Zero(vert_capacity(), 2);
+    V = Eigen::MatrixXd::Zero(vert_capacity(), 3);
+    uv = Eigen::MatrixXd::Zero(vert_capacity(), 2);
     for (auto& t : get_vertices()) {
         auto i = t.vid(*this);
-        V.row(i) = vertex_attrs[i].pos;
+        V.row(i) = vertex_attrs[i].pos_3d;
+        uv.row(i) = vertex_attrs[i].pos;
     }
 
     F = Eigen::MatrixXi::Constant(tri_capacity(), 3, -1);
@@ -50,15 +63,12 @@ void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F)
 
 void ExtremeOpt::write_obj(const std::string& path)
 {
-    Eigen::MatrixXd V;
+    Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
 
-    export_mesh(V,F);
+    export_mesh(V,F,uv);
 
-    Eigen::MatrixXd V3 = Eigen::MatrixXd::Zero(V.rows(),3);
-    V3.leftCols(2) = V;
-
-    igl::writeOBJ(path,V3,F);
+    igl::writeOBJ(path,V,F,uv,F,uv,F);
 }
 
 
