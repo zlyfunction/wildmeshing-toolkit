@@ -63,7 +63,8 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     wmtk::logger().trace("Newton iteration for vertex smoothing.");
     auto vid = t.vid(*this);
     
-    std::cout << "vertex " << vid << std::endl;
+    wmtk::logger().info("smooth vertex {}", vid);
+    // std::cout << "vertex " << vid << std::endl;
 
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
     auto locs = get_one_ring_tris_for_vertex(t);
@@ -83,6 +84,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         v_map[vid_onering[i]] = i;
     }
     Eigen::MatrixXi F_local(locs.size(), 3);
+    Eigen::VectorXd area_local(locs.size(), 3);
     for (size_t i = 0; i < locs.size(); i++)
     {
         int t_id = locs[i].fid(*this);
@@ -91,74 +93,91 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         {
             F_local(i, j) = v_map[local_tuples[j].vid(*this)];
         }
+        area_local(i) = face_attrs[t_id].area_3d;
     }
 
     Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
-    std::cout << "G_local: \n" << G_local << std::endl;
-    Eigen::MatrixXd Ji;
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    std::cout << "Ji: \n" << Ji << std::endl;
-    // std::cout << "V_local:\n" << V_local << "F_local:\n" << F_local << std::endl;
-    return true;
-    
-    
-    // Computes the maximal error around the one ring
-    // that is needed to ensure the operation will decrease the error measure
-    auto max_quality = 0.;
-    for (auto& tri : locs) {
-        max_quality = std::max(max_quality, get_quality(tri));
+    // std::cout << "G_local: \n" << G_local << std::endl;
+
+    auto compute_energy = [&G_local, &area_local](Eigen::MatrixXd &aaa)
+    {
+        Eigen::MatrixXd Ji;
+        wmtk::jacobian_from_uv(G_local, aaa, Ji);
+        return wmtk::compute_energy_from_jacobian(Ji, area_local);
+    };
+
+
+    Eigen::SparseMatrix<double> hessian_local;
+    Eigen::VectorXd grad_local;
+    // TODO: set do_newton as param
+    bool do_newton = true;
+
+    double local_energy_0 = wmtk::get_grad_and_hessian(G_local, area_local, uv_local, grad_local, hessian_local, do_newton);
+    Eigen::MatrixXd search_dir(1, 2);
+    if (!do_newton)
+    {
+        search_dir = -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uv_local.rows(), 2).row(v_map[vid]);
     }
+    else
+    {
+        // local hessian for only one node
+        Eigen::Matrix2d hessian_at_v;
+        hessian_at_v << hessian_local.coeff(v_map[vid], v_map[vid]), hessian_local.coeff(v_map[vid], v_map[vid] + vid_onering.size()),
+                        hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid]), hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid] + vid_onering.size());
+        Eigen::Vector2d grad_at_v;
+        grad_at_v << grad_local(v_map[vid]), grad_local(v_map[vid] + vid_onering.size());
+        Eigen::Vector2d newton_at_v = hessian_at_v.ldlt().solve(-grad_at_v);
+        search_dir << newton_at_v(0), newton_at_v(1);
+    }   
+    // std::cout << "search_dir" << search_dir << std::endl;
+    // do linesearch
+    // std::cout << "local E0 = " << local_energy_0 << std::endl;
+    // TODO: set to ls_param
+    auto pos_copy = vertex_attrs[vid].pos;
+    int max_itr = 200;
+    double step = 1.0;
+    double new_energy;
+    auto new_x = uv_local;
+    bool ls_good = false;
+    for (int i = 0; i < max_itr; i++)
+    {
+        new_x.row(v_map[vid]) = uv_local.row(v_map[vid]) + step * search_dir;
+        vertex_attrs[vid].pos << new_x(v_map[vid], 0), new_x(v_map[vid], 1);
+        new_energy = compute_energy(new_x);
+        // std::cout << "new E " << new_energy << std::endl;
 
-
-
-    assert(max_quality > 0); // If max quality is zero it is likely that the triangles are flipped
-
-    // Collects the coordinate of all vertices in the 1-ring
-    std::vector<std::array<double, 6>> assembles(locs.size());
-    auto loc_id = 0;
-
-    // For each triangle, make a reordered copy of the vertices so that
-    // the vertex to optimize is always the first
-    for (auto& loc : locs) {
-        auto& T = assembles[loc_id];
-        auto t_id = loc.fid(*this);
-
-        assert(!is_inverted(loc));
-        auto local_tuples = oriented_tri_vertices(loc);
-        std::array<size_t, 3> local_verts;
-        for (auto i = 0; i < 3; i++) {
-            local_verts[i] = local_tuples[i].vid(*this);
-        }
-
-        local_verts = wmtk::orient_preserve_tri_reorder(local_verts, vid);
-
-        for (auto i = 0; i < 3; i++) {
-            for (auto j = 0; j < 2; j++) {
-                T[i * 2 + j] = vertex_attrs[local_verts[i]].pos[j];
+        bool has_flip = false;
+        for (auto loc : locs)
+        {
+            if (is_inverted(loc))
+            {
+                has_flip = true;
+                break;
             }
         }
-        loc_id++;
+        if (new_energy < local_energy_0 && !has_flip)
+        {
+    
+            ls_good = true;
+            break;
+        }
+        step = step * 0.8;
+    }
+    if (ls_good)
+    {
+        wmtk::logger().info("ls good, step = {}, energy {} -> {}", step, local_energy_0, new_energy);
+    }
+    else
+    {
+        wmtk::logger().info("ls failed");
+        vertex_attrs[vid].pos = pos_copy;
     }
 
-    // Make a backup of the current configuration
-    auto old_pos = vertex_attrs[vid].pos;
-    auto old_asssembles = assembles;
 
-    // Minimize distortion using newton's method
-    vertex_attrs[vid].pos = wmtk::newton_method_from_stack_2d(
-        assembles,
-        wmtk::AMIPS2D_energy,
-        wmtk::AMIPS2D_jacobian,
-        wmtk::AMIPS2D_hessian);
-
-    // Logging
-    wmtk::logger().info(
-        "old pos {} -> new pos {}",
-        old_pos.transpose(),
-        vertex_attrs[vid].pos.transpose());
-
-    return true;
+    // std::cout << "Ji: \n" << Ji << std::endl;
+    // std::cout << "V_local:\n" << V_local << "F_local:\n" << F_local << std::endl;
+    return ls_good;
 }
 
 void extremeopt::ExtremeOpt::smooth_all_vertices()
