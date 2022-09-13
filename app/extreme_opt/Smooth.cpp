@@ -15,35 +15,39 @@
 
 #include <limits>
 #include <optional>
+#include "SYMDIR.h"
 
-void get_grad_op(Eigen::MatrixXd &V, const Eigen::MatrixXi &F, Eigen::SparseMatrix<double> &grad_op)
+
+namespace extremeopt
 {
-    Eigen::MatrixXd F1, F2, F3;
-    igl::local_basis(V, F, F1, F2, F3);
-    Eigen::SparseMatrix<double> G;
-    igl::grad(V, F, G, false);
-    auto face_proj = [](Eigen::MatrixXd &F) {
-        std::vector<Eigen::Triplet<double>> IJV;
-        int f_num = F.rows();
-        for (int i = 0; i < F.rows(); i++) {
-        IJV.push_back(Eigen::Triplet<double>(i, i, F(i, 0)));
-        IJV.push_back(Eigen::Triplet<double>(i, i + f_num, F(i, 1)));
-        IJV.push_back(Eigen::Triplet<double>(i, i + 2 * f_num, F(i, 2)));
-        }
-        Eigen::SparseMatrix<double> P(f_num, 3 * f_num);
-        P.setFromTriplets(IJV.begin(), IJV.end());
-        return P;
-    };
+    void get_grad_op(Eigen::MatrixXd &V, const Eigen::MatrixXi &F, Eigen::SparseMatrix<double> &grad_op)
+    {
+        Eigen::MatrixXd F1, F2, F3;
+        igl::local_basis(V, F, F1, F2, F3);
+        Eigen::SparseMatrix<double> G;
+        igl::grad(V, F, G, false);
+        auto face_proj = [](Eigen::MatrixXd &F) {
+            std::vector<Eigen::Triplet<double>> IJV;
+            int f_num = F.rows();
+            for (int i = 0; i < F.rows(); i++) {
+            IJV.push_back(Eigen::Triplet<double>(i, i, F(i, 0)));
+            IJV.push_back(Eigen::Triplet<double>(i, i + f_num, F(i, 1)));
+            IJV.push_back(Eigen::Triplet<double>(i, i + 2 * f_num, F(i, 2)));
+            }
+            Eigen::SparseMatrix<double> P(f_num, 3 * f_num);
+            P.setFromTriplets(IJV.begin(), IJV.end());
+            return P;
+        };
 
-    Eigen::SparseMatrix<double> Dx = face_proj(F1) * G;
-    Eigen::SparseMatrix<double> Dy = face_proj(F2) * G;
+        Eigen::SparseMatrix<double> Dx = face_proj(F1) * G;
+        Eigen::SparseMatrix<double> Dy = face_proj(F2) * G;
 
-    Eigen::SparseMatrix<double> hstack = igl::cat(1, Dx, Dy);
-    Eigen::SparseMatrix<double> empty(hstack.rows(), hstack.cols());
+        Eigen::SparseMatrix<double> hstack = igl::cat(1, Dx, Dy);
+        Eigen::SparseMatrix<double> empty(hstack.rows(), hstack.cols());
 
-    grad_op = igl::cat(1, igl::cat(2, hstack, empty), igl::cat(2, empty, hstack));
+        grad_op = igl::cat(1, igl::cat(2, hstack, empty), igl::cat(2, empty, hstack));
+    }
 }
-
 
 bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
 {
@@ -67,9 +71,11 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     
     // get local (V, F)
     Eigen::MatrixXd V_local(vid_onering.size(), 3);
+    Eigen::MatrixXd uv_local(vid_onering.size(), 2);
     for (size_t i = 0; i < vid_onering.size(); i++)
     {
         V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
+        uv_local.row(i) = vertex_attrs[vid_onering[i]].pos;
     }
     std::vector<int> v_map(vertex_attrs.size(), -1);
     for (size_t i = 0; i < vid_onering.size(); i++)
@@ -90,7 +96,9 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
     std::cout << "G_local: \n" << G_local << std::endl;
-
+    Eigen::MatrixXd Ji;
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    std::cout << "Ji: \n" << Ji << std::endl;
     // std::cout << "V_local:\n" << V_local << "F_local:\n" << F_local << std::endl;
     return true;
     

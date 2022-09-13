@@ -10,6 +10,8 @@ add_library(wmtk_extreme_opt
 	Smooth.cpp
 	ExtremeOpt.cpp
 	ExtremeOpt.h
+	SYMDIR.cpp
+	SYMDIR.h
 )
 add_library(wmtk::extreme_opt ALIAS wmtk_extreme_opt)
 
