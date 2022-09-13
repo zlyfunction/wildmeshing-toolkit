@@ -1,13 +1,13 @@
 
 include(wmtk_data)
 
-option(WMTK_APP_TETWILD "tetwild application" OFF)
-option(WMTK_APP_TRIWILD "triwild application" OFF)
-option(WMTK_APP_HARMTET "Harmonic Triangulation app" OFF)
-option(WMTK_APP_UNIFORM_REMESH "uniform remesh for surfaces" OFF)
-option(WMTK_APP_SEC "surface shortest edge collapse" OFF)
-option(WMTK_APP_QSLIM "surface qslim simplification" OFF)
-option(WMTK_APP_UNIT_TESTS "unit tests for applications" OFF)
+option(WMTK_APP_TETWILD "tetwild application" ON)
+option(WMTK_APP_TRIWILD "triwild application" ON)
+option(WMTK_APP_HARMTET "Harmonic Triangulation app" ON)
+option(WMTK_APP_UNIFORM_REMESH "uniform remesh for surfaces" ON)
+option(WMTK_APP_SEC "surface shortest edge collapse" ON)
+option(WMTK_APP_QSLIM "surface qslim simplification" ON)
+option(WMTK_APP_UNIT_TESTS "unit tests for applications" ON)
 option(WMKT_APP_EXTREME_OPT "extreme opt" ON)
 add_subdirectory(interior_tet_opt)
 
