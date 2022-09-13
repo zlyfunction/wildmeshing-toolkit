@@ -63,7 +63,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     wmtk::logger().trace("Newton iteration for vertex smoothing.");
     auto vid = t.vid(*this);
     
-    wmtk::logger().info("smooth vertex {}", vid);
+    wmtk::logger().trace("smooth vertex {}", vid);
     // std::cout << "vertex " << vid << std::endl;
 
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
@@ -111,7 +111,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     Eigen::SparseMatrix<double> hessian_local;
     Eigen::VectorXd grad_local;
     // TODO: set do_newton as param
-    bool do_newton = true;
+    bool do_newton = false;
 
     double local_energy_0 = wmtk::get_grad_and_hessian(G_local, area_local, uv_local, grad_local, hessian_local, do_newton);
     Eigen::MatrixXd search_dir(1, 2);
@@ -166,17 +166,15 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     }
     if (ls_good)
     {
-        wmtk::logger().info("ls good, step = {}, energy {} -> {}", step, local_energy_0, new_energy);
+        wmtk::logger().trace("ls good, step = {}, energy {} -> {}", step, local_energy_0, new_energy);
     }
     else
     {
-        wmtk::logger().info("ls failed");
+        wmtk::logger().trace("ls failed");
         vertex_attrs[vid].pos = pos_copy;
     }
 
 
-    // std::cout << "Ji: \n" << Ji << std::endl;
-    // std::cout << "V_local:\n" << V_local << "F_local:\n" << F_local << std::endl;
     return ls_good;
 }
 
@@ -189,24 +187,64 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
     for (auto& loc : get_vertices()) {
         collect_all_ops.emplace_back("vertex_smooth", loc);
     }
+    
+    // prepare to compute energy
+    Eigen::SparseMatrix<double> G_global;
+    Eigen::MatrixXd V, uv;
+    Eigen::MatrixXi F;
+    export_mesh(V, F, uv);
+    get_grad_op(V, F, G_global);
+    Eigen::VectorXd dblarea;
+    igl::doublearea(V, F, dblarea);
+    auto compute_energy = [&G_global, &dblarea](Eigen::MatrixXd &aaa)
+    {
+        Eigen::MatrixXd Ji;
+        wmtk::jacobian_from_uv(G_global, aaa, Ji);
+        return wmtk::compute_energy_from_jacobian(Ji, dblarea);
+    };
+    
     time = timer.getElapsedTime();
     wmtk::logger().info("vertex smoothing prepare time: {}s", time);
     wmtk::logger().debug("Num verts {}", collect_all_ops.size());
-    if (NUM_THREADS > 0) {
-        timer.start();
-        auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kPartition>();
-        executor.lock_vertices = [](auto& m, const auto& e, int task_id) -> bool {
-            return m.try_set_vertex_mutex_one_ring(e, task_id);
-        };
-        executor.num_threads = NUM_THREADS;
-        executor(*this, collect_all_ops);
-        time = timer.getElapsedTime();
-        wmtk::logger().info("vertex smoothing operation time parallel: {}s", time);
-    } else {
-        timer.start();
-        auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
-        executor(*this, collect_all_ops);
-        time = timer.getElapsedTime();
-        wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+    // TODO: add N_iterations, E_target to ls-param
+    int N_iters = 500;
+    double E_target = 5.0;
+    double E = compute_energy(uv);
+    wmtk::logger().info("Start Energy E = {}", E);
+
+    double E_old = E;
+    for (int i = 1; i <= N_iters; i++)
+    {
+        if (NUM_THREADS > 0) {
+            timer.start();
+            auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kPartition>();
+            executor.lock_vertices = [](auto& m, const auto& e, int task_id) -> bool {
+                return m.try_set_vertex_mutex_one_ring(e, task_id);
+            };
+            executor.num_threads = NUM_THREADS;
+            executor(*this, collect_all_ops);
+            time = timer.getElapsedTime();
+            wmtk::logger().info("vertex smoothing operation time parallel: {}s", time);
+        } else {
+            timer.start();
+            auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+            executor(*this, collect_all_ops);
+            time = timer.getElapsedTime();
+            wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+        }
+        export_mesh(V, F, uv);
+        E = compute_energy(uv);
+        wmtk::logger().info("After Iter {}, E = {}", i, E);
+        if (E < E_target)
+        {
+            wmtk::logger().info("Reach target energy({}), optimization succeed!", E_target);
+            break;
+        }
+        if (E == E_old)
+        {
+            wmtk::logger().info("Energy get stuck, optimization failed.");
+            break;
+        }
+        E_old = E;
     }
 }
