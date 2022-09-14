@@ -84,7 +84,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         v_map[vid_onering[i]] = i;
     }
     Eigen::MatrixXi F_local(locs.size(), 3);
-    Eigen::VectorXd area_local(locs.size(), 3);
+    Eigen::VectorXd area_local(locs.size());
     for (size_t i = 0; i < locs.size(); i++)
     {
         int t_id = locs[i].fid(*this);
