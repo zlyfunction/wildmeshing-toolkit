@@ -110,12 +110,10 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
 
     Eigen::SparseMatrix<double> hessian_local;
     Eigen::VectorXd grad_local;
-    // TODO: set do_newton as param
-    bool do_newton = false;
 
-    double local_energy_0 = wmtk::get_grad_and_hessian(G_local, area_local, uv_local, grad_local, hessian_local, do_newton);
+    double local_energy_0 = wmtk::get_grad_and_hessian(G_local, area_local, uv_local, grad_local, hessian_local, m_params.do_newton);
     Eigen::MatrixXd search_dir(1, 2);
-    if (!do_newton)
+    if (!m_params.do_newton)
     {
         search_dir = -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uv_local.rows(), 2).row(v_map[vid]);
     }
@@ -133,14 +131,12 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     // std::cout << "search_dir" << search_dir << std::endl;
     // do linesearch
     // std::cout << "local E0 = " << local_energy_0 << std::endl;
-    // TODO: set to ls_param
     auto pos_copy = vertex_attrs[vid].pos;
-    int max_itr = 200;
     double step = 1.0;
     double new_energy;
     auto new_x = uv_local;
     bool ls_good = false;
-    for (int i = 0; i < max_itr; i++)
+    for (int i = 0; i < m_params.ls_iters; i++)
     {
         new_x.row(v_map[vid]) = uv_local.row(v_map[vid]) + step * search_dir;
         vertex_attrs[vid].pos << new_x(v_map[vid], 0), new_x(v_map[vid], 1);
@@ -206,14 +202,11 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
     time = timer.getElapsedTime();
     wmtk::logger().info("vertex smoothing prepare time: {}s", time);
     wmtk::logger().debug("Num verts {}", collect_all_ops.size());
-    // TODO: add N_iterations, E_target to ls-param
-    int N_iters = 500;
-    double E_target = 5.0;
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
 
     double E_old = E;
-    for (int i = 1; i <= N_iters; i++)
+    for (int i = 1; i <= m_params.max_iters; i++)
     {
         if (NUM_THREADS > 0) {
             timer.start();
@@ -235,9 +228,9 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
         export_mesh(V, F, uv);
         E = compute_energy(uv);
         wmtk::logger().info("After Iter {}, E = {}", i, E);
-        if (E < E_target)
+        if (E < m_params.E_target)
         {
-            wmtk::logger().info("Reach target energy({}), optimization succeed!", E_target);
+            wmtk::logger().info("Reach target energy({}), optimization succeed!", m_params.E_target);
             break;
         }
         if (E == E_old)

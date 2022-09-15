@@ -2,7 +2,7 @@
 
 #include <igl/Timer.h>
 #include <wmtk/TriMesh.h>
-
+#include "Parameters.h"
 
 namespace extremeopt {
 
@@ -30,6 +30,7 @@ class ExtremeOpt : public wmtk::TriMesh
 {
 public:
 
+Parameters m_params;
 // Energy Assigned to undefined energy
 // TODO: why not the max double?
 const double MAX_ENERGY = 1e50;

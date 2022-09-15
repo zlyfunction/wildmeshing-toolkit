@@ -1,5 +1,4 @@
 #include "ExtremeOpt.h"
-
 #include <spdlog/common.h>
 #include <CLI/CLI.hpp>
 
@@ -13,8 +12,13 @@ int main(int argc, char** argv)
     std::string input_file = "./";
     std::string output_file = "./";
 
+    extremeopt::Parameters param;
     app.add_option("-i,--input", input_file, "Input mesh.");
     app.add_option("-o,--output", output_file, "Output mesh.");
+    app.add_option("--max-its", param.max_iters, "max iters");
+    app.add_option("--E-target", param.E_target, "target energy");
+    app.add_option("--ls-its", param.ls_iters, "linesearch max iterations, min-stepsize=0.8^{ls-its}");
+    app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
     // app.add_option("-j,--jobs", NUM_THREADS, "thread.");
 
     CLI11_PARSE(app, argc, argv);
@@ -28,6 +32,8 @@ int main(int argc, char** argv)
     // Load the mesh in the trimesh class
     extremeopt::ExtremeOpt extremeopt;
     extremeopt.create_mesh(V,F,uv);
+    extremeopt.m_params = param;
+
     assert(extremeopt.check_mesh_connectivity_validity());
 
     // TODO: do smoothing
