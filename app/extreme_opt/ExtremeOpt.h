@@ -67,6 +67,10 @@ void smooth_all_vertices();
 bool smooth_before(const Tuple& t) override;
 bool smooth_after(const Tuple& t) override;
 
+// Edge Swapping
+std::vector<wmtk::TriMesh::Tuple> new_edges_after(const std::vector<wmtk::TriMesh::Tuple>& tris) const;
+bool swap_edge_before(const Tuple& t) override;
+bool swap_edge_after(const Tuple& t) override;
 
 };
 

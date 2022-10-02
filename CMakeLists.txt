@@ -71,6 +71,8 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Source Files" FILES 
 
 # Dependencies
 if(NOT TARGET igl::core)
+    option(LIBIGL_WITH_OPENGL            "Use OpenGL"                   ON)
+    option(LIBIGL_WITH_OPENGL_GLFW       "Use GLFW"                     ON)
     include(libigl)
 endif()
 

@@ -5,6 +5,8 @@
 #include <igl/predicates/predicates.h>
 #include <tbb/concurrent_vector.h>
 #include <igl/doublearea.h>
+#include <igl/boundary_loop.h>
+
 namespace extremeopt {
 
 void ExtremeOpt::create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv)
@@ -38,6 +40,15 @@ void ExtremeOpt::create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F,
     {
         vertex_attrs[i].pos << uv.row(i)[0], uv.row(i)[1];
         vertex_attrs[i].pos_3d << V.row(i)[0], V.row(i)[1], V.row(i)[2];
+    }
+    std::vector<std::vector<int>> bds;
+    igl::boundary_loop(F, bds);
+    for (auto bd : bds)
+    {
+        for (int vec : bd)
+        {
+            vertex_attrs[vec].fixed = true;
+        }
     }
 }
 
