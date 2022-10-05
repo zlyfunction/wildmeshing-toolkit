@@ -19,6 +19,8 @@ int main(int argc, char** argv)
     app.add_option("--E-target", param.E_target, "target energy");
     app.add_option("--ls-its", param.ls_iters, "linesearch max iterations, min-stepsize=0.8^{ls-its}");
     app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
+    app.add_option("--do-swap", param.do_swap, "do swaps or not");
+    
     // app.add_option("-j,--jobs", NUM_THREADS, "thread.");
 
     CLI11_PARSE(app, argc, argv);

@@ -126,6 +126,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     igl::doublearea(V_local, F_local, dblarea_3d);
     igl::doublearea(uv_local, F_local, dblarea);
 
+
     if (dblarea_3d.minCoeff() <= 0.0)
     {
         // std::cout << "zero 3d area: " << dblarea_3d.minCoeff() << std::endl;
@@ -138,7 +139,80 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     }
 
 
+    // TODO: compute and compare local energy
+    // get the F_local_before swapping
+    // get dblareas, then compute the energy
+    Eigen::MatrixXi F_local_old(2, 3);
+    int v_to_change = 0;
+    while (F_local(1, 0) != v_to_change && F_local(1, 1) != v_to_change && F_local(1, 2) != v_to_change)
+    {
+        v_to_change++;
+    }
+    // std::cout << "change: " << v_to_change << "->3" << std::endl;
+    // std::cout << "change: " << (v_to_change + 1) % 3 << "<->" << (v_to_change + 2) % 3 << std::endl;
 
+    for (int i = 0; i < 3; i++)
+    {
+        if (F_local(0, i) == v_to_change)
+        {
+            F_local_old(0, i) = 3;
+        }
+        else
+        {
+            F_local_old(0, i) = F_local(0, i);
+        }
+    }
+
+    for (int i = 0; i < 3; i++)
+    {
+        if (F_local(1, i) == (v_to_change + 1) % 3)
+        {
+            F_local_old(1, i) = (v_to_change + 2) % 3;
+        }
+        else if (F_local(1, i) == (v_to_change + 2) % 3)
+        {
+            F_local_old(1, i) = (v_to_change + 1) % 3;
+        }
+        else
+        {
+            F_local_old(1, i) = F_local(1, i);
+        }
+    }
+
+    // std::cout << "F_local after swap:\n" << F_local << std::endl;
+    // std::cout << "F_local before swap:\n" << F_local_old << std::endl;
+    
+    Eigen::VectorXd dblarea_3d_old;
+    igl::doublearea(V_local, F_local_old, dblarea_3d_old);
+    
+    Eigen::SparseMatrix<double> G_local, G_local_old;
+    get_grad_op(V_local, F_local, G_local);
+    get_grad_op(V_local, F_local_old, G_local_old);
+
+    double E, E_old;
+    Eigen::MatrixXd Ji;
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    E = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d);
+    wmtk::jacobian_from_uv(G_local_old, uv_local, Ji);
+    E_old = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d_old);
+
+    // std::cout << "energy before swap: " << E_old << std::endl;
+    // std::cout << "energy after swap: " << E << std::endl;
+
+    if (E_old < E)
+    {
+        // std::cout << "energy increase after swapping" << std::endl;
+        return false;
+    }
+    else
+    {
+        // std::cout << "energy decreased, do swap" << std::endl;
+    }
+
+
+    // if do swap, change the areas
+    face_attrs[t.fid(*this)].area_3d = dblarea_3d[0];
+    face_attrs[t_opp.value().fid(*this)].area_3d = dblarea_3d[1];
     return true;
 }
 
@@ -274,15 +348,7 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
     timer.start();
 
 
-    auto collect_all_ops = std::vector<std::pair<std::string, Tuple>>();
-    for (auto& loc : get_vertices()) {
-        collect_all_ops.emplace_back("vertex_smooth", loc);
-    }
-
-    auto collect_all_ops_swap = std::vector<std::pair<std::string, Tuple>>();
-    for (auto& loc : get_edges()) {
-        collect_all_ops_swap.emplace_back("edge_swap", loc);
-    }
+    
 
     // prepare to compute energy
     Eigen::SparseMatrix<double> G_global;
@@ -297,6 +363,12 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
 
         return wmtk::compute_energy_from_jacobian(Ji, dblarea);
+    };
+
+    auto compute_energy_max = [&G_global, &dblarea](Eigen::MatrixXd& aaa){
+        Eigen::MatrixXd Ji;
+        wmtk::jacobian_from_uv(G_global, aaa, Ji);
+        return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
     };
 
 
@@ -319,12 +391,21 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
 
     time = timer.getElapsedTime();
     wmtk::logger().info("vertex smoothing prepare time: {}s", time);
-    wmtk::logger().debug("Num verts {}", collect_all_ops.size());
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
 
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) {
+        auto collect_all_ops = std::vector<std::pair<std::string, Tuple>>();
+        for (auto& loc : get_vertices()) {
+            collect_all_ops.emplace_back("vertex_smooth", loc);
+        }
+
+        auto collect_all_ops_swap = std::vector<std::pair<std::string, Tuple>>();
+        for (auto& loc : get_edges()) {
+            collect_all_ops_swap.emplace_back("edge_swap", loc);
+        }
+
         timer.start();
         auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
         executor(*this, collect_all_ops);
@@ -336,7 +417,7 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
         igl::doublearea(V, F, dblarea);
         E = compute_energy(uv);
         wmtk::logger().info("After Iter {}, E = {}", i, E);
-        igl::writeOBJ("mesh_after_smooth.obj", V, F, uv, F, uv, F);
+        igl::writeOBJ("mesh_after_smooth.obj", V, F, V, F, uv, F);
 
 
         wmtk::logger().info("try swappping operations");
@@ -350,7 +431,9 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
 
 
         auto executor_swap = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
-        setup_and_execute(executor_swap);
+        if (this->m_params.do_swap) {
+            setup_and_execute(executor_swap);
+        }
 
         export_mesh(V, F, uv);
         get_grad_op(V, F, G_global);
@@ -358,15 +441,17 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
         igl::doublearea(V, F, dblarea);
         Eigen::VectorXd dblarea2d;
         igl::doublearea(uv, F, dblarea2d);
-        // std::cout << "min area 3d\n" << dblarea.minCoeff() << std::endl;
-        // std::cout << "area 2d" << dblarea2d << std::endl;
-        for (int i = 0; i < F.rows(); i++)
-        {
-            face_attrs[i].area_3d = dblarea(i);
-        }
+        std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
+        std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
+        // for (int i = 0; i < F.rows(); i++)
+        // {
+        //     face_attrs[i].area_3d = dblarea(i);
+        // }
         E = compute_energy(uv);
         wmtk::logger().info("After swapping, E = {}", E);
-        igl::writeOBJ("mesh_after_swapping.obj", V, F, uv, F, uv, F);
+        wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+        
+        // igl::writeOBJ("mesh_after_swapping.obj", V, F, V, F, uv, F);
 
         if (E < m_params.E_target) {
             wmtk::logger().info(
@@ -379,5 +464,6 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
             break;
         }
         E_old = E;
+        std::cout << std::endl;
     }
 }
