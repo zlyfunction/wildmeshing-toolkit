@@ -44,6 +44,15 @@ virtual ~ExtremeOpt() {};
 wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
 wmtk::AttributeCollection<FaceAttributes> face_attrs;
 
+struct PositionInfoCache
+{
+    Eigen::Vector3d V1;
+    Eigen::Vector3d V2;
+    Eigen::Vector2d uv1;
+    Eigen::Vector2d uv2;
+};
+tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
+
 // Initializes the mesh
 void create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv);
 
@@ -62,8 +71,12 @@ Eigen::VectorXd get_quality_all_triangles();
 // Check if a triangle is inverted
 bool is_inverted(const Tuple& loc) const;
 
-// Smoothing
+// Optimization
 void smooth_all_vertices();
+void swap_all_edges();
+void do_optimization();
+
+// Smoothing
 bool smooth_before(const Tuple& t) override;
 bool smooth_after(const Tuple& t) override;
 
@@ -71,6 +84,7 @@ bool smooth_after(const Tuple& t) override;
 std::vector<wmtk::TriMesh::Tuple> new_edges_after(const std::vector<wmtk::TriMesh::Tuple>& tris) const;
 bool swap_edge_before(const Tuple& t) override;
 bool swap_edge_after(const Tuple& t) override;
+
 
 };
 

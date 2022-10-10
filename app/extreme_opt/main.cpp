@@ -39,8 +39,8 @@ int main(int argc, char** argv)
     assert(extremeopt.check_mesh_connectivity_validity());
 
     // TODO: do smoothing
-    extremeopt.smooth_all_vertices();
-
+    // extremeopt.smooth_all_vertices();
+    extremeopt.do_optimization();
     // Do the mesh optimization
     // extremeopt.optimize();
     // extremeopt.consolidate_mesh();
