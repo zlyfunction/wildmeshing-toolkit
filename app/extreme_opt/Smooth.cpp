@@ -60,9 +60,79 @@ void get_grad_op(Eigen::MatrixXd& V, const Eigen::MatrixXi& F, Eigen::SparseMatr
 }
 } // namespace extremeopt
 
+void extremeopt::ExtremeOpt::cache_edge_postions(const Tuple& t)
+{
+    position_cache.local().V1 = vertex_attrs[t.vid(*this)].pos_3d;
+    position_cache.local().V2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos_3d;
+    position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
+    position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
+}
+
+bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
+{
+    if (!t.is_valid(*this)) 
+    {
+        std::cout << "not valid" << std::endl;
+        return false;
+    }
+    if (wmtk::TriMesh::collapse_edge_before(t)) 
+    {
+        std::cout << "link cond fail" << std::endl;
+        return false;
+    }
+    // if (vertex_attrs[t.vid(*this)].fixed && vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
+    cache_edge_postions(t);
+    return true;
+}
+
+bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
+{
+    const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
+    const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
+    auto vid = t.vid(*this);
+    vertex_attrs[vid].pos_3d = V;
+    vertex_attrs[vid].pos = uv;
+    
+    // get local F,V,uv
+    auto vid_onering = get_one_ring_vids_for_vertex(vid);
+    auto locs = get_one_ring_tris_for_vertex(t);
+    Eigen::MatrixXd V_local(vid_onering.size(), 3);
+    Eigen::MatrixXd uv_local(vid_onering.size(), 2);
+    for (size_t i = 0; i < vid_onering.size(); i++) {
+        V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
+        uv_local.row(i) = vertex_attrs[vid_onering[i]].pos;
+    }
+    std::vector<int> v_map(vertex_attrs.size(), -1);
+    for (size_t i = 0; i < vid_onering.size(); i++) {
+        v_map[vid_onering[i]] = i;
+    }
+    Eigen::MatrixXi F_local(locs.size(), 3);
+    for (size_t i = 0; i < locs.size(); i++) {
+        int t_id = locs[i].fid(*this);
+        auto local_tuples = oriented_tri_vertices(locs[i]);
+        for (size_t j = 0; j < 3; j++) {
+            F_local(i, j) = v_map[local_tuples[j].vid(*this)];
+        }
+    }
+    Eigen::VectorXd area_local_3d, area_local;
+    igl::doublearea(V_local, F_local, area_local_3d);
+    igl::doublearea(uv_local, F_local, area_local);
+    
+    
+    // export_mesh(V_local, F_local, uv_local);
+    // first check flips
+    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0)
+    {
+        std::cout << "collapse causing flips" << std::endl;
+        return false;
+    }
+    std::cout << "collapse succeed" << std::endl;
+    
+    return true;
+}
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 {
-    
+    if (!t.is_valid(*this)) return false;
     if (!TriMesh::swap_edge_before(t)) return false;
     // if (vertex_attrs[t.vid(*this)].fixed &&
     // vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
@@ -266,9 +336,9 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         for (size_t j = 0; j < 3; j++) {
             F_local(i, j) = v_map[local_tuples[j].vid(*this)];
         }
-        area_local(i) = face_attrs[t_id].area_3d;
+        // area_local(i) = face_attrs[t_id].area_3d;
     }
-
+    igl::doublearea(V_local, F_local, area_local);
     Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
     // std::cout << "G_local: \n" << G_local << std::endl;
@@ -366,7 +436,6 @@ void extremeopt::ExtremeOpt::swap_all_edges()
     }
     auto setup_and_execute = [&](auto& executor_swap) {
         executor_swap.renew_neighbor_tuples = renew;
-        // executor_swap.priority = [&](auto& m, auto op, auto& t) { return m.get_length2(t); };
         executor_swap.num_threads = NUM_THREADS;
         executor_swap(*this, collect_all_ops_swap);
     };
@@ -374,6 +443,21 @@ void extremeopt::ExtremeOpt::swap_all_edges()
     setup_and_execute(executor_swap);
 }
 
+void extremeopt::ExtremeOpt::collapse_all_edges()
+{
+    auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
+    for (auto& loc : get_edges())
+    {
+        collect_all_ops_collapse.emplace_back("edge_collapse", loc);
+    }
+    auto setup_and_execute = [&](auto& executor_collapse) {
+        // executor_collapse.renew_neighbor_tuples = renew;
+        executor_collapse.num_threads = NUM_THREADS;
+        executor_collapse(*this, collect_all_ops_collapse);
+    };
+    auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    setup_and_execute(executor_collapse);
+}
 void extremeopt::ExtremeOpt::do_optimization()
 {
     igl::Timer timer;
@@ -407,7 +491,7 @@ void extremeopt::ExtremeOpt::do_optimization()
     {
         // do smoothing
 timer.start();
-        smooth_all_vertices();
+        // smooth_all_vertices();
 time = timer.getElapsedTime();
         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
         export_mesh(V, F, uv);
@@ -435,7 +519,25 @@ time = timer.getElapsedTime();
         wmtk::logger().info("E_max = {}", compute_energy_max(uv));
 
         // TODO: add other operations
-
+        if (this->m_params.do_collapse)
+        {
+            collapse_all_edges();
+        }
+        // this->consolidate_mesh();
+        // for (auto &t : this->get_vertices())
+        // {
+        //     std::cout << "hello" << std::endl;
+        // }
+        export_mesh(V, F, uv);
+        get_grad_op(V, F, G_global);
+        igl::doublearea(V, F, dblarea);
+        igl::doublearea(uv, F, dblarea2d);
+        // std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
+        // std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
+        E = compute_energy(uv);
+        wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+        wmtk::logger().info("After collapsing, E = {}", E);
+        wmtk::logger().info("E_max = {}", compute_energy_max(uv));
 
         // terminate criteria
         if (E < m_params.E_target) {

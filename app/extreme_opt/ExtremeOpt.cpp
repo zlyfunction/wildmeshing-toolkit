@@ -53,7 +53,8 @@ void ExtremeOpt::create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F,
 }
 
 void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv)
-{
+{   
+    consolidate_mesh();
     V = Eigen::MatrixXd::Zero(vert_capacity(), 3);
     uv = Eigen::MatrixXd::Zero(vert_capacity(), 2);
     for (auto& t : get_vertices()) {

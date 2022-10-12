@@ -3,6 +3,7 @@
 #include <CLI/CLI.hpp>
 
 #include <igl/read_triangle_mesh.h>
+#include <igl/boundary_loop.h>
 
 int main(int argc, char** argv)
 {
@@ -20,7 +21,7 @@ int main(int argc, char** argv)
     app.add_option("--ls-its", param.ls_iters, "linesearch max iterations, min-stepsize=0.8^{ls-its}");
     app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
     app.add_option("--do-swap", param.do_swap, "do swaps or not");
-    
+    app.add_option("--do-collapse", param.do_collapse, "do collapse or not");
     // app.add_option("-j,--jobs", NUM_THREADS, "thread.");
 
     CLI11_PARSE(app, argc, argv);
@@ -30,7 +31,12 @@ int main(int argc, char** argv)
     Eigen::MatrixXi F;
     igl::readOBJ(input_file, V, uv, uv, F, F, F);
     wmtk::logger().info("Input mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
-
+    
+    std::vector<std::vector<int>> bds;
+    igl::boundary_loop(F, bds);
+    int Nv_bds = 0;
+    for (auto bd : bds) Nv_bds += bd.size();
+    wmtk::logger().info("Boundary size: {}", Nv_bds);
     // Load the mesh in the trimesh class
     extremeopt::ExtremeOpt extremeopt;
     extremeopt.create_mesh(V,F,uv);

@@ -6,6 +6,7 @@ namespace extremeopt{
         int max_iters = 500;
         bool do_newton = false;
         bool do_swap = false;
+        bool do_collapse = false;
         int ls_iters = 200;
         double E_target = 10.0;
         /* data */

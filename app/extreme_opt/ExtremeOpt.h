@@ -72,19 +72,24 @@ Eigen::VectorXd get_quality_all_triangles();
 bool is_inverted(const Tuple& loc) const;
 
 // Optimization
-void smooth_all_vertices();
-void swap_all_edges();
 void do_optimization();
 
-// Smoothing
+// Vertex Smoothing
 bool smooth_before(const Tuple& t) override;
 bool smooth_after(const Tuple& t) override;
+void smooth_all_vertices();
 
 // Edge Swapping
 std::vector<wmtk::TriMesh::Tuple> new_edges_after(const std::vector<wmtk::TriMesh::Tuple>& tris) const;
 bool swap_edge_before(const Tuple& t) override;
 bool swap_edge_after(const Tuple& t) override;
+void swap_all_edges();
 
+// Edge Collapsing
+void cache_edge_postions(const Tuple& t);
+bool collapse_edge_before(const Tuple& t) override;
+bool collapse_edge_after(const Tuple& t) override;
+void collapse_all_edges();
 
 };
 
