@@ -75,7 +75,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
         std::cout << "not valid" << std::endl;
         return false;
     }
-    if (wmtk::TriMesh::collapse_edge_before(t)) 
+    if (!wmtk::TriMesh::collapse_edge_before(t)) 
     {
         std::cout << "link cond fail" << std::endl;
         return false;
@@ -508,6 +508,7 @@ timer.start();
 time = timer.getElapsedTime();
         wmtk::logger().info("edges swapping operation time serial: {}s", time);
         export_mesh(V, F, uv);
+
         get_grad_op(V, F, G_global);
         igl::doublearea(V, F, dblarea);
         Eigen::VectorXd dblarea2d;
@@ -523,11 +524,7 @@ time = timer.getElapsedTime();
         {
             collapse_all_edges();
         }
-        // this->consolidate_mesh();
-        // for (auto &t : this->get_vertices())
-        // {
-        //     std::cout << "hello" << std::endl;
-        // }
+       
         export_mesh(V, F, uv);
         get_grad_op(V, F, G_global);
         igl::doublearea(V, F, dblarea);
