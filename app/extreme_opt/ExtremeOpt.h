@@ -50,6 +50,7 @@ struct PositionInfoCache
     Eigen::Vector3d V2;
     Eigen::Vector2d uv1;
     Eigen::Vector2d uv2;
+    double E_max_before_collpase;
 };
 tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
@@ -67,6 +68,9 @@ double get_quality(const Tuple& loc) const;
 
 // Computes the average quality of a mesh
 Eigen::VectorXd get_quality_all_triangles();
+
+// compute the max_E of a one ring
+void get_mesh_onering(const Tuple& t, Eigen::MatrixXd &V_local, Eigen::MatrixXd &uv_local, Eigen::MatrixXi &F_local);
 
 // Check if a triangle is inverted
 bool is_inverted(const Tuple& loc) const;

@@ -66,7 +66,23 @@ void extremeopt::ExtremeOpt::cache_edge_postions(const Tuple& t)
     position_cache.local().V2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos_3d;
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
-}
+
+    double E1, E2;
+    Eigen::MatrixXd V_local, uv_local, Ji;
+    Eigen::MatrixXi F_local;
+    Eigen::SparseMatrix<double> G_local;
+    get_mesh_onering(t, V_local, uv_local, F_local);
+    get_grad_op(V_local, F_local, G_local);
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+
+    get_mesh_onering(t.switch_vertex(*this), V_local, uv_local, F_local);
+    get_grad_op(V_local, F_local, G_local);
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+
+    position_cache.local().E_max_before_collpase = std::max(E1, E2);
+}   
 
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
@@ -127,6 +143,13 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         return false;
     }
     std::cout << "collapse succeed" << std::endl;
+    Eigen::SparseMatrix<double> G_local;
+    get_grad_op(V_local, F_local, G_local);
+
+    double E_max_after_collapse;
+    Eigen::MatrixXd Ji;
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    E_max_after_collapse = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
     
     return true;
 }
@@ -267,7 +290,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     // E = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d) * dblarea_3d.sum(); // compute E_sum
     wmtk::jacobian_from_uv(G_local_old, uv_local, Ji);
     
-    E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col    (3)).maxCoeff(); // compute E_max
+    E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff(); // compute E_max
     // E_old = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d_old) * dblarea_3d_old.sum(); // compute E_sum
 
     // std::cout << "energy before swap: " << E_old << std::endl;

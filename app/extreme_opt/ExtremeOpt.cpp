@@ -126,6 +126,31 @@ Eigen::VectorXd ExtremeOpt::get_quality_all_triangles()
     return ret;
 }
 
+void ExtremeOpt::get_mesh_onering(const Tuple& t, Eigen::MatrixXd &V_local, Eigen::MatrixXd &uv_local, Eigen::MatrixXi &F_local)
+{
+    auto vid = t.vid(*this);
+    auto vid_onering = get_one_ring_vids_for_vertex(vid);
+    auto locs = get_one_ring_tris_for_vertex(t);
+    V_local.resize(vid_onering.size(), 3);
+    uv_local.resize(vid_onering.size(), 2);
+    for (size_t i = 0; i < vid_onering.size(); i++) {
+        V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
+        uv_local.row(i) = vertex_attrs[vid_onering[i]].pos;
+    }
+    std::vector<int> v_map(vertex_attrs.size(), -1);
+    for (size_t i = 0; i < vid_onering.size(); i++) {
+        v_map[vid_onering[i]] = i;
+    }
+    F_local.resize(locs.size(), 3);
+    for (size_t i = 0; i < locs.size(); i++) {
+        int t_id = locs[i].fid(*this);
+        auto local_tuples = oriented_tri_vertices(locs[i]);
+        for (size_t j = 0; j < 3; j++) {
+            F_local(i, j) = v_map[local_tuples[j].vid(*this)];
+        }
+    }
+}
+
 bool ExtremeOpt::is_inverted(const Tuple& loc) const
 {
     // Get the vertices ids
