@@ -82,6 +82,7 @@ void extremeopt::ExtremeOpt::cache_edge_postions(const Tuple& t)
     E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
 
     position_cache.local().E_max_before_collpase = std::max(E1, E2);
+    std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase << std::endl;
 }   
 
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
@@ -142,7 +143,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         std::cout << "collapse causing flips" << std::endl;
         return false;
     }
-    std::cout << "collapse succeed" << std::endl;
+
     Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
 
@@ -151,6 +152,13 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     E_max_after_collapse = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
     
+    if (E_max_after_collapse >= position_cache.local().E_max_before_collpase)
+    {
+        // E_max does not go down
+        return false;
+    }
+    
+    std::cout << "collapse succeed" << std::endl;
     return true;
 }
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
