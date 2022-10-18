@@ -47,6 +47,7 @@ int main(int argc, char** argv)
     // TODO: do smoothing
     // extremeopt.smooth_all_vertices();
     extremeopt.do_optimization();
+    extremeopt.write_obj("after_collpase.obj");
     // Do the mesh optimization
     // extremeopt.optimize();
     // extremeopt.consolidate_mesh();

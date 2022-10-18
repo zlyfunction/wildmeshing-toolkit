@@ -82,22 +82,22 @@ void extremeopt::ExtremeOpt::cache_edge_postions(const Tuple& t)
     E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
 
     position_cache.local().E_max_before_collpase = std::max(E1, E2);
-    std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase << std::endl;
+    // std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase << std::endl;
 }   
 
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) 
     {
-        std::cout << "not valid" << std::endl;
+        // std::cout << "not valid" << std::endl;
         return false;
     }
     if (!wmtk::TriMesh::collapse_edge_before(t)) 
     {
-        std::cout << "link cond fail" << std::endl;
+        // std::cout << "link cond fail" << std::endl;
         return false;
     }
-    // if (vertex_attrs[t.vid(*this)].fixed && vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
+    if (vertex_attrs[t.vid(*this)].fixed || vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
     cache_edge_postions(t);
     return true;
 }
@@ -140,7 +140,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     // first check flips
     if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0)
     {
-        std::cout << "collapse causing flips" << std::endl;
+        // std::cout << "collapse causing flips" << std::endl;
         return false;
     }
 
@@ -158,7 +158,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         return false;
     }
     
-    std::cout << "collapse succeed" << std::endl;
+    // std::cout << "collapse succeed" << std::endl;
     return true;
 }
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
@@ -482,7 +482,7 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
         collect_all_ops_collapse.emplace_back("edge_collapse", loc);
     }
     auto setup_and_execute = [&](auto& executor_collapse) {
-        // executor_collapse.renew_neighbor_tuples = renew;
+        executor_collapse.renew_neighbor_tuples = renew;
         executor_collapse.num_threads = NUM_THREADS;
         executor_collapse(*this, collect_all_ops_collapse);
     };
@@ -522,7 +522,7 @@ void extremeopt::ExtremeOpt::do_optimization()
     {
         // do smoothing
 timer.start();
-        // smooth_all_vertices();
+        smooth_all_vertices();
 time = timer.getElapsedTime();
         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
         export_mesh(V, F, uv);
