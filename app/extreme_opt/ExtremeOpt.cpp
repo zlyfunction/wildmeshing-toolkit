@@ -80,7 +80,7 @@ void ExtremeOpt::write_obj(const std::string& path)
 
     export_mesh(V,F,uv);
 
-    igl::writeOBJ(path,V,F,uv,F,uv,F);
+    igl::writeOBJ(path,V,F,V,F,uv,F);
 }
 
 
