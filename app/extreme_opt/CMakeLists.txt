@@ -7,7 +7,7 @@ include(gmp)
 include(fenvelope)
 
 add_library(wmtk_extreme_opt
-	Smooth.cpp
+	opt.cpp
 	ExtremeOpt.cpp
 	ExtremeOpt.h
 	SYMDIR.cpp
