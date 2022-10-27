@@ -35,6 +35,9 @@ Parameters m_params;
 // TODO: why not the max double?
 const double MAX_ENERGY = 1e50;
 
+double elen_threshold;
+double elen_threshold_3d;
+
 ExtremeOpt() {};
 
 virtual ~ExtremeOpt() {};
@@ -85,15 +88,22 @@ void smooth_all_vertices();
 
 // Edge Swapping
 std::vector<wmtk::TriMesh::Tuple> new_edges_after(const std::vector<wmtk::TriMesh::Tuple>& tris) const;
+std::vector<wmtk::TriMesh::Tuple> replace_edges_after_split(const std::vector<wmtk::TriMesh::Tuple>& tris, const size_t vid_threshold) const;
+
 bool swap_edge_before(const Tuple& t) override;
 bool swap_edge_after(const Tuple& t) override;
 void swap_all_edges();
 
 // Edge Collapsing
-void cache_edge_postions(const Tuple& t);
+void cache_edge_positions(const Tuple& t);
 bool collapse_edge_before(const Tuple& t) override;
 bool collapse_edge_after(const Tuple& t) override;
 void collapse_all_edges();
+
+// Edge Splitting
+bool split_edge_before(const Tuple& t) override;
+bool split_edge_after(const Tuple& t) override;
+void split_all_edges();
 
 };
 

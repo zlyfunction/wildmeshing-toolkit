@@ -22,6 +22,7 @@ int main(int argc, char** argv)
     app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
     app.add_option("--do-swap", param.do_swap, "do swaps or not");
     app.add_option("--do-collapse", param.do_collapse, "do collapse or not");
+    app.add_option("--split-thresh", param.split_thresh, "split length threshold");
     // app.add_option("-j,--jobs", NUM_THREADS, "thread.");
 
     CLI11_PARSE(app, argc, argv);

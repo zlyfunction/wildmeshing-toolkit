@@ -9,6 +9,7 @@ namespace extremeopt{
         bool do_collapse = false;
         int ls_iters = 200;
         double E_target = 10.0;
+        double split_thresh = 1.0;
         /* data */
     };
     

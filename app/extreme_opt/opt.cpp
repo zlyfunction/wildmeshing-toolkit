@@ -37,6 +37,7 @@ void get_grad_op(Eigen::MatrixXd& V, const Eigen::MatrixXi& F, Eigen::SparseMatr
 
     Eigen::SparseMatrix<double> G;
     igl::grad(V, F, G, false);
+
     auto face_proj = [](Eigen::MatrixXd& F) {
         std::vector<Eigen::Triplet<double>> IJV;
         int f_num = F.rows();
@@ -60,7 +61,7 @@ void get_grad_op(Eigen::MatrixXd& V, const Eigen::MatrixXi& F, Eigen::SparseMatr
 }
 } // namespace extremeopt
 
-void extremeopt::ExtremeOpt::cache_edge_postions(const Tuple& t)
+void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
 {
     position_cache.local().V1 = vertex_attrs[t.vid(*this)].pos_3d;
     position_cache.local().V2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos_3d;
@@ -85,6 +86,87 @@ void extremeopt::ExtremeOpt::cache_edge_postions(const Tuple& t)
     // std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase << std::endl;
 }   
 
+bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
+{
+    if (!t.is_valid(*this))
+    {
+        return false;
+    }
+    if (!TriMesh::split_edge_before(t)) 
+    {
+        return false;
+    }
+
+    // TODO: do we want to split boundary edges?
+    if (vertex_attrs[t.vid(*this)].fixed &&
+        vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) {
+        if (!t.switch_face(*this).has_value()) return false; // check if it's bondary
+    }
+    
+    position_cache.local().V1 = vertex_attrs[t.vid(*this)].pos_3d;
+    position_cache.local().V2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos_3d;
+    position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
+    position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
+
+    
+
+    // check edge length thresholds
+    double l = (position_cache.local().uv1 - position_cache.local().uv2).norm();
+    double l3d = (position_cache.local().V1 - position_cache.local().V2).norm();
+    
+    
+    if (l < elen_threshold || l3d < elen_threshold_3d)
+    {
+        // std::cout << "The elen was too small, stop splitting" << std::endl; // for debugging
+        return false;
+    }
+    // std::cout << "edge: (" << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << ")" << std::endl;
+    // std::cout << "l = " << l << std::endl;
+    // std::cout << "l_3d = " << l3d << std::endl;
+    return true;
+}
+
+bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
+{
+
+    Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
+    Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
+    auto vid = t.vid(*this);
+
+    // std::cout << uv << std::endl;
+    // std::cout << V << std::endl;
+
+    vertex_attrs[vid].pos = uv;
+    vertex_attrs[vid].pos_3d = V;
+
+    // TODO: check quality here?
+    return true;
+}
+
+void extremeopt::ExtremeOpt::split_all_edges()
+{
+    size_t vid_threshold = 0;
+    auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
+    for (auto& loc : get_edges())
+    {
+        collect_all_ops_split.emplace_back("edge_split", loc);
+    }
+    auto setup_and_execute = [&](auto& executor_split) {
+        vid_threshold = vert_capacity();
+        executor_split.renew_neighbor_tuples = 
+            [&](auto& m, auto op, auto& tris) {
+            auto edges = m.replace_edges_after_split(tris, vid_threshold);
+            auto optup = std::vector<std::pair<std::string, TriMesh::Tuple>>();
+            for (auto& e : edges) optup.emplace_back(op, e);
+            return optup;
+        };
+        executor_split.num_threads = NUM_THREADS;
+        executor_split(*this, collect_all_ops_split);
+    };
+    auto executor_split = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    setup_and_execute(executor_split);
+}
+
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) 
@@ -98,7 +180,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
         return false;
     }
     if (vertex_attrs[t.vid(*this)].fixed || vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
-    cache_edge_postions(t);
+    cache_edge_positions(t);
     return true;
 }
 
@@ -179,6 +261,21 @@ std::vector<wmtk::TriMesh::Tuple> extremeopt::ExtremeOpt::new_edges_after(
         for (auto j = 0; j < 3; j++) {
             new_edges.push_back(wmtk::TriMesh::tuple_from_edge(t.fid(*this), j));
         }
+    }
+    wmtk::unique_edge_tuples(*this, new_edges);
+    return new_edges;
+}
+
+std::vector<wmtk::TriMesh::Tuple> extremeopt::ExtremeOpt::replace_edges_after_split(
+    const std::vector<wmtk::TriMesh::Tuple>& tris, const size_t vid_threshold) const
+{
+    std::vector<wmtk::TriMesh::Tuple> new_edges;
+
+    for (auto t : tris) {
+        auto tmptup = (t.switch_vertex(*this)).switch_edge(*this);
+        if (tmptup.vid(*this) < vid_threshold &&
+            (tmptup.switch_vertex(*this)).vid(*this) < vid_threshold)
+            new_edges.push_back(tmptup);
     }
     wmtk::unique_edge_tuples(*this, new_edges);
     return new_edges;
@@ -489,6 +586,8 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
     auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_collapse);
 }
+
+
 void extremeopt::ExtremeOpt::do_optimization()
 {
     igl::Timer timer;
@@ -499,6 +598,25 @@ void extremeopt::ExtremeOpt::do_optimization()
     Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
     export_mesh(V, F, uv);
+
+    // compute threshold for splitting
+    double elen_min = 999999, elen_min_3d = 999999;
+    for (int i = 0; i < F.rows(); i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            double l = (uv.row(F(i, j)) - uv.row(F(i, (j+1)%3))).norm();
+            double l_3d = (V.row(F(i, j)) - V.row(F(i, (j+1)%3))).norm();
+            if (l < elen_min) elen_min = l;
+            if (l_3d < elen_min_3d) elen_min_3d = l_3d;
+        }
+    }
+    elen_threshold = elen_min * this->m_params.split_thresh;
+    elen_threshold_3d = elen_min_3d * this->m_params.split_thresh;
+
+    std::cout << "elen threshold: " << elen_threshold << std::endl;
+    std::cout << "elen3d threshold: " << elen_threshold_3d << std::endl;
+
     get_grad_op(V, F, G_global);
     Eigen::VectorXd dblarea;
     igl::doublearea(V, F, dblarea);
@@ -520,9 +638,23 @@ void extremeopt::ExtremeOpt::do_optimization()
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) 
     {
+
+
+        if (true)
+        {
+            split_all_edges();
+            export_mesh(V, F, uv);
+            get_grad_op(V, F, G_global);
+            igl::doublearea(V, F, dblarea);
+            E = compute_energy(uv);
+            wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+            wmtk::logger().info("After splitting, E = {}", E);
+            wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+        }
+
         // do smoothing
 timer.start();
-        smooth_all_vertices();
+        // smooth_all_vertices();
 time = timer.getElapsedTime();
         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
         export_mesh(V, F, uv);
@@ -532,40 +664,42 @@ time = timer.getElapsedTime();
         wmtk::logger().info("After smoothing {}, E = {}", i, E);
 
         // do swaping
-timer.start();
-        if (this->m_params.do_swap) {
-            swap_all_edges();
-        }
-time = timer.getElapsedTime();
-        wmtk::logger().info("edges swapping operation time serial: {}s", time);
-        export_mesh(V, F, uv);
 
-        get_grad_op(V, F, G_global);
-        igl::doublearea(V, F, dblarea);
-        Eigen::VectorXd dblarea2d;
-        igl::doublearea(uv, F, dblarea2d);
-        // std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
-        // std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
-        E = compute_energy(uv);
-        wmtk::logger().info("After swapping, E = {}", E);
-        wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+        if (this->m_params.do_swap) {
+timer.start();
+            swap_all_edges();
+time = timer.getElapsedTime();
+            wmtk::logger().info("edges swapping operation time serial: {}s", time);
+            export_mesh(V, F, uv);
+
+            get_grad_op(V, F, G_global);
+            igl::doublearea(V, F, dblarea);
+            Eigen::VectorXd dblarea2d;
+            igl::doublearea(uv, F, dblarea2d);
+
+            std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
+            std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
+
+            E = compute_energy(uv);
+            wmtk::logger().info("After swapping, E = {}", E);
+            wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+        }
+
+
 
         // TODO: add other operations
         if (this->m_params.do_collapse)
         {
             collapse_all_edges();
+            export_mesh(V, F, uv);
+            get_grad_op(V, F, G_global);
+            igl::doublearea(V, F, dblarea);
+            E = compute_energy(uv);
+            wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+            wmtk::logger().info("After collapsing, E = {}", E);
+            wmtk::logger().info("E_max = {}", compute_energy_max(uv));
         }
        
-        export_mesh(V, F, uv);
-        get_grad_op(V, F, G_global);
-        igl::doublearea(V, F, dblarea);
-        igl::doublearea(uv, F, dblarea2d);
-        // std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
-        // std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
-        E = compute_energy(uv);
-        wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
-        wmtk::logger().info("After collapsing, E = {}", E);
-        wmtk::logger().info("E_max = {}", compute_energy_max(uv));
 
         // terminate criteria
         if (E < m_params.E_target) {
