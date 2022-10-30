@@ -20,6 +20,8 @@
 
 #include <igl/writeOBJ.h>
 
+#include <igl/upsample.h>
+
 using namespace wmtk;
 auto renew = [](auto& m, auto op, auto& tris) {
     auto edges = m.new_edges_after(tris);
@@ -598,6 +600,15 @@ void extremeopt::ExtremeOpt::do_optimization()
     Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
     export_mesh(V, F, uv);
+
+    Eigen::MatrixXi NewF;
+    Eigen::MatrixXd NewV, Newuv;
+
+    // try igl's upsampling
+    igl::upsample(V, F, NewV, NewF);
+    igl::upsample(uv, F, Newuv, NewF);
+    igl::writeOBJ("upsample_test.obj",NewV, NewF, NewV, NewF, Newuv, NewF);
+    return;
 
     // compute threshold for splitting
     double elen_min = 999999, elen_min_3d = 999999;
