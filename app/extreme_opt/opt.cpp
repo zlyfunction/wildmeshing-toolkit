@@ -181,7 +181,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
         // std::cout << "link cond fail" << std::endl;
         return false;
     }
-    if (vertex_attrs[t.vid(*this)].fixed || vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
+    // if (vertex_attrs[t.vid(*this)].fixed || vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
     cache_edge_positions(t);
     return true;
 }
@@ -190,6 +190,8 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 {
     const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
     const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
+    // const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V1) / 2.0;
+    // const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv1) / 2.0;
     auto vid = t.vid(*this);
     vertex_attrs[vid].pos_3d = V;
     vertex_attrs[vid].pos = uv;
@@ -236,7 +238,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     E_max_after_collapse = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
     
-    if (E_max_after_collapse >= position_cache.local().E_max_before_collpase)
+    if (E_max_after_collapse > position_cache.local().E_max_before_collpase)
     {
         // E_max does not go down
         return false;
@@ -392,18 +394,28 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     double E, E_old;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    
-    E = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff(); // compute E_max
+    Eigen::MatrixXd Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    E = Es.maxCoeff(); // compute E_max
+    if (std::isnan(Es(0)) || std::isnan(Es(1)))
+    {
+        return false;
+    }
+    if (Es.minCoeff() <= 0)
+    {
+        return false;
+    }
     // E = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d) * dblarea_3d.sum(); // compute E_sum
+
+    Eigen::MatrixXd Ji_old;
     wmtk::jacobian_from_uv(G_local_old, uv_local, Ji);
     
+
     E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff(); // compute E_max
     // E_old = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d_old) * dblarea_3d_old.sum(); // compute E_sum
 
-    // std::cout << "energy before swap: " << E_old << std::endl;
-    // std::cout << "energy after swap: " << E << std::endl;
+    
 
-    if (E_old < E)
+    if (!(E_old >= E))
     {
         // std::cout << "energy increase after swapping" << std::endl;
         return false;
@@ -411,12 +423,28 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     else
     {
         // std::cout << "energy decreased, do swap" << std::endl;
-    }
+        // if (Es.minCoeff() < 0)
+        // {
+        //     std::cout << "new Energy: \n" << Es << std::endl;
+        //     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+        //     std::cout << "Jacobian:\n"<< Ji << std::endl;
+        //     auto det = Ji.col(0).array() * Ji.col(3).array() - Ji.col(1).array() * Ji.col(2).array();
+        //     auto frob2 = Ji.col(0).array().abs2() + Ji.col(1).array().abs2() + Ji.col(2).array().abs2() + Ji.col(3).array().abs2();
+        //     std::cout << "det:\n" << det << std::endl;
+        //     std::cout << "det.inverse:\n" << det.inverse() << std::endl;
+        //     std::cout << "frob2:\n" << frob2 << std::endl;
+        //     std::cout << "(frob2 * det.inverse()).matrix():\n" << (frob2 * det.inverse()).matrix() << std::endl;
+        //     std::cout << wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)) << std::endl;
+        //     std::cout << "min 3d area " << dblarea_3d.minCoeff() << std::endl;
+        //     std::cout << "min 2d area " << dblarea.minCoeff() << std::endl;
+        //     std::cout << std::endl;
+        // }
+    }  
 
-
+   
     // if do swap, change the areas
-    face_attrs[t.fid(*this)].area_3d = dblarea_3d[0];
-    face_attrs[t_opp.value().fid(*this)].area_3d = dblarea_3d[1];
+    // face_attrs[t.fid(*this)].area_3d = dblarea_3d[0];
+    // face_attrs[t_opp.value().fid(*this)].area_3d = dblarea_3d[1];
     return true;
 }
 
@@ -564,8 +592,13 @@ void extremeopt::ExtremeOpt::swap_all_edges()
     for (auto& loc : get_edges()) {
         collect_all_ops_swap.emplace_back("edge_swap", loc);
     }
+    
     auto setup_and_execute = [&](auto& executor_swap) {
         executor_swap.renew_neighbor_tuples = renew;
+        executor_swap.priority = [&](auto& m, auto _, auto& e) {
+            return -(vertex_attrs[e.vid(*this)].pos - vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+            .norm();
+        };
         executor_swap.num_threads = NUM_THREADS;
         executor_swap(*this, collect_all_ops_swap);
     };
@@ -582,8 +615,14 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
     }
     auto setup_and_execute = [&](auto& executor_collapse) {
         executor_collapse.renew_neighbor_tuples = renew;
+        // add term with energy
+        executor_collapse.priority = [&](auto& m, auto _, auto& e) {
+            return (vertex_attrs[e.vid(*this)].pos - vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+            .norm();
+        };
         executor_collapse.num_threads = NUM_THREADS;
         executor_collapse(*this, collect_all_ops_collapse);
+        // TODO: priority queue (edge length)
     };
     auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_collapse);
@@ -608,7 +647,6 @@ void extremeopt::ExtremeOpt::do_optimization()
     igl::upsample(V, F, NewV, NewF);
     igl::upsample(uv, F, Newuv, NewF);
     igl::writeOBJ("upsample_test.obj",NewV, NewF, NewV, NewF, Newuv, NewF);
-    return;
 
     // compute threshold for splitting
     double elen_min = 999999, elen_min_3d = 999999;
@@ -624,9 +662,6 @@ void extremeopt::ExtremeOpt::do_optimization()
     }
     elen_threshold = elen_min * this->m_params.split_thresh;
     elen_threshold_3d = elen_min_3d * this->m_params.split_thresh;
-
-    std::cout << "elen threshold: " << elen_threshold << std::endl;
-    std::cout << "elen3d threshold: " << elen_threshold_3d << std::endl;
 
     get_grad_op(V, F, G_global);
     Eigen::VectorXd dblarea;
@@ -650,8 +685,8 @@ void extremeopt::ExtremeOpt::do_optimization()
     for (int i = 1; i <= m_params.max_iters; i++) 
     {
 
-
-        if (true)
+        // split edge lagacy will not be used
+        if (false)
         {
             split_all_edges();
             export_mesh(V, F, uv);
@@ -665,7 +700,7 @@ void extremeopt::ExtremeOpt::do_optimization()
 
         // do smoothing
 timer.start();
-        // smooth_all_vertices();
+        smooth_all_vertices();
 time = timer.getElapsedTime();
         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
         export_mesh(V, F, uv);
@@ -713,16 +748,16 @@ time = timer.getElapsedTime();
        
 
         // terminate criteria
-        if (E < m_params.E_target) {
-            wmtk::logger().info(
-                "Reach target energy({}), optimization succeed!",
-                m_params.E_target);
-            break;
-        }
-        if (E == E_old) {
-            wmtk::logger().info("Energy get stuck, optimization failed.");
-            break;
-        }
+        // if (E < m_params.E_target) {
+        //     wmtk::logger().info(
+        //         "Reach target energy({}), optimization succeed!",
+        //         m_params.E_target);
+        //     break;
+        // }
+        // if (E == E_old) {
+        //     wmtk::logger().info("Energy get stuck, optimization failed.");
+        //     break;
+        // }
         E_old = E;
         std::cout << std::endl;
 

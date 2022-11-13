@@ -4,6 +4,8 @@
 
 #include <igl/read_triangle_mesh.h>
 #include <igl/boundary_loop.h>
+#include <igl/upsample.h>
+#include <igl/writeOBJ.h>
 
 int main(int argc, char** argv)
 {
@@ -45,10 +47,27 @@ int main(int argc, char** argv)
 
     assert(extremeopt.check_mesh_connectivity_validity());
 
-    // TODO: do smoothing
-    // extremeopt.smooth_all_vertices();
+  
     extremeopt.do_optimization();
-    extremeopt.write_obj("after_collpase.obj");
+    extremeopt.export_mesh(V, F, uv);
+    for (int i = 0; i < 5; i++)
+    {
+        std::cout << "do upsample" << std::endl;
+        Eigen::MatrixXi new_F;
+        Eigen::MatrixXd new_V, new_uv;
+        igl::upsample(V, F, new_V, new_F);
+        igl::upsample(uv, F, new_uv, new_F);
+        std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
+        std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
+
+        extremeopt::ExtremeOpt extremeopt1;
+        extremeopt1.create_mesh(new_V,new_F,new_uv);
+        extremeopt1.m_params = param;
+        extremeopt1.do_optimization();
+        extremeopt1.export_mesh(V, F, uv);
+    }
+    igl::writeOBJ("testout.obj", V, F, V, F, uv, F);
+    // extremeopt.write_obj("after_collpase.obj");
     // Do the mesh optimization
     // extremeopt.optimize();
     // extremeopt.consolidate_mesh();

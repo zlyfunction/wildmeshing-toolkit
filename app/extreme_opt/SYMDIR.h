@@ -13,7 +13,8 @@ namespace wmtk{
     {
         auto det = a * d - b * c;
         auto frob2 = a * a + b * b + c * c + d * d;
-        return frob2 * (1 + 1 / (det * det));
+        return frob2 * (1 + 1 / (det * det)); // sym_dir
+        // return frob2 / det; // amips
     }
 
     template <typename Derived>
@@ -22,7 +23,8 @@ namespace wmtk{
     {
     auto det = a.array() * d.array() - b.array() * c.array();
     auto frob2 = a.array().abs2() + b.array().abs2() + c.array().abs2() + d.array().abs2();
-    return (frob2 * (1 + (det).abs2().inverse())).matrix();
+    return (frob2 * (1 + (det).abs2().inverse())).matrix(); // sym_dir
+    // return (frob2 * det.inverse()).matrix(); // amips
     }
 
     template <typename Scalar>
