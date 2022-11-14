@@ -3,6 +3,8 @@
 #include <igl/Timer.h>
 #include <wmtk/TriMesh.h>
 #include "Parameters.h"
+#include "json.hpp"
+using json = nlohmann::json;
 
 namespace extremeopt {
 
@@ -79,7 +81,7 @@ void get_mesh_onering(const Tuple& t, Eigen::MatrixXd &V_local, Eigen::MatrixXd 
 bool is_inverted(const Tuple& loc) const;
 
 // Optimization
-void do_optimization();
+void do_optimization(json &opt_log);
 
 // Vertex Smoothing
 bool smooth_before(const Tuple& t) override;

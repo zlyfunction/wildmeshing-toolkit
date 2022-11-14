@@ -1,39 +1,59 @@
 #include "ExtremeOpt.h"
 #include <spdlog/common.h>
 #include <CLI/CLI.hpp>
+#include <fstream>
 
 #include <igl/read_triangle_mesh.h>
 #include <igl/boundary_loop.h>
 #include <igl/upsample.h>
 #include <igl/writeOBJ.h>
+#include "json.hpp"
+using json = nlohmann::json;
 
 int main(int argc, char** argv)
 {
     ZoneScopedN("extreme_opt_main");
 
     CLI::App app{argv[0]};
-    std::string input_file = "./";
-    std::string output_file = "./";
-
+    std::string input_dir = "./objs";
+    std::string output_dir = "./test_out";
+    std::string input_json = "../config/config.json";
+    std::string model = "knot1";
     extremeopt::Parameters param;
-    app.add_option("-i,--input", input_file, "Input mesh.");
-    app.add_option("-o,--output", output_file, "Output mesh.");
-    app.add_option("--max-its", param.max_iters, "max iters");
-    app.add_option("--E-target", param.E_target, "target energy");
-    app.add_option("--ls-its", param.ls_iters, "linesearch max iterations, min-stepsize=0.8^{ls-its}");
-    app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
-    app.add_option("--do-swap", param.do_swap, "do swaps or not");
-    app.add_option("--do-collapse", param.do_collapse, "do collapse or not");
-    app.add_option("--split-thresh", param.split_thresh, "split length threshold");
+    app.add_option("-i,--input", input_dir, "Input mesh dir.");
+    app.add_option("-m,--model", model, "Input model name.");
+    app.add_option("-j,--json", input_json, "Input arguments.");
+    app.add_option("-o,--output", output_dir, "Output dir.");
+    // app.add_option("--max-its", param.max_iters, "max iters");
+    // app.add_option("--E-target", param.E_target, "target energy");
+    // app.add_option("--ls-its", param.ls_iters, "linesearch max iterations, min-stepsize=0.8^{ls-its}");
+    // app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
+    // app.add_option("--do-swap", param.do_swap, "do swaps or not");
+    // app.add_option("--do-collapse", param.do_collapse, "do collapse or not");
+    // app.add_option("--split-thresh", param.split_thresh, "split length threshold");
     // app.add_option("-j,--jobs", NUM_THREADS, "thread.");
 
     CLI11_PARSE(app, argc, argv);
 
+    std::string input_file = input_dir + "/" + model + "_init.obj";
     // Loading the input mesh
     Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
     igl::readOBJ(input_file, V, uv, uv, F, F, F);
     wmtk::logger().info("Input mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+    
+    std::ifstream js_in(input_json); json config = json::parse(js_in);
+    param.max_iters     = config["max_iters"];
+    param.E_target      = config["E_target"];
+    param.ls_iters      = config["ls_iters"];
+    param.do_newton     = config["do_newton"];
+    param.do_collapse   = config["do_collapse"];
+    param.do_swap       = config["do_swap"];
+
+    json opt_log;
+    opt_log["model_name"] = model;
+    opt_log["args"] = config;
+    std::ofstream js_out(output_dir + "/" + model + ".json");
     
     std::vector<std::vector<int>> bds;
     igl::boundary_loop(F, bds);
@@ -48,7 +68,7 @@ int main(int argc, char** argv)
     assert(extremeopt.check_mesh_connectivity_validity());
 
   
-    extremeopt.do_optimization();
+    extremeopt.do_optimization(opt_log);
     extremeopt.export_mesh(V, F, uv);
     for (int i = 0; i < 5; i++)
     {
@@ -63,10 +83,12 @@ int main(int argc, char** argv)
         extremeopt::ExtremeOpt extremeopt1;
         extremeopt1.create_mesh(new_V,new_F,new_uv);
         extremeopt1.m_params = param;
-        extremeopt1.do_optimization();
+        extremeopt1.do_optimization(opt_log);
         extremeopt1.export_mesh(V, F, uv);
     }
-    igl::writeOBJ("testout.obj", V, F, V, F, uv, F);
+    igl::writeOBJ(output_dir + "/" + model + "_out.obj", V, F, V, F, uv, F);
+    js_out << std::setw(4) << opt_log << std::endl;
+    
     // extremeopt.write_obj("after_collpase.obj");
     // Do the mesh optimization
     // extremeopt.optimize();

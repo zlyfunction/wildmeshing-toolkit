@@ -629,7 +629,7 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
 }
 
 
-void extremeopt::ExtremeOpt::do_optimization()
+void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
 {
     igl::Timer timer;
     double time;
@@ -684,7 +684,7 @@ void extremeopt::ExtremeOpt::do_optimization()
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) 
     {
-
+        double E_max;
         // split edge lagacy will not be used
         if (false)
         {
@@ -707,7 +707,9 @@ time = timer.getElapsedTime();
         get_grad_op(V, F, G_global);
         igl::doublearea(V, F, dblarea);
         E = compute_energy(uv);
+        E_max = compute_energy_max(uv);
         wmtk::logger().info("After smoothing {}, E = {}", i, E);
+        wmtk::logger().info("E_max = {}", E_max);
 
         // do swaping
 
@@ -727,8 +729,9 @@ time = timer.getElapsedTime();
             std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
 
             E = compute_energy(uv);
+            E_max = compute_energy_max(uv);
             wmtk::logger().info("After swapping, E = {}", E);
-            wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+            wmtk::logger().info("E_max = {}", E_max);
         }
 
 
@@ -743,10 +746,11 @@ time = timer.getElapsedTime();
             E = compute_energy(uv);
             wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After collapsing, E = {}", E);
-            wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+            E_max = compute_energy_max(uv);
+            wmtk::logger().info("E_max = {}", E_max);
         }
        
-
+        opt_log["opt_log"].push_back({{"F_size", F.rows()},{"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         // terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(
