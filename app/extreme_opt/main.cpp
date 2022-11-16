@@ -3,12 +3,80 @@
 #include <CLI/CLI.hpp>
 #include <fstream>
 
+#include <igl/PI.h>
 #include <igl/read_triangle_mesh.h>
 #include <igl/boundary_loop.h>
 #include <igl/upsample.h>
 #include <igl/writeOBJ.h>
 #include "json.hpp"
 using json = nlohmann::json;
+
+double check_constraints(
+    const Eigen::MatrixXi &EE, 
+    const Eigen::MatrixXd &uv,
+    const Eigen::MatrixXi &F,
+    Eigen::SparseMatrix<double> Aeq
+)
+{
+    int N = uv.rows();
+    int c = 0;
+    int m = EE.rows() / 2;
+
+    std::vector<std::vector<int>> bds;
+    igl::boundary_loop(F, bds);
+
+    double ret = 0;
+    std::set<std::pair<int,int>> added_e;
+    Aeq.resize(2 * m, uv.rows() * 2);
+    for (int i = 0; i < EE.rows(); i++)
+    {
+        int A2 = EE(i, 0);
+        int B2 = EE(i, 1);
+        int C2 = EE(i, 2);
+        int D2 = EE(i, 3);
+        auto e0 = std::make_pair(A2, B2);
+        auto e1 = std::make_pair(C2, D2);
+        if(added_e.find(e0) != added_e.end() || added_e.find(e1) != added_e.end()) continue;
+        added_e.insert(e0);
+        added_e.insert(e1);
+
+        Eigen::Vector2d e_ab = uv.row(B2) - uv.row(A2);
+        Eigen::Vector2d e_dc = uv.row(C2) - uv.row(D2);
+
+        Eigen::Vector2d e_ab_perp;
+        e_ab_perp(0) = -e_ab(1);
+        e_ab_perp(1) = e_ab(0);
+        double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
+        int r = (int)(round(2 * angle / igl::PI) + 2) % 4;
+
+        std::vector<Eigen::Matrix<double, 2, 2>> r_mat(4);
+        r_mat[0] << -1, 0, 0, -1;
+        r_mat[1] << 0, 1, -1, 0;
+        r_mat[2] << 1, 0, 0, 1;
+        r_mat[3] << 0, -1, 1, 0;
+
+        Aeq.coeffRef(c, A2) += 1;
+        Aeq.coeffRef(c, B2) += -1;
+        Aeq.coeffRef(c + 1, A2 + N) += 1;
+        Aeq.coeffRef(c + 1, B2 + N) += -1;
+
+        Aeq.coeffRef(c, C2) += r_mat[r](0, 0);
+        Aeq.coeffRef(c, D2) += -r_mat[r](0, 0);
+        Aeq.coeffRef(c, C2 + N) += r_mat[r](0, 1);
+        Aeq.coeffRef(c, D2 + N) += -r_mat[r](0, 1);
+        Aeq.coeffRef(c + 1, C2) += r_mat[r](1, 0);
+        Aeq.coeffRef(c + 1, D2) += -r_mat[r](1, 0);
+        Aeq.coeffRef(c + 1, C2 + N) += r_mat[r](1, 1);
+        Aeq.coeffRef(c + 1, D2 + N) += -r_mat[r](1, 1);
+        c = c + 2;
+    }
+
+    Eigen::VectorXd flat_uv = Eigen::Map<const Eigen::VectorXd>(uv.data(), uv.size());
+    auto res = Aeq * flat_uv;
+    ret = res.cwiseAbs().maxCoeff();
+
+    return ret;
+}
 
 int main(int argc, char** argv)
 {
@@ -24,16 +92,9 @@ int main(int argc, char** argv)
     app.add_option("-m,--model", model, "Input model name.");
     app.add_option("-j,--json", input_json, "Input arguments.");
     app.add_option("-o,--output", output_dir, "Output dir.");
-    // app.add_option("--max-its", param.max_iters, "max iters");
-    // app.add_option("--E-target", param.E_target, "target energy");
-    // app.add_option("--ls-its", param.ls_iters, "linesearch max iterations, min-stepsize=0.8^{ls-its}");
-    // app.add_option("--do-newton", param.do_newton, "do newton or do gradient descent");
-    // app.add_option("--do-swap", param.do_swap, "do swaps or not");
-    // app.add_option("--do-collapse", param.do_collapse, "do collapse or not");
-    // app.add_option("--split-thresh", param.split_thresh, "split length threshold");
-    // app.add_option("-j,--jobs", NUM_THREADS, "thread.");
 
     CLI11_PARSE(app, argc, argv);
+
 
     std::string input_file = input_dir + "/" + model + "_init.obj";
     // Loading the input mesh
@@ -41,7 +102,21 @@ int main(int argc, char** argv)
     Eigen::MatrixXi F;
     igl::readOBJ(input_file, V, uv, uv, F, F, F);
     wmtk::logger().info("Input mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
-    
+    // Loading the seamless boundary constraints
+    Eigen::MatrixXi EE;
+    int EE_rows;
+    std::ifstream EE_in(input_dir + "/EE/" + model + "_EE.txt");
+    EE_in >> EE_rows;
+    EE.resize(EE_rows, 4);
+    for (int i = 0; i < EE.rows(); i++)
+    {
+        EE_in >> EE(i, 0) >> EE(i, 1) >> EE(i, 2) >> EE(i, 3);
+    }
+    wmtk::logger().info("Input EE size {}", EE.rows());
+
+    Eigen::SparseMatrix<double> Aeq;
+    double cons_residual = check_constraints(EE, uv, F, Aeq);
+    wmtk::logger().info("Initial constraints error {}", cons_residual); 
     std::ifstream js_in(input_json); json config = json::parse(js_in);
     param.max_iters     = config["max_iters"];
     param.E_target      = config["E_target"];
@@ -65,9 +140,11 @@ int main(int argc, char** argv)
     extremeopt.create_mesh(V,F,uv);
     extremeopt.m_params = param;
 
+    
     assert(extremeopt.check_mesh_connectivity_validity());
+    // return 0;
 
-  
+
     extremeopt.do_optimization(opt_log);
     extremeopt.export_mesh(V, F, uv);
     for (int i = 0; i < 5; i++)
