@@ -75,6 +75,7 @@ if(NOT TARGET igl::core)
     option(LIBIGL_WITH_OPENGL_GLFW       "Use GLFW"                     ON)
     include(libigl)
 endif()
+igl_include(predicates)
 
 if(NOT TARGET spdlog)
     include(spdlog)
