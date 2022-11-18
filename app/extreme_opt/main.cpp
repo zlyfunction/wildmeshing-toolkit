@@ -161,7 +161,7 @@ int main(int argc, char** argv)
         {
             std::cout << "cant find A" << std::endl;
         }
-        int posC = std::find(new_bd.begin(), new_bd.end(), A) - new_bd.begin();
+        int posC = std::find(new_bd.begin(), new_bd.end(), C) - new_bd.begin();
         if (posC == new_bd.size())
         {
             std::cout << "cant find C" << std::endl;

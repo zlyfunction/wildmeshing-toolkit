@@ -32,7 +32,7 @@ target_compile_options(extreme_opt PRIVATE "-rdynamic")
 target_link_libraries(extreme_opt PUBLIC wmtk::extreme_opt)
 wmtk_copy_dll(extreme_opt)
 
-add_executable(viewer viewer.cpp)
-target_link_libraries(viewer igl::core igl::opengl igl::opengl_glfw)
+# add_executable(viewer viewer.cpp)
+# target_link_libraries(viewer igl::core igl::opengl igl::opengl_glfw)
 
 add_executable(test_json test_json.cpp)
