@@ -40,6 +40,22 @@ const double MAX_ENERGY = 1e50;
 double elen_threshold;
 double elen_threshold_3d;
 
+class TestOp:public Operation
+{
+    void execute(const Tuple& t, TriMesh& m)
+    {}
+
+    bool before_check(const Tuple& t, TriMesh& m)
+    {return true;}
+
+    bool after_check(const Tuple& t, TriMesh& m)
+    {
+        return true;
+    }
+    TestOp() {};
+    virtual ~TestOp(){};
+};
+
 ExtremeOpt() {};
 
 virtual ~ExtremeOpt() {};
