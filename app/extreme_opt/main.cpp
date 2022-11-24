@@ -78,6 +78,63 @@ double check_constraints(
     return ret;
 }
 
+bool uniform_upsample_with_cons(
+    const Eigen::MatrixXd &V,
+    const Eigen::MatrixXd &uv,
+    const Eigen::MatrixXi &F,
+    Eigen::MatrixXi &EE,
+    Eigen::MatrixXd &new_V,
+    Eigen::MatrixXd &new_uv,
+    Eigen::MatrixXi &new_F,
+    double eps = 1e-6
+)
+{
+    igl::upsample(V, F, new_V, new_F);
+    igl::upsample(uv, F, new_uv, new_F);
+
+    std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
+    std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
+    std::vector<std::vector<int>> new_bds;
+    igl::boundary_loop(new_F, new_bds);
+    auto new_bd = new_bds[0];
+    Eigen::MatrixXi new_EE(EE.rows() * 2, 4);
+    for (int i = 0; i < EE.rows(); i++)
+    {
+        int A = EE(i, 0);
+        int B = EE(i, 1);
+        int C = EE(i, 2);
+        int D = EE(i, 3);
+        int posA = std::find(new_bd.begin(), new_bd.end(), A) - new_bd.begin();
+        if (posA == new_bd.size())
+        {
+            std::cout << "cant find A" << std::endl;
+        }
+        int posC = std::find(new_bd.begin(), new_bd.end(), C) - new_bd.begin();
+        if (posC == new_bd.size())
+        {
+            std::cout << "cant find C" << std::endl;
+        }
+        int new_v_AB = new_bd[(posA+1) % new_bd.size()];
+        int new_v_CD = new_bd[(posC+1) % new_bd.size()];
+        new_EE.row(2 * i) << A, new_v_AB, new_v_CD, D;
+        new_EE.row(2 * i + 1) << new_v_AB, B, C, new_v_CD;
+    }
+    
+    Eigen::SparseMatrix<double> new_Aeq;
+    double new_cons_residual = check_constraints(new_EE, new_uv, new_F, new_Aeq);
+    wmtk::logger().info("constraints error after upsample {}", new_cons_residual);
+
+    if (new_cons_residual > eps)
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
+}
+
+
 int main(int argc, char** argv)
 {
     ZoneScopedN("extreme_opt_main");
@@ -141,41 +198,8 @@ int main(int argc, char** argv)
     std::cout << "try upsample constraints" << std::endl;
     Eigen::MatrixXi new_F;
     Eigen::MatrixXd new_V, new_uv;
-    igl::upsample(V, F, new_V, new_F);
-    igl::upsample(uv, F, new_uv, new_F);
-
-    std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
-    std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
-    std::vector<std::vector<int>> new_bds;
-    igl::boundary_loop(new_F, new_bds);
-    auto new_bd = new_bds[0];
-    Eigen::MatrixXi new_EE(EE.rows() * 2, 4);
-    for (int i = 0; i < EE.rows(); i++)
-    {
-        int A = EE(i, 0);
-        int B = EE(i, 1);
-        int C = EE(i, 2);
-        int D = EE(i, 3);
-        int posA = std::find(new_bd.begin(), new_bd.end(), A) - new_bd.begin();
-        if (posA == new_bd.size())
-        {
-            std::cout << "cant find A" << std::endl;
-        }
-        int posC = std::find(new_bd.begin(), new_bd.end(), C) - new_bd.begin();
-        if (posC == new_bd.size())
-        {
-            std::cout << "cant find C" << std::endl;
-        }
-        int new_v_AB = new_bd[(posA+1) % new_bd.size()];
-        int new_v_CD = new_bd[(posC+1) % new_bd.size()];
-        new_EE.row(2 * i) << A, new_v_AB, new_v_CD, D;
-        new_EE.row(2 * i + 1) << new_v_AB, B, C, new_v_CD;
-    }
     
-    Eigen::SparseMatrix<double> new_Aeq;
-    double new_cons_residual = check_constraints(new_EE, new_uv, new_F, new_Aeq);
-    wmtk::logger().info("constraints error after upsample{}", new_cons_residual); 
-    
+    uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     return 0;
     // Load the mesh in the trimesh class
     extremeopt::ExtremeOpt extremeopt;

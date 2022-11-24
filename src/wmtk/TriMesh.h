@@ -215,6 +215,71 @@ public:
         }
     };
 
+    class Operation
+    {
+    public:
+        virtual void execute(const TriMesh::Tuple& t, TriMesh& m) = 0;
+        bool before(const TriMesh::Tuple& t, TriMesh& m)
+        {
+            const bool val = before_check(t, m);
+            if (val) {
+                m.start_protect_attributes();
+            }
+
+            return val;
+        }
+
+        bool after(const TriMesh::Tuple& t, TriMesh& m)
+        {
+            const bool val = after_check(t, m);
+            if (!val) {
+                m.rollback_protected_attributes();
+            }
+            return val;
+        }
+
+        Operation() {}
+        virtual ~Operation() {}
+
+    protected:
+        virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) { return true; }
+        virtual bool after_check(const TriMesh::Tuple& t, TriMesh& m) { return true; }
+    };
+
+    class SplitEdge : public Operation
+    {
+    public:
+        void execute(const TriMesh::Tuple& t, TriMesh& m)
+        {
+            std::vector<TriMesh::Tuple> new_tris;
+            m.split_edge(t, new_tris);
+        }
+
+        bool before_check(const TriMesh::Tuple& t, TriMesh& m) { return m.split_edge_before(t); }
+
+        bool after_check(const TriMesh::Tuple& t, TriMesh& m) { return m.split_edge_after(t); }
+
+        SplitEdge(){};
+        virtual ~SplitEdge(){};
+    };
+
+    class CollapseEdge : public Operation
+    {
+    public:
+        void execute(const TriMesh::Tuple t, TriMesh& m)
+        {
+            std::vector<TriMesh::Tuple> new_tris;
+            m.collapse_edge(t, new_tris);
+        }
+
+        bool before_check(const TriMesh::Tuple& t, TriMesh& m) { return m.collapse_edge_before(t); }
+
+        bool after_check(const TriMesh::Tuple& t, TriMesh& m) { return m.collapse_edge_after(t); }
+
+        CollapseEdge(){};
+        virtual ~CollapseEdge(){};
+    };
+
     TriMesh() {}
     virtual ~TriMesh() {}
 
@@ -271,8 +336,10 @@ public:
     AbstractAttributeContainer* p_face_attrs = nullptr;
 
 private:
-    vector<VertexConnectivity> m_vertex_connectivity;
-    vector<TriangleConnectivity> m_tri_connectivity;
+// TODO: 
+    wmtk::AttributeCollection<VertexConnectivity> m_vertex_connectivity;
+    // vector<VertexConnectivity> m_vertex_connectivity;
+    // vector<TriangleConnectivity> m_tri_connectivity;
     std::atomic_long current_vert_size;
     std::atomic_long current_tri_size;
     tbb::spin_mutex vertex_connectivity_lock;
@@ -577,6 +644,8 @@ private:
         if (p_vertex_attrs) p_vertex_attrs->begin_protect();
         if (p_edge_attrs) p_edge_attrs->begin_protect();
         if (p_face_attrs) p_face_attrs->begin_protect();
+
+        //TODO: add connectivity
     }
     /**
      * @brief End the modification phase
