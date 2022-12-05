@@ -151,7 +151,7 @@ public:
          * @brief is the vertex removed
          *
          */
-        bool m_is_removed = false;
+        bool m_is_removed = true;
 
         inline size_t& operator[](const size_t index)
         {
@@ -182,7 +182,7 @@ public:
          * @brief is the triangle removed
          *
          */
-        bool m_is_removed = false;
+        bool m_is_removed = true;
         /**
          * @brief the hash is changed every time there is an operation that influences the
          * triangle
@@ -338,6 +338,7 @@ public:
 private:
 // TODO: 
     wmtk::AttributeCollection<VertexConnectivity> m_vertex_connectivity;
+    wmtk::AttributeCollection<TriangleConnectivity> m_tri_connectivity;
     // vector<VertexConnectivity> m_vertex_connectivity;
     // vector<TriangleConnectivity> m_tri_connectivity;
     std::atomic_long current_vert_size;
@@ -644,9 +645,17 @@ private:
         if (p_vertex_attrs) p_vertex_attrs->begin_protect();
         if (p_edge_attrs) p_edge_attrs->begin_protect();
         if (p_face_attrs) p_face_attrs->begin_protect();
-
-        //TODO: add connectivity
     }
+
+    /**
+     * @brief Start caching the connectivity that will be modified
+    */
+    void start_protect_connectivity()
+    {
+        m_vertex_connectivity.begin_protect();
+        m_tri_connectivity.begin_protect();
+    }
+
     /**
      * @brief End the modification phase
      *
@@ -657,6 +666,17 @@ private:
         if (p_edge_attrs) p_edge_attrs->end_protect();
         if (p_face_attrs) p_face_attrs->end_protect();
     }
+
+    /**
+     * @brief End Caching connectivity
+     * 
+    */
+   void release_protect_connectivity()
+   {
+        m_vertex_connectivity.end_protect();
+        m_tri_connectivity.end_protect();
+   }
+
     /**
      * @brief rollback the attributes that are modified if any condition failed
      *
@@ -666,6 +686,15 @@ private:
         if (p_vertex_attrs) p_vertex_attrs->rollback();
         if (p_edge_attrs) p_edge_attrs->rollback();
         if (p_face_attrs) p_face_attrs->rollback();
+    }
+
+    /**
+     * @brief rollback the connectivity that are modified if any condition failed
+    */
+    void rollback_protected_connectivity()
+    {
+        m_vertex_connectivity.rollback();
+        m_tri_connectivity.rollback();
     }
 
     // Moved code from concurrent TriMesh

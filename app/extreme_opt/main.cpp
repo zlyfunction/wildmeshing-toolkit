@@ -195,19 +195,28 @@ int main(int argc, char** argv)
     wmtk::logger().info("Boundary size: {}", Nv_bds);
     
     
-    std::cout << "try upsample constraints" << std::endl;
-    Eigen::MatrixXi new_F;
-    Eigen::MatrixXd new_V, new_uv;
+    // std::cout << "try upsample constraints" << std::endl;
+    // Eigen::MatrixXi new_F;
+    // Eigen::MatrixXd new_V, new_uv;
     
-    uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
-    return 0;
+    // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     // Load the mesh in the trimesh class
     extremeopt::ExtremeOpt extremeopt;
+    
     extremeopt.create_mesh(V,F,uv);
     extremeopt.m_params = param;
 
     
     assert(extremeopt.check_mesh_connectivity_validity());
+    
+    
+    // extremeopt.smooth_all_vertices();
+    // extremeopt.collapse_all_edges();
+    // extremeopt.smooth_all_vertices();
+    // extremeopt.collapse_all_edges();
+    // extremeopt.export_mesh(V, F, uv);
+    // return 0;
+
     // return 0;
 
 
