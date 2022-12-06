@@ -42,8 +42,8 @@ double elen_threshold_3d;
 
 class TestOp:public Operation
 {
-    void execute(const Tuple& t, TriMesh& m)
-    {}
+    bool execute(const Tuple& t, TriMesh& m, std::vector<Tuple> &new_tris)
+    {return true;}
 
     bool before_check(const Tuple& t, TriMesh& m)
     {return true;}

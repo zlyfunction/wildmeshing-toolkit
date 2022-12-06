@@ -173,7 +173,9 @@ struct ExecutePass
                 {"edge_collapse",
                  [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
                      std::vector<Tuple> ret;
-                     if (m.collapse_edge(t, ret))
+                     wmtk::TriMesh::CollapseEdge ce_op;
+                    //  if (m.collapse_edge(t, ret))
+                    if (ce_op.execute(t, m, ret))
                          return ret;
                      else
                          return {};
@@ -181,7 +183,9 @@ struct ExecutePass
                 {"edge_swap",
                  [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
                      std::vector<Tuple> ret;
-                     if (m.swap_edge(t, ret))
+                    //  if (m.swap_edge(t, ret))
+                     wmtk::TriMesh::SwapEdge se_op;
+                     if (se_op.execute(t, m, ret))
                          return ret;
                      else
                          return {};
@@ -189,14 +193,19 @@ struct ExecutePass
                 {"edge_split",
                  [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
                      std::vector<Tuple> ret;
-                     if (m.split_edge(t, ret))
+                    //  if (m.split_edge(t, ret))
+                     wmtk::TriMesh::SplitEdge se_op;
+                     if (se_op.execute(t, m, ret))    
                          return ret;
                      else
                          return {};
                  }},
                 {"vertex_smooth",
                  [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     if (m.smooth_vertex(t))
+                    std::vector<Tuple> ret;
+                    wmtk::TriMesh::SmoothVertex sv_op;
+                    //  if (m.smooth_vertex(t))
+                    if (sv_op.execute(t, m, ret))
                          return std::vector<Tuple>{};
                      else
                          return {};

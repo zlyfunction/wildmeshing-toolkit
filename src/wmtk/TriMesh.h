@@ -218,24 +218,29 @@ public:
     class Operation
     {
     public:
-        virtual void execute(const TriMesh::Tuple& t, TriMesh& m) = 0;
+        virtual bool execute(const TriMesh::Tuple& t, TriMesh& m, std::vector<TriMesh::Tuple> & new_tris){return true;}
+
         bool before(const TriMesh::Tuple& t, TriMesh& m)
         {
             const bool val = before_check(t, m);
             if (val) {
-                m.start_protect_attributes();
+                m.start_protect_connectivity();
             }
-
             return val;
         }
 
-        bool after(const TriMesh::Tuple& t, TriMesh& m)
+        bool after(const TriMesh::Tuple& t, TriMesh& m, std::vector<TriMesh::Tuple> &new_tris)
         {
+            m.start_protect_attributes();
             const bool val = after_check(t, m);
-            if (!val) {
+            if (!val || !m.invariants(new_tris)) {
+                m.rollback_protected_connectivity();
                 m.rollback_protected_attributes();
+                return false;
             }
-            return val;
+            m.release_protect_connectivity();
+            m.release_protect_attributes();
+            return true;
         }
 
         Operation() {}
@@ -249,10 +254,17 @@ public:
     class SplitEdge : public Operation
     {
     public:
-        void execute(const TriMesh::Tuple& t, TriMesh& m)
+        bool execute(const TriMesh::Tuple& t, TriMesh& m, std::vector<TriMesh::Tuple> &new_tris)
         {
-            std::vector<TriMesh::Tuple> new_tris;
-            m.split_edge(t, new_tris);
+            if (before(t, m))
+            {
+                auto new_t = m.split_edge_new(t, new_tris);
+                return after(new_t, m, new_tris);
+            }
+            else
+            {
+                return false;
+            }
         }
 
         bool before_check(const TriMesh::Tuple& t, TriMesh& m) { return m.split_edge_before(t); }
@@ -266,10 +278,18 @@ public:
     class CollapseEdge : public Operation
     {
     public:
-        void execute(const TriMesh::Tuple t, TriMesh& m)
+        bool execute(const TriMesh::Tuple t, TriMesh& m, std::vector<TriMesh::Tuple> &new_tris)
         {
-            std::vector<TriMesh::Tuple> new_tris;
-            m.collapse_edge(t, new_tris);
+            if (before(t, m))
+            {
+                auto new_t = m.collapse_edge_new(t, new_tris);
+                return after(new_t, m, new_tris);
+            }
+            else
+            {
+                return false;
+            }
+            
         }
 
         bool before_check(const TriMesh::Tuple& t, TriMesh& m) { return m.collapse_edge_before(t); }
@@ -278,6 +298,51 @@ public:
 
         CollapseEdge(){};
         virtual ~CollapseEdge(){};
+    };
+
+    class SwapEdge : public Operation
+    {
+    public:
+        bool execute(const TriMesh::Tuple t, TriMesh& m, std::vector<TriMesh::Tuple> &new_tris)
+        {
+            if (before(t, m))
+            {
+                auto new_t = m.swap_edge_new(t, new_tris);
+                return after(new_t, m, new_tris);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        bool before_check(const TriMesh::Tuple& t, TriMesh& m) {return m.swap_edge_before(t);}
+        bool after_check(const TriMesh::Tuple& t, TriMesh& m) {return m.swap_edge_after(t);}
+
+        SwapEdge(){};
+        virtual ~SwapEdge(){};
+    };
+
+    class SmoothVertex : public Operation
+    {
+    public:
+        bool execute(const TriMesh::Tuple t, TriMesh& m, std::vector<TriMesh::Tuple> &new_tris)
+        {
+            if (before(t, m))
+            {
+                return after(t, m, new_tris);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        bool before_check(const TriMesh::Tuple& t, TriMesh& m) {return m.smooth_before(t);}
+        bool after_check(const TriMesh::Tuple& t, TriMesh& m) {return m.smooth_after(t);}
+
+        SmoothVertex(){};
+        virtual ~SmoothVertex(){};
     };
 
     TriMesh() {}
@@ -510,6 +575,7 @@ public:
      * @return if split succeed
      */
     bool split_edge(const Tuple& t, std::vector<Tuple>& new_t);
+    Tuple split_edge_new(const Tuple& t, std::vector<Tuple>& new_t);
 
     /**
      * Collapse an edge
@@ -521,6 +587,7 @@ public:
      * @return if collapse succeed
      */
     bool collapse_edge(const Tuple& t, std::vector<Tuple>& new_t);
+    Tuple collapse_edge_new(const Tuple& t, std::vector<Tuple>& new_t);
 
     /**
      * Swap an edge
@@ -532,6 +599,8 @@ public:
      * @return if swap succeed
      */
     bool swap_edge(const Tuple& t, std::vector<Tuple>& new_t);
+    Tuple swap_edge_new(const Tuple &t, std::vector<Tuple>& new_t);
+
 
     /**
      * Smooth a vertex
@@ -541,7 +610,6 @@ public:
      * @return if smooth succeed
      */
     bool smooth_vertex(const Tuple& t);
-
     /**
      * @brief Count the number of the one ring tris for a vertex
      *
