@@ -52,6 +52,21 @@ void ExtremeOpt::create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F,
     }
 }
 
+void ExtremeOpt::init_constraints(const std::vector<std::vector<int>> &EE_e)
+{
+    p_edge_attrs = &edge_attrs;
+    edge_attrs.resize(tri_capacity() * 3);
+    for (int i = 0; i < EE_e.size(); i++)
+    {
+        auto t1 = tuple_from_edge(EE_e[i][0], EE_e[i][1]);
+        auto t2 = tuple_from_edge(EE_e[i][2], EE_e[i][3]);
+        int eid1 = t1.eid(*this);
+        int eid2 = t2.eid(*this);
+        edge_attrs[eid1].pair = t1;
+        edge_attrs[eid2].pair = t2;
+    }
+}
+
 void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv)
 {   
     consolidate_mesh();

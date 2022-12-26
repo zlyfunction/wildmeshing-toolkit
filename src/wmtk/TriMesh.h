@@ -247,8 +247,8 @@ public:
         virtual ~Operation() {}
 
     protected:
-        virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) { return true; }
-        virtual bool after_check(const TriMesh::Tuple& t, TriMesh& m) { return true; }
+        virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) { std::cout << "before error" << std::endl; return true; }
+        virtual bool after_check(const TriMesh::Tuple& t, TriMesh& m) { std::cout << "after error" << std::endl; return true; }
     };
 
     class SplitEdge : public Operation
@@ -282,7 +282,9 @@ public:
         {
             if (before(t, m))
             {
+                // std::cout << "here" << t.eid(m) << std::endl;
                 auto new_t = m.collapse_edge_new(t, new_tris);
+                // std::cout << "new_tris.size()" << new_tris.size() << std::endl;
                 return after(new_t, m, new_tris);
             }
             else
@@ -703,7 +705,8 @@ public:
         return Tuple(vid, local_eid, fid, *this);
     }
 
-private:
+// private:
+protected:
     /**
      * @brief Start the phase where the attributes that will be modified can be recorded
      *

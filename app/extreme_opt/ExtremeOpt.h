@@ -28,6 +28,12 @@ public:
     double area_3d;
 };
 
+class EdgeAttributes
+{
+public:
+    wmtk::TriMesh::Tuple pair;    
+};
+
 class ExtremeOpt : public wmtk::TriMesh
 {
 public:
@@ -40,20 +46,57 @@ const double MAX_ENERGY = 1e50;
 double elen_threshold;
 double elen_threshold_3d;
 
-class TestOp:public Operation
+class CollapsePair:public wmtk::TriMesh::Operation
 {
-    bool execute(const Tuple& t, TriMesh& m, std::vector<Tuple> &new_tris)
-    {return true;}
-
-    bool before_check(const Tuple& t, TriMesh& m)
-    {return true;}
-
-    bool after_check(const Tuple& t, TriMesh& m)
+public:
+    bool before(const TriMesh::Tuple& t, ExtremeOpt& m)
     {
+        const bool val = before_check(t, m);
+        if (val) {
+            m.start_protect_connectivity();
+        }
+        return val;
+    }
+
+    bool after(const TriMesh::Tuple& t, ExtremeOpt& m, std::vector<TriMesh::Tuple> &new_tris)
+    {
+        m.start_protect_attributes();
+        const bool val = after_check(t, m);
+        if (!val || !m.invariants(new_tris)) {
+            m.rollback_protected_connectivity();
+            m.rollback_protected_attributes();
+            return false;
+        }
+        m.release_protect_connectivity();
+        m.release_protect_attributes();
         return true;
     }
-    TestOp() {};
-    virtual ~TestOp(){};
+
+    bool execute(const Tuple& t, ExtremeOpt& m, std::vector<Tuple> &new_tris)
+    {
+        if (before(t, m))
+            {
+                auto new_t = m.collapse_edge_new(t, new_tris);
+                // m.collapse_edge_new(m.edge_attrs[t.eid(m)].pair, new_tris);
+                return after(new_t, m, new_tris);
+            }
+            else
+            {
+                return false;
+            }
+    }
+
+    bool before_check(const Tuple& t, ExtremeOpt& m) 
+    {
+        return m.collapse_edge_before(t); 
+    }
+
+    bool after_check(const Tuple& t, ExtremeOpt& m) 
+    {
+        return m.collapse_edge_after(t);
+    }
+    CollapsePair() {};
+    virtual ~CollapsePair(){};
 };
 
 ExtremeOpt() {};
@@ -64,6 +107,7 @@ virtual ~ExtremeOpt() {};
 // Store the per-vertex and per-face attributes
 wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
 wmtk::AttributeCollection<FaceAttributes> face_attrs;
+wmtk::AttributeCollection<EdgeAttributes> edge_attrs;
 
 struct PositionInfoCache
 {
@@ -77,6 +121,9 @@ tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
 // Initializes the mesh
 void create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv);
+
+// Initialize the mesh with constraints
+void init_constraints(const std::vector<std::vector<int>> &EE_e);
 
 // Exports V and F of the stored mesh
 void export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv);

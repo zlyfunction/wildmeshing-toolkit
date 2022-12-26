@@ -173,12 +173,10 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) 
     {
-        // std::cout << "not valid" << std::endl;
         return false;
     }
     if (!wmtk::TriMesh::collapse_edge_before(t)) 
     {
-        // std::cout << "link cond fail" << std::endl;
         return false;
     }
     // if (vertex_attrs[t.vid(*this)].fixed || vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
@@ -190,8 +188,9 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 {
     const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
     const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
-    // const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V1) / 2.0;
-    // const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv1) / 2.0;
+    // const Eigen::Vector3d V = position_cache.local().V1;
+    // const Eigen::Vector2d uv = position_cache.local().uv1;
+   
     auto vid = t.vid(*this);
     vertex_attrs[vid].pos_3d = V;
     vertex_attrs[vid].pos = uv;
@@ -611,7 +610,8 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
     auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
     for (auto& loc : get_edges())
     {
-        collect_all_ops_collapse.emplace_back("edge_collapse", loc);
+        // collect_all_ops_collapse.emplace_back("edge_collapse", loc);
+        collect_all_ops_collapse.emplace_back("test_op", loc);
     }
     auto setup_and_execute = [&](auto& executor_collapse) {
         executor_collapse.renew_neighbor_tuples = renew;
@@ -624,7 +624,21 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
         executor_collapse(*this, collect_all_ops_collapse);
         // TODO: priority queue (edge length)
     };
-    auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    std::map<Op,std::function<std::optional<std::vector<Tuple>>(ExtremeOpt&, const Tuple&)>> test_op = {
+                {"test_op",
+                 [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
+                     std::vector<Tuple> ret;
+                    //  CollapseEdge ce_op;
+
+                     ExtremeOpt::CollapsePair ce_op;
+                    //  if (m.collapse_edge(t, ret))
+                    if (ce_op.execute(t, m, ret))
+                         return ret;
+                     else
+                         return {};
+                 }}}
+                 ;
+    auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>(test_op);
     setup_and_execute(executor_collapse);
 }
 
@@ -691,17 +705,17 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
         }
 
         // do smoothing
-timer.start();
-        smooth_all_vertices();
-time = timer.getElapsedTime();
-        wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-        export_mesh(V, F, uv);
-        get_grad_op(V, F, G_global);
-        igl::doublearea(V, F, dblarea);
-        E = compute_energy(uv);
-        E_max = compute_energy_max(uv);
-        wmtk::logger().info("After smoothing {}, E = {}", i, E);
-        wmtk::logger().info("E_max = {}", E_max);
+// timer.start();
+//         smooth_all_vertices();
+// time = timer.getElapsedTime();
+//         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+//         export_mesh(V, F, uv);
+//         get_grad_op(V, F, G_global);
+//         igl::doublearea(V, F, dblarea);
+//         E = compute_energy(uv);
+//         E_max = compute_energy_max(uv);
+//         wmtk::logger().info("After smoothing {}, E = {}", i, E);
+//         wmtk::logger().info("E_max = {}", E_max);
 
         // do swaping
 

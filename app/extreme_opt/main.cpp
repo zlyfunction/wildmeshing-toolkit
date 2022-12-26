@@ -78,6 +78,64 @@ double check_constraints(
     return ret;
 }
 
+bool find_edge_in_F(
+    const Eigen::MatrixXi &F,
+    int v0, int v1,
+    int &fid, int &eid
+)
+{
+    fid = -1; eid = -1;
+    for (int i = 0; i < F.rows(); i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            if (F(i, j) == v0 && F(i, (j+1)%3) == v1)
+            {
+                fid = i; eid = 3 - j - ((j + 1)%3);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+void transform_EE(
+    const Eigen::MatrixXi &F,
+    const Eigen::MatrixXi &EE_v,
+    std::vector<std::vector<int>> &EE_e
+)
+{
+    EE_e.resize(EE_v.rows());
+    for (int i = 0; i < EE_v.rows(); i++)
+    {
+        std::vector<int> one_row;
+        int v0 = EE_v(i, 0), v1 = EE_v(i, 1);
+        int fid, eid;
+        if (find_edge_in_F(F, v0, v1, fid, eid))
+        {
+            one_row.push_back(fid);
+            one_row.push_back(eid);
+            // one_row.push_back(3 * fid + eid);
+        }
+        else
+        {
+            std::cout << "Something Wrong in transform_EE: edge not found in F" << std::endl;
+        }
+
+        v0 = EE_v(i,2); v1 = EE_v(i,3);
+        if (find_edge_in_F(F, v0, v1, fid, eid))
+        {
+            one_row.push_back(fid);
+            one_row.push_back(eid);
+            // one_row.push_back(3 * fid + eid);
+        }
+        else
+        {
+            std::cout << "Something Wrong in transform_EE: edge not found in F" << std::endl;
+        }
+        EE_e[i] = one_row;
+    }
+}
+
 bool uniform_upsample_with_cons(
     const Eigen::MatrixXd &V,
     const Eigen::MatrixXd &uv,
@@ -159,6 +217,7 @@ int main(int argc, char** argv)
     Eigen::MatrixXi F;
     igl::readOBJ(input_file, V, uv, uv, F, F, F);
     wmtk::logger().info("Input mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+
     // Loading the seamless boundary constraints
     Eigen::MatrixXi EE;
     int EE_rows;
@@ -170,10 +229,10 @@ int main(int argc, char** argv)
         EE_in >> EE(i, 0) >> EE(i, 1) >> EE(i, 2) >> EE(i, 3);
     }
     wmtk::logger().info("Input EE size {}", EE.rows());
-
     Eigen::SparseMatrix<double> Aeq;
     double cons_residual = check_constraints(EE, uv, F, Aeq);
     wmtk::logger().info("Initial constraints error {}", cons_residual); 
+
     std::ifstream js_in(input_json); json config = json::parse(js_in);
     param.max_iters     = config["max_iters"];
     param.E_target      = config["E_target"];
@@ -198,31 +257,24 @@ int main(int argc, char** argv)
     // std::cout << "try upsample constraints" << std::endl;
     // Eigen::MatrixXi new_F;
     // Eigen::MatrixXd new_V, new_uv;
-    
     // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     // Load the mesh in the trimesh class
+
     extremeopt::ExtremeOpt extremeopt;
-    
     extremeopt.create_mesh(V,F,uv);
     extremeopt.m_params = param;
-
-    
+    std::vector<std::vector<int>> EE_e;
+    transform_EE(F, EE, EE_e);
+    extremeopt.init_constraints(EE_e);
     assert(extremeopt.check_mesh_connectivity_validity());
     
     
-    // extremeopt.smooth_all_vertices();
-    // extremeopt.collapse_all_edges();
-    // extremeopt.smooth_all_vertices();
-    // extremeopt.collapse_all_edges();
-    // extremeopt.export_mesh(V, F, uv);
-    // return 0;
-
-    // return 0;
-
-
     extremeopt.do_optimization(opt_log);
     extremeopt.export_mesh(V, F, uv);
-    for (int i = 0; i < 5; i++)
+
+    // return 0;
+    
+    for (int i = 0; i < 4; i++)
     {
         std::cout << "do upsample" << std::endl;
         Eigen::MatrixXi new_F;
