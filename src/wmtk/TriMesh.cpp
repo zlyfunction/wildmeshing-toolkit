@@ -17,7 +17,6 @@ using namespace wmtk;
 
 void TriMesh::Tuple::update_hash(const TriMesh& m)
 {
-    assert(is_valid(m));
     assert(m_fid < m.m_tri_connectivity.size());
     m_hash = m.m_tri_connectivity[m_fid].hash;
 }
@@ -157,11 +156,21 @@ std::optional<TriMesh::Tuple> TriMesh::Tuple::switch_face(const TriMesh& m) cons
 
 bool TriMesh::Tuple::is_valid(const TriMesh& m) const
 {
-    if (m_fid + 1 == 0) return false;
-    if (m.m_vertex_connectivity[m_vid].m_is_removed || m.m_tri_connectivity[m_fid].m_is_removed) {
-        // assert(false);
+    assert(m_fid < m.m_tri_connectivity.size());
+    assert(m_vid < m.m_vertex_connectivity.size());
+
+    if (m_fid + 1 == 0) {
         return false;
     }
+
+    if (m.m_vertex_connectivity[m_vid].m_is_removed) {
+        return false;
+    } 
+
+    if(m.m_tri_connectivity[m_fid].m_is_removed) {
+        return false;
+    }
+
     // Condition 3: tuple m_hash check
     if (m_hash != m.m_tri_connectivity[m_fid].hash) {
         // assert(false);
