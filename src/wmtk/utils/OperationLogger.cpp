@@ -1,4 +1,4 @@
-#include <wmtk/OperationLogger.h>
+#include <wmtk/utils/OperationLogger.h>
 #include <wmtk/TriMesh.h>
 #include <nlohmann/json.hpp>
 #include <ostream>
@@ -16,7 +16,7 @@ void OperationLogger::log(
 {
     nlohmann::json js;
     js["operation"] = cmd;
-    js["tuple"] = {tuple.vid(m), tuple.eid(m), tuple.fid(m)};
+    js["tuple"] = {tuple.vid(m), tuple.local_eid(m), tuple.fid(m)};
 
     { // only lock the mutex when we output to the output stream
         tbb::mutex::scoped_lock lock(output_mutex);

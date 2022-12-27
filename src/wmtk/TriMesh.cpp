@@ -2,7 +2,7 @@
 #include <igl/writeDMAT.h>
 #include <wmtk/TriMesh.h>
 #include <wmtk/AttributeCollection.hpp>
-#include <wmtk/OperationLogger.h>
+#include <wmtk/utils/OperationLogger.h>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TupleUtils.hpp>
 #include "wmtk/utils/VectorUtils.h"

@@ -136,11 +136,13 @@ public:
          * @return std::array<Tuple, 3> each tuple owns a different vertex.
          */
         std::array<Tuple, 3> oriented_tri_vertices(const TriMesh& m) const;
+
+        std::tuple<const size_t,const size_t,const size_t,const size_t> as_stl_tuple() const {
+            return std::tie(m_vid, m_eid, m_fid, m_hash);
+        }
         friend bool operator<(const Tuple& a, const Tuple& t)
         {
-            return (
-                std::tie(a.m_vid, a.m_eid, a.m_fid, a.m_hash) <
-                std::tie(t.m_vid, t.m_eid, t.m_fid, t.m_hash));
+            return a.as_stl_tuple() < t.as_stl_tuple();
         }
     };
 
