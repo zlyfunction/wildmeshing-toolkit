@@ -22,6 +22,8 @@
 
 namespace wmtk {
 
+class OperationLogger;
+
 class TriMesh
 {
 public:
@@ -277,6 +279,8 @@ public:
     AbstractAttributeContainer* p_vertex_attrs = nullptr;
     AbstractAttributeContainer* p_edge_attrs = nullptr;
     AbstractAttributeContainer* p_face_attrs = nullptr;
+
+    OperationLogger* p_operation_logger = nullptr;
 
 private:
     vector<VertexConnectivity> m_vertex_connectivity;

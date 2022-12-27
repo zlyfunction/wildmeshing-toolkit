@@ -2,6 +2,7 @@
 #include <igl/writeDMAT.h>
 #include <wmtk/TriMesh.h>
 #include <wmtk/AttributeCollection.hpp>
+#include <wmtk/OperationLogger.h>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TupleUtils.hpp>
 #include "wmtk/utils/VectorUtils.h"
@@ -16,6 +17,8 @@ using namespace wmtk;
 
 void TriMesh::Tuple::update_hash(const TriMesh& m)
 {
+    assert(is_valid(m));
+    assert(m_fid < m.m_tri_connectivity.size());
     m_hash = m.m_tri_connectivity[m_fid].hash;
 }
 
@@ -367,6 +370,12 @@ bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
         rollback_protected_attributes();
         return false;
     }
+
+    // If the operation logger exists then log
+    if (p_operation_logger) {
+        p_operation_logger->log(*this,"edge_split", t);
+    }
+
     release_protect_attributes();
     return true;
 }
@@ -527,6 +536,12 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
         rollback_protected_attributes();
         return false;
     }
+
+    // If the operation logger exists then log
+    if (p_operation_logger) {
+        p_operation_logger->log(*this,"edge_collapse", loc0);
+    }
+
     release_protect_attributes();
     return true;
 }
@@ -603,6 +618,12 @@ bool TriMesh::swap_edge(const Tuple& t, std::vector<Tuple>& new_tris)
 
         return false;
     }
+
+    // If the operation logger exists then log
+    if (p_operation_logger) {
+        p_operation_logger->log(*this,"edge_swap", t);
+    }
+
     release_protect_attributes();
     return true;
 }
@@ -616,6 +637,13 @@ bool TriMesh::smooth_vertex(const Tuple& loc0)
         rollback_protected_attributes();
         return false;
     }
+
+
+    // If the operation logger exists then log
+    if (p_operation_logger) {
+        p_operation_logger->log(*this,"vertex_smooth", loc0);
+    }
+
     release_protect_attributes();
     return true;
 }

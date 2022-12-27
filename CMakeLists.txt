@@ -33,6 +33,7 @@ include(wmtk_colors)
 include(wmtk_warnings)
 include(wmtk_copy_dll)
 include(tracy)
+include(nlohmann_json)
 
 # Sort projects inside the solution
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -95,6 +96,7 @@ target_link_libraries(wildmeshing_toolkit PUBLIC
     metis::metis
     lagrange::core
     Tracy::TracyClient
+    nlohmann_json::nlohmann_json
 )
 
 # ###############################################################################
