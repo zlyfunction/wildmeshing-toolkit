@@ -23,6 +23,8 @@
 namespace wmtk {
 
 class OperationLogger;
+class OperationRecorder;
+
 
 class TriMesh
 {
@@ -39,7 +41,7 @@ public:
         void update_hash(const TriMesh& m);
 
     public:
-        void print_info();
+        void print_info() const;
 
         //         v2        /
         //       /    \      /
@@ -137,7 +139,8 @@ public:
          */
         std::array<Tuple, 3> oriented_tri_vertices(const TriMesh& m) const;
 
-        std::tuple<const size_t,const size_t,const size_t,const size_t> as_stl_tuple() const {
+        std::tuple<size_t, size_t, size_t, size_t> as_stl_tuple() const
+        {
             return std::tie(m_vid, m_eid, m_fid, m_hash);
         }
         friend bool operator<(const Tuple& a, const Tuple& t)
@@ -227,8 +230,8 @@ public:
         }
     };
 
-    TriMesh() {}
-    virtual ~TriMesh() {}
+    TriMesh();
+    virtual ~TriMesh();
 
     /**
      * Generate the connectivity of the mesh
@@ -294,6 +297,8 @@ private:
     bool vertex_connectivity_synchronizing_flag = false;
     bool tri_connectivity_synchronizing_flag = false;
     int MAX_THREADS = 128;
+
+    tbb::enumerable_thread_specific<std::weak_ptr<OperationRecorder>> p_operation_recorder{{}};
     /**
      * @brief Get the next avaiblie global index for the triangle
      *

@@ -492,26 +492,11 @@ TEST_CASE("split_operation", "[test_2d_operation]")
 
 TEST_CASE("replay_operations", "[test_2d_operation]")
 {
-    TriMesh m;
+    ExecutePass<TriMesh, ExecutionPolicy::kSeq> scheduler;
 
 
-    // note this doesn't fix deleted element state
-    auto copy_tri_mesh = [](const TriMesh& source, TriMesh& destination) {
-        auto face_tuples = source.get_faces();
-        std::vector<std::array<size_t, 3>> faces;
-        faces.reserve(face_tuples.size());
-        std::transform(
-            face_tuples.begin(),
-            face_tuples.end(),
-            std::back_inserter(faces),
-            [&](const TriMesh::Tuple& tup) -> std::array<size_t, 3> {
-                return source.oriented_tri_vids(tup);
-            });
 
-        destination.create_mesh(source.vert_capacity(), faces);
-    };
-
-    auto edge_vids = [&](const TriMesh::Tuple& edge) -> std::array<size_t, 2> {
+    auto edge_vids = [&](const TriMesh& m, const TriMesh::Tuple& edge) -> std::array<size_t, 2> {
         std::array<size_t, 2> ret;
         ret[0] = edge.vid(m);
         TriMesh::Tuple other = edge.switch_vertex(m);
@@ -519,7 +504,8 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
         return ret;
     };
 
-    auto check_vertex_indices = [&](const TriMesh::Tuple& tuple, const std::set<size_t>& expected) {
+
+    auto check_vertex_indices = [&](const TriMesh& m, const TriMesh::Tuple& tuple, const std::set<size_t>& expected) {
         REQUIRE(tuple.is_valid(m));
         int size = expected.size();
         std::set<size_t> orig;
@@ -527,7 +513,7 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
             auto tri_vids = m.oriented_tri_vids(tuple);
             orig = {tri_vids.begin(), tri_vids.end()};
         } else if (size == 2) {
-            auto e_vids = edge_vids(tuple);
+            auto e_vids = edge_vids(m,tuple);
             orig = {e_vids.begin(), e_vids.end()};
         }
         REQUIRE(orig == expected);
@@ -540,16 +526,22 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
         for (size_t j = 0; j < a_face_tuples.size(); ++j) {
             const auto& a_tup = a_face_tuples[j];
             const auto& b_tup = b_face_tuples[j];
-            REQUIRE(a_tup.as_stl_tuple() == b_tup.as_stl_tuple());
+            auto [a_vid, a_eid, a_fid, a_hash] = a_tup.as_stl_tuple();
+            auto [b_vid, b_eid, b_fid, b_hash] = b_tup.as_stl_tuple();
+            CHECK(a_vid == b_vid);
+            CHECK(a_eid == b_eid);
+            CHECK(a_fid == b_fid);
         }
     };
 
     std::vector<std::array<size_t, 3>> tris = {{{0, 1, 2}}, {{3, 1, 0}}};
-    m.create_mesh(4, tris);
 
     TriMesh initial_mesh;
-    copy_tri_mesh(m, initial_mesh);
+    initial_mesh.create_mesh(4, tris);
 
+    // the mesh that will eventaully become the resulting mesh we hope to replay
+    TriMesh final_mesh;
+    final_mesh.create_mesh(4, tris);
 
     {
         // 0-----2
@@ -559,32 +551,33 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
         // |   \ |
         // |    \|
         // 3-----1
-        auto face_tuples = m.get_faces();
+        auto face_tuples = final_mesh.get_faces();
         REQUIRE(face_tuples.size() == 2);
-        check_vertex_indices(face_tuples[0], {0, 1, 2});
-        check_vertex_indices(face_tuples[1], {0, 1, 3});
+        check_vertex_indices(final_mesh, face_tuples[0], {0, 1, 2});
+        check_vertex_indices(final_mesh, face_tuples[1], {0, 1, 3});
     }
 
 
     // We will simultaneously track operations and run them to validate the logger
-    std::vector<std::pair<std::string, TriMesh::Tuple>> operations;
 
     std::stringstream output;
     OperationLogger op_logger(output);
 
+    std::vector<std::pair<std::string, TriMesh::Tuple>> recorded_operations;
 
-    m.p_operation_logger = &op_logger;
-    // record do a flip, split, and then collapse
+    final_mesh.p_operation_logger = &op_logger;
+    //  record do a flip, split, and then collapse
     SECTION("logging_operations")
     {
-        TriMesh::Tuple edge(0, 2, 0, m);
+        std::vector<std::pair<std::string, TriMesh::Tuple>> operations;
+        TriMesh::Tuple edge(0, 2, 0, final_mesh);
 
-        std::vector<TriMesh::Tuple> dummy;
 
 
-        REQUIRE(edge.is_valid(m));
-        REQUIRE(m.swap_edge(edge, dummy));
-        operations.emplace_back("edge_swap", edge);
+        REQUIRE(edge.is_valid(final_mesh));
+        std::string op_name = "edge_swap";
+        scheduler.edit_operation_maps[op_name](final_mesh, edge);
+        operations.emplace_back(op_name, edge);
         {
             // 0-----2
             // |    /|
@@ -593,21 +586,21 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
             // | /   |
             // |/    |
             // 3-----1
-            auto face_tuples = m.get_faces();
+            auto face_tuples = final_mesh.get_faces();
             REQUIRE(face_tuples.size() == 2);
-            check_vertex_indices(face_tuples[0], {0, 2, 3});
-            check_vertex_indices(face_tuples[1], {1, 2, 3});
+            check_vertex_indices(final_mesh, face_tuples[0], {0, 2, 3});
+            check_vertex_indices(final_mesh, face_tuples[1], {1, 2, 3});
         }
 
 
         // flip the 2,3 edge
-        edge = TriMesh::Tuple(2, 0, 0, m);
-        edge.print_info();
-        REQUIRE(edge.is_valid(m));
-        check_vertex_indices(edge, {2, 3});
+        edge = TriMesh::Tuple(2, 0, 0, final_mesh);
+        REQUIRE(edge.is_valid(final_mesh));
+        check_vertex_indices(final_mesh, edge, {2, 3});
 
-        REQUIRE(m.split_edge(edge, dummy));
-        operations.emplace_back("edge_split", edge);
+        op_name = "edge_split";
+        scheduler.edit_operation_maps[op_name](final_mesh, edge);
+        operations.emplace_back(op_name, edge);
         {
             // 0-----2
             // |\   /|
@@ -616,23 +609,23 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
             // | / \ |
             // |/   \|
             // 3-----1
-            auto face_tuples = m.get_faces();
+            auto face_tuples = final_mesh.get_faces();
             REQUIRE(face_tuples.size() == 4);
-            check_vertex_indices(face_tuples[0], {0, 4, 2});
-            check_vertex_indices(face_tuples[1], {4, 1, 2});
-            check_vertex_indices(face_tuples[2], {0, 3, 4});
-            check_vertex_indices(face_tuples[3], {3, 1, 4});
+            check_vertex_indices(final_mesh, face_tuples[0], {0, 4, 2});
+            check_vertex_indices(final_mesh, face_tuples[1], {4, 1, 2});
+            check_vertex_indices(final_mesh, face_tuples[2], {0, 3, 4});
+            check_vertex_indices(final_mesh, face_tuples[3], {3, 1, 4});
         }
 
 
         // collapse 4 into 2
-        edge = TriMesh::Tuple(2, 0, 0, m);
-        edge.print_info();
-        REQUIRE(edge.is_valid(m));
-        check_vertex_indices(edge, {2, 4});
+        edge = TriMesh::Tuple(2, 0, 0, final_mesh);
+        REQUIRE(edge.is_valid(final_mesh));
+        check_vertex_indices(final_mesh, edge, {2, 4});
 
-        REQUIRE(m.collapse_edge(edge, dummy));
-        operations.emplace_back("collapse_edge", edge);
+        op_name = "edge_collapse";
+        scheduler.edit_operation_maps[op_name](final_mesh, edge);
+        operations.emplace_back(op_name, edge);
         {
             // 0      .
             // |\     .
@@ -642,50 +635,53 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
             // |/   \ .
             // 3-----1
             // (dots are to remove multi-line comment warnings)
-            auto face_tuples = m.get_faces();
+            auto face_tuples = final_mesh.get_faces();
             REQUIRE(face_tuples.size() == 2);
-            check_vertex_indices(face_tuples[0], {0, 3, 5});
-            check_vertex_indices(face_tuples[1], {1, 3, 5});
+            check_vertex_indices(final_mesh, face_tuples[0], {0, 3, 5});
+            check_vertex_indices(final_mesh, face_tuples[1], {1, 3, 5});
         }
-    }
-
-    TriMesh final_mesh;
-    copy_tri_mesh(m, final_mesh);
+        REQUIRE(operations.size() == 3);
 
 
-    copy_tri_mesh(initial_mesh, m);
 
-    std::vector<std::pair<std::string, TriMesh::Tuple>> recorded_operations;
-    SECTION("logged operations")
-    {
         for (std::string line; std::getline(output, line);) {
             nlohmann::json js = nlohmann::json::parse(line);
+            //std::cout << "JSON:" << js << std::endl;
 
             auto& [op_name, tup] = recorded_operations.emplace_back();
             const auto& arr = js["tuple"];
             REQUIRE(arr.size() == 3);
-            tup = TriMesh::Tuple(arr[0], arr[1], arr[2], m);
+            tup = TriMesh::Tuple(arr[0], arr[1], arr[2], final_mesh);
             op_name = js["operation"];
         }
-
-
         REQUIRE(operations.size() == recorded_operations.size());
+        REQUIRE(3 == recorded_operations.size());
+
         for (size_t j = 0; j < operations.size(); ++j) {
             const auto& [op, tup] = operations[j];
             const auto& [rec_op, rec_tup] = recorded_operations[j];
+
             CHECK(op == rec_op);
-            CHECK(tup.as_stl_tuple() == rec_tup.as_stl_tuple());
+            auto [vid, eid, fid, hash] = tup.as_stl_tuple();
+            auto [rec_vid, rec_eid, rec_fid, rec_hash] = rec_tup.as_stl_tuple();
+            CHECK(vid == rec_vid);
+            CHECK(eid == rec_eid);
+            CHECK(fid == rec_fid);
         }
-
-        ExecutePass<TriMesh, ExecutionPolicy::kSeq> scheduler;
-        scheduler(m, recorded_operations);
-
-        check_face_equality(m, final_mesh);
     }
 
-
-    SECTION("replay")
+    SECTION("replay the old operations");
     {
-        // TODO:
+        TriMesh m;
+        m.create_mesh(4, tris);
+
+        for (const auto& [op_name, tup] : recorded_operations) {
+
+            TriMesh::Tuple run_tup(tup.vid(m), tup.local_eid(m), tup.fid(m), m);
+            REQUIRE(run_tup.is_valid(m));
+            scheduler.edit_operation_maps[op_name](m, run_tup);
+        }
+
+        check_face_equality(m, final_mesh);
     }
 }
