@@ -415,6 +415,13 @@ public:
         std::vector<size_t>& new_center_vids,
         std::vector<std::array<size_t, 4>>& center_split_tets);
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
     /**
      * @brief Insert a point into a tetmesh inside a tet.
      * In general position, this split a tet into 4.
@@ -631,6 +638,11 @@ protected:
 
     // virtual void resize_vertex_mutex(size_t v) {}
 
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
+#pragma GCC diagnostic pop
+#endif
 public:
     /**
      * @brief get a Tuple from global tetra index and __local__ edge index (from 0-5).
