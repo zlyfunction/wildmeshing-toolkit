@@ -114,9 +114,9 @@ TEST_CASE("random 10 switches on 2 traingles", "[tuple_operation]")
     SECTION("test all tuples generated using vertices")
     {
         auto vertices_tuples = m.get_vertices();
-        for (int i = 0; i < vertices_tuples.size(); i++) {
+        for (size_t i = 0; i < vertices_tuples.size(); i++) {
             TriMesh::Tuple v_tuple = vertices_tuples[i];
-            for (int j = 0; j < 10; j++) {
+            for (size_t j = 0; j < 10; j++) {
                 size_t test = rand() % 3;
                 switch (test) {
                 case 0: v_tuple = v_tuple.switch_vertex(m); break;
@@ -132,9 +132,9 @@ TEST_CASE("random 10 switches on 2 traingles", "[tuple_operation]")
     SECTION("test all tuples generated using edges")
     {
         auto edges_tuples = m.get_edges();
-        for (int i = 0; i < edges_tuples.size(); i++) {
+        for (size_t i = 0; i < edges_tuples.size(); i++) {
             TriMesh::Tuple e_tuple = edges_tuples[i];
-            for (int j = 0; j < 10; j++) {
+            for (size_t j = 0; j < 10; j++) {
                 size_t test = rand() % 3;
                 switch (test) {
                 case 0: e_tuple = e_tuple.switch_vertex(m); break;
@@ -150,9 +150,9 @@ TEST_CASE("random 10 switches on 2 traingles", "[tuple_operation]")
     SECTION("test all tuples generated using faces")
     {
         auto faces_tuples = m.get_faces();
-        for (int i = 0; i < faces_tuples.size(); i++) {
+        for (size_t i = 0; i < faces_tuples.size(); i++) {
             TriMesh::Tuple f_tuple = faces_tuples[i];
-            for (int j = 0; j < 10; j++) {
+            for (size_t j = 0; j < 10; j++) {
                 size_t test = rand() % 3;
                 switch (test) {
                 case 0: f_tuple = f_tuple.switch_vertex(m); break;
@@ -207,7 +207,7 @@ TEST_CASE("double switches is identity", "[tuple_operation]")
     {
         TriMesh::Tuple v_tuple_after;
         auto vertices_tuples = m.get_vertices();
-        for (int i = 0; i < vertices_tuples.size(); i++) {
+        for (size_t i = 0; i < vertices_tuples.size(); i++) {
             TriMesh::Tuple v_tuple = vertices_tuples[i];
             v_tuple_after = double_switch_vertex(v_tuple, m);
             REQUIRE(tuple_equal(m, v_tuple_after, v_tuple));
@@ -222,7 +222,7 @@ TEST_CASE("double switches is identity", "[tuple_operation]")
     {
         TriMesh::Tuple e_tuple_after;
         auto edges_tuples = m.get_edges();
-        for (int i = 0; i < edges_tuples.size(); i++) {
+        for (size_t i = 0; i < edges_tuples.size(); i++) {
             TriMesh::Tuple e_tuple = edges_tuples[i];
             e_tuple_after = double_switch_vertex(e_tuple, m);
             REQUIRE(tuple_equal(m, e_tuple_after, e_tuple));
@@ -237,7 +237,7 @@ TEST_CASE("double switches is identity", "[tuple_operation]")
     {
         TriMesh::Tuple f_tuple_after;
         auto faces_tuples = m.get_faces();
-        for (int i = 0; i < faces_tuples.size(); i++) {
+        for (size_t i = 0; i < faces_tuples.size(); i++) {
             TriMesh::Tuple f_tuple = faces_tuples[i];
             f_tuple_after = double_switch_vertex(f_tuple, m);
             REQUIRE(tuple_equal(m, f_tuple_after, f_tuple));
@@ -260,7 +260,7 @@ TEST_CASE("vertex_edge switches equals indentity", "[tuple_operation]")
     {
         TriMesh::Tuple v_tuple_after;
         auto vertices_tuples = m.get_vertices();
-        for (int i = 0; i < vertices_tuples.size(); i++) {
+        for (size_t i = 0; i < vertices_tuples.size(); i++) {
             TriMesh::Tuple v_tuple = vertices_tuples[i];
             v_tuple_after = v_tuple.switch_vertex(m);
             v_tuple_after = v_tuple_after.switch_edge(m);
@@ -276,7 +276,7 @@ TEST_CASE("vertex_edge switches equals indentity", "[tuple_operation]")
     {
         TriMesh::Tuple e_tuple_after;
         auto edges_tuples = m.get_edges();
-        for (int i = 0; i < edges_tuples.size(); i++) {
+        for (size_t i = 0; i < edges_tuples.size(); i++) {
             TriMesh::Tuple e_tuple = edges_tuples[i];
             e_tuple_after = e_tuple.switch_vertex(m);
             e_tuple_after = e_tuple_after.switch_edge(m);
@@ -292,7 +292,7 @@ TEST_CASE("vertex_edge switches equals indentity", "[tuple_operation]")
     {
         TriMesh::Tuple f_tuple_after;
         auto faces_tuples = m.get_faces();
-        for (int i = 0; i < faces_tuples.size(); i++) {
+        for (size_t i = 0; i < faces_tuples.size(); i++) {
             TriMesh::Tuple f_tuple = faces_tuples[i];
             f_tuple_after = f_tuple.switch_vertex(m);
             f_tuple_after = f_tuple_after.switch_edge(m);
