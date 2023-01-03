@@ -62,14 +62,17 @@ void ExtremeOpt::init_constraints(const std::vector<std::vector<int>> &EE_e)
         auto t2 = tuple_from_edge(EE_e[i][2], EE_e[i][3]);
         int eid1 = t1.eid(*this);
         int eid2 = t2.eid(*this);
-        edge_attrs[eid1].pair = t1;
-        edge_attrs[eid2].pair = t2;
+        // std::cout << "(" << eid1 << ", " << eid2 << ")" << is_boundary_edge(t1) << is_boundary_edge(t2) << std::endl;
+        
+        edge_attrs[eid1].pair = t2;
+        edge_attrs[eid2].pair = t1;
     }
 }
 
 void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv)
 {   
-    consolidate_mesh();
+    // consolidate_mesh();
+    consolidate_mesh_cons(); // use the one with constraints
     V = Eigen::MatrixXd::Zero(vert_capacity(), 3);
     uv = Eigen::MatrixXd::Zero(vert_capacity(), 2);
     for (auto& t : get_vertices()) {

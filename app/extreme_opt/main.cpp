@@ -267,12 +267,29 @@ int main(int argc, char** argv)
     transform_EE(F, EE, EE_e);
     extremeopt.init_constraints(EE_e);
     assert(extremeopt.check_mesh_connectivity_validity());
-    
-    
-    extremeopt.do_optimization(opt_log);
-    extremeopt.export_mesh(V, F, uv);
+    std::cout << "check constraints inside wmtk" << std::endl;
+    if (extremeopt.check_constraints())
+    {
+        std::cout << "initial constraints satisfied" << std::endl;
+    }
+    else
+    {
+        std::cout << "fails" << std::endl;
+    }
 
-    // return 0;
+    extremeopt.do_optimization(opt_log);
+
+    std::cout << "check constraints inside wmtk" << std::endl;
+    if (extremeopt.check_constraints())
+    {
+        std::cout << "constraints satisfied" << std::endl;
+    }
+    else
+    {
+        std::cout << "fails" << std::endl;
+    }
+    extremeopt.export_mesh(V, F, uv);
+    return true;
     
     for (int i = 0; i < 4; i++)
     {

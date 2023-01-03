@@ -70,6 +70,65 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
 
+    position_cache.local().vid1 = t.vid(*this);
+    position_cache.local().vid2 = t.switch_vertex(*this).vid(*this);
+
+    position_cache.local().is_v1_bd = this->is_boundary_vertex(t);
+    position_cache.local().is_v2_bd = this->is_boundary_vertex(t.switch_vertex(*this));
+
+    if (position_cache.local().is_v1_bd)
+    {
+        auto onering_e = get_one_ring_edges_for_vertex(t);
+        int cnt = 0;
+        for (auto e : onering_e)
+        {
+            if (is_boundary_edge(e))
+            {
+                if (cnt == 0)
+                {
+                    if (e.is_ccw(*this))
+                        position_cache.local().bd_e1 = e;
+                    else
+                        position_cache.local().bd_e1 = e.switch_vertex(*this);
+                }
+                else
+                {   if (e.is_ccw(*this))
+                        position_cache.local().bd_e2 = e;
+                    else
+                        position_cache.local().bd_e2 = e.switch_vertex(*this);
+                }
+                cnt++;
+            }
+            if (cnt == 2) break;
+        }
+    }
+    else if (position_cache.local().is_v2_bd)
+    {
+        auto onering_e = get_one_ring_edges_for_vertex(t.switch_vertex(*this));
+        int cnt = 0;
+        for (auto e : onering_e)
+        {
+            if (is_boundary_edge(e))
+            {
+                if (cnt == 0)
+                {
+                   if (e.is_ccw(*this))
+                        position_cache.local().bd_e1 = e;
+                    else
+                        position_cache.local().bd_e1 = e.switch_vertex(*this);
+                }
+                else
+                {
+                    if (e.is_ccw(*this))
+                        position_cache.local().bd_e2 = e;
+                    else
+                        position_cache.local().bd_e2 = e.switch_vertex(*this);
+                }
+                cnt++;
+            }
+            if (cnt == 2) break;
+        }
+    }
     double E1, E2;
     Eigen::MatrixXd V_local, uv_local, Ji;
     Eigen::MatrixXi F_local;
@@ -179,15 +238,42 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
     {
         return false;
     }
-    // if (vertex_attrs[t.vid(*this)].fixed || vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
+    
+    // avoid boundary edges here
+    if (is_boundary_vertex(t) && is_boundary_vertex(t.switch_vertex(*this)))
+    {
+        return false;
+    }
     cache_edge_positions(t);
+    // if (position_cache.local().is_v1_bd || position_cache.local().is_v2_bd)
+    // {
+    //     std::cout << "check valid before collapse" << std::endl;
+
+    //     std::cout << "t: " << t.is_valid(*this) << " t.switch_vertex: " << t.switch_vertex(*this).is_valid(*this) << std::endl;
+    //     std::cout << "position_cache.local().bd_e1: " << position_cache.local().bd_e1.is_valid(*this) << " position_cache.local().bd_e1.switch_vertex: " << position_cache.local().bd_e1.switch_vertex(*this).is_valid(*this) << std::endl;
+    //     std::cout << "edge_attrs[position_cache.local().bd_e1.eid(*this)].pair: " << edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.is_valid(*this) << " edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex: " << edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex(*this).is_valid(*this) << std::endl;
+    //     std::cout << "position_cache.local().bd_e2: " << position_cache.local().bd_e2.is_valid(*this) << " position_cache.local().bd_e2.switch_vertex: " << position_cache.local().bd_e2.switch_vertex(*this).is_valid(*this) << std::endl;
+    //     std::cout << "edge_attrs[position_cache.local().bd_e2.eid(*this)].pair: " << edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.is_valid(*this) << " edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex: " << edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex(*this).is_valid(*this) << std::endl;
+    // }
     return true;
 }
 
 bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 {
-    const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
-    const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
+    // const Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
+    // const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
+    Eigen::Vector3d V;
+    Eigen::Vector2d uv;
+    if (position_cache.local().is_v1_bd)
+    {
+        V = position_cache.local().V1;
+        uv = position_cache.local().uv1;
+    }
+    else
+    {
+        V = position_cache.local().V2;
+        uv = position_cache.local().uv2;
+    }
     // const Eigen::Vector3d V = position_cache.local().V1;
     // const Eigen::Vector2d uv = position_cache.local().uv1;
    
@@ -244,6 +330,90 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     }
     
     // std::cout << "collapse succeed" << std::endl;
+
+    // update constraints
+    if (this->is_boundary_vertex(t))
+    {
+        // std::cout << "update constraints around vertex " << t.vid(*this) << std::endl;
+
+        auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
+        std::vector<Tuple> two_bd_e;
+        Tuple e_old_l, e_old_r;
+        Tuple e_new_l, e_new_r;
+        for (auto e : one_ring_edges)
+        {
+            if (this->is_boundary_edge(e))
+            {
+                Tuple candidate_e = e;
+                if (!candidate_e.is_ccw(*this))
+                {
+                    candidate_e = candidate_e.switch_vertex(*this);
+                }
+                if (candidate_e.vid(*this) == t.vid(*this))
+                {
+                    e_new_r = candidate_e;
+                }
+                else
+                {
+                    e_new_l = candidate_e;
+                }
+            }
+        }
+        if (position_cache.local().bd_e1.vid(*this) == position_cache.local().vid1 || position_cache.local().bd_e1.vid(*this) == position_cache.local().vid2)
+        {
+            e_old_r = position_cache.local().bd_e1;
+            e_old_l = position_cache.local().bd_e2;
+        }
+        else
+        {
+            e_old_r = position_cache.local().bd_e2;
+            e_old_l = position_cache.local().bd_e1;
+        }
+
+        auto e_old_r_pair = edge_attrs[e_old_r.eid_unsafe(*this)].pair;
+        auto e_old_l_pair = edge_attrs[e_old_l.eid_unsafe(*this)].pair;
+
+        if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) == e_old_l.eid_unsafe(*this))
+        {
+            std::cout << "in this case the two new bd edges is a pair" << std::endl;
+            edge_attrs[e_new_r.eid(*this)].pair = e_new_l;
+            edge_attrs[e_new_l.eid(*this)].pair = e_new_r;
+        }
+        else
+        {
+            edge_attrs[e_old_r_pair.eid(*this)].pair = e_new_r;
+            edge_attrs[e_old_l_pair.eid(*this)].pair = e_new_l;
+            edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
+            edge_attrs[e_new_l.eid(*this)].pair = e_old_l_pair;
+        }
+    }
+
+    
+    auto one_ring_tris = get_one_ring_tris_for_vertex(t);
+
+    for (auto t_tmp : one_ring_tris)
+    {
+        Tuple t0 = t_tmp;
+        Tuple t1 = t0.switch_edge(*this);
+        Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
+        if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
+        if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+        if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
+
+        if (is_boundary_edge(t0))
+        {
+            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;        
+        }
+        if (is_boundary_edge(t1))
+        {
+            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;        
+        }
+        if (is_boundary_edge(t2))
+        {
+            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;        
+        }
+    }
+
     return true;
 }
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
@@ -652,7 +822,11 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
     Eigen::SparseMatrix<double> G_global;
     Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
+
+    std::cout << "before export" << std::endl;
     export_mesh(V, F, uv);
+
+    std::cout << "here" << std::endl;
 
     // compute threshold for splitting
     double elen_min = 999999, elen_min_3d = 999999;

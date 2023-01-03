@@ -34,9 +34,10 @@ public:
         size_t m_fid = -1;
         size_t m_hash = -1;
 
+    
         void update_hash(const TriMesh& m);
-
     public:
+
         void print_info();
 
         //         v2        /
@@ -87,7 +88,7 @@ public:
          * share the same edge.
          */
         size_t eid(const TriMesh& m) const;
-
+        size_t eid_unsafe(const TriMesh& m) const; 
         /**
          * Switch operation.
          *
@@ -121,6 +122,7 @@ public:
          */
         bool is_valid(const TriMesh& m) const;
 
+        bool is_ccw(const TriMesh& m) const;
         /**
          * Positively oriented 3 vertices (represented by Tuples) in a tri.
          * @return std::array<Tuple, 3> each tuple owns a different vertex.
@@ -402,12 +404,13 @@ public:
     AbstractAttributeContainer* p_edge_attrs = nullptr;
     AbstractAttributeContainer* p_face_attrs = nullptr;
 
-private:
+protected:
 // TODO: 
     wmtk::AttributeCollection<VertexConnectivity> m_vertex_connectivity;
     wmtk::AttributeCollection<TriangleConnectivity> m_tri_connectivity;
     // vector<VertexConnectivity> m_vertex_connectivity;
     // vector<TriangleConnectivity> m_tri_connectivity;
+
     std::atomic_long current_vert_size;
     std::atomic_long current_tri_size;
     tbb::spin_mutex vertex_connectivity_lock;

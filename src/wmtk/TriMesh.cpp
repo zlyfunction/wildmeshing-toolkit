@@ -21,7 +21,13 @@ void TriMesh::Tuple::update_hash(const TriMesh& m)
 
 void TriMesh::Tuple::print_info()
 {
+    std::cout << m_vid << " " << m_eid << " " << m_fid << std::endl;
     logger().trace("tuple: {} {} {}", m_vid, m_eid, m_fid);
+}
+
+size_t TriMesh::Tuple::eid_unsafe(const TriMesh& m) const
+{
+    return m_fid * 3 + m_eid;
 }
 
 size_t TriMesh::Tuple::eid(const TriMesh& m) const
@@ -152,6 +158,12 @@ std::optional<TriMesh::Tuple> TriMesh::Tuple::switch_face(const TriMesh& m) cons
     return loc;
 }
 
+bool TriMesh::Tuple::is_ccw(const TriMesh& m) const
+{
+    if (m.m_tri_connectivity[m_fid][(m_eid + 1) % 3] == m_vid) return true;
+    else
+    return false;
+}
 bool TriMesh::Tuple::is_valid(const TriMesh& m) const
 {
     if (m_fid + 1 == 0) return false;
