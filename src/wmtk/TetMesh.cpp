@@ -3,7 +3,6 @@
 #include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/TupleUtils.hpp>
 #include <wmtk/utils/EnableWarnings.hpp>
-
 #include <tbb/parallel_for.h>
 
 #include <Tracy.hpp>

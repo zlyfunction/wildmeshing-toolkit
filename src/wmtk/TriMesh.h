@@ -1,5 +1,6 @@
 #pragma once
 
+#define USE_OPERATION_LOGGER
 #include <wmtk/utils/VectorUtils.h>
 #include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/Logger.hpp>
@@ -142,6 +143,10 @@ public:
         std::tuple<size_t, size_t, size_t, size_t> as_stl_tuple() const
         {
             return std::tie(m_vid, m_eid, m_fid, m_hash);
+        }
+        std::array<size_t, 3> as_stl_array() const
+        {
+            return std::array<size_t, 3>{{m_vid, m_eid, m_fid}};
         }
         friend bool operator<(const Tuple& a, const Tuple& t)
         {
@@ -298,7 +303,9 @@ private:
     bool tri_connectivity_synchronizing_flag = false;
     int MAX_THREADS = 128;
 
+#if defined(USE_OPERATION_LOGGER)
     tbb::enumerable_thread_specific<std::weak_ptr<OperationRecorder>> p_operation_recorder{{}};
+#endif
     /**
      * @brief Get the next avaiblie global index for the triangle
      *
@@ -313,6 +320,13 @@ private:
     size_t get_next_empty_slot_v();
 
 protected:
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
     /**
      * @brief User specified invariants that can't be violated
      * @param std::vector<Tuple> a vector of Tuples that are concerned in a given operation
@@ -378,6 +392,11 @@ protected:
      * @return true if the modifications succeed
      */
     virtual bool smooth_after(const Tuple& t) { return true; }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
+#pragma GCC diagnostic pop
+#endif
 
 public:
     /**
@@ -595,12 +614,8 @@ private:
      * @brief End the modification phase
      *
      */
-    void release_protect_attributes()
-    {
-        if (p_vertex_attrs) p_vertex_attrs->end_protect();
-        if (p_edge_attrs) p_edge_attrs->end_protect();
-        if (p_face_attrs) p_face_attrs->end_protect();
-    }
+    void release_protected_attributes();
+
     /**
      * @brief rollback the attributes that are modified if any condition failed
      *

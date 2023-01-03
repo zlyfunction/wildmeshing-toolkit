@@ -1,5 +1,6 @@
 #pragma once
 
+#include <wmtk/utils/OperationLogger.h>
 #include <wmtk/utils/VectorUtils.h>
 #include <wmtk/utils/Logger.hpp>
 
@@ -27,6 +28,7 @@ public:
     virtual void rollback(){};
     virtual void begin_protect(){};
     virtual void end_protect(){};
+    virtual void record_updates(OperationRecorder&, const std::string_view& name){};
 };
 
 
@@ -84,6 +86,12 @@ struct AttributeCollection : public AbstractAttributeContainer
         m_rollback_list.local().clear();
         recording.local() = false;
     }
+    //void record_updates(OperationRecorder& recorder, const std::string_view& name) override
+    //{
+    //    if (recording.local()) {
+    //        recorder.attribute_update(name, m_attributes, m_rollback_list.local());
+    //    }
+    //}
 
     const T& operator[](size_t i) const { return m_attributes[i]; }
 

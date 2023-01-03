@@ -260,11 +260,13 @@ bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     if (!split_edge_before(t)) return false;
     if (!t.is_valid(*this)) return false;
 
+#if defined(USE_OPERATION_LOGGER)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_split", t);
+        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_split", t.as_stl_array());
     }
+#endif
 
     // get local eid for return tuple construction
     auto eid = t.local_eid(*this);
@@ -396,14 +398,16 @@ bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
         m_tri_connectivity[new_fid1].m_is_removed = true;
         if (new_fid2.has_value()) m_tri_connectivity[new_fid2.value()].m_is_removed = true;
         rollback_protected_attributes();
+#if defined(USE_OPERATION_LOGGER)
         if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
             wp_op_rec.lock()->cancel();
         }
+#endif
         return false;
     }
 
 
-    release_protect_attributes();
+    release_protected_attributes();
     return true;
 }
 
@@ -412,11 +416,14 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
     if (!collapse_edge_before(loc0)) {
         return false;
     }
+#if defined(USE_OPERATION_LOGGER)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_collapse", loc0);
+        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_collapse", loc0.as_stl_array());
     }
+#endif
+
     // get fid for the return tuple
     // take the face that shares the same vertex the loc0 tuple is pointing to
     // or if that face doesn't exit
@@ -566,14 +573,16 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
         }
         rollback_protected_attributes();
 
+#if defined(USE_OPERATION_LOGGER)
         if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
             wp_op_rec.lock()->cancel();
         }
+#endif
         return false;
     }
 
 
-    release_protect_attributes();
+    release_protected_attributes();
     return true;
 }
 
@@ -582,11 +591,14 @@ bool TriMesh::swap_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     if (!swap_edge_before(t)) {
         return false;
     }
+
+#if defined(USE_OPERATION_LOGGER)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_swap", t);
+        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_swap", t.as_stl_array());
     }
+#endif
 
 
     // get the vids
@@ -614,9 +626,11 @@ bool TriMesh::swap_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     size_t test_fid1 = t.fid(*this);
     std::optional<size_t> test_fid2;
     if (!switch_face(t).has_value()) {
+#if defined(USE_OPERATION_LOGGER)
         if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
             wp_op_rec.lock()->cancel();
         }
+#endif
         return false; // can't sawp on boundary edge
     } else {
         test_fid2 = switch_face(t).value().fid(*this);
@@ -657,13 +671,15 @@ bool TriMesh::swap_edge(const Tuple& t, std::vector<Tuple>& new_tris)
         for (auto old_tri : old_tris) m_tri_connectivity[old_tri.first] = old_tri.second;
         rollback_protected_attributes();
 
+#if defined(USE_OPERATION_LOGGER)
         if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
             wp_op_rec.lock()->cancel();
         }
+#endif
         return false;
     }
 
-    release_protect_attributes();
+    release_protected_attributes();
     return true;
 }
 
@@ -672,22 +688,26 @@ bool TriMesh::smooth_vertex(const Tuple& loc0)
     ZoneScoped;
     if (!smooth_before(loc0)) return false;
 
+#if defined(USE_OPERATION_LOGGER)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "vertex_smooth", loc0);
+        wp_op_rec = p_operation_logger->start_ptr(*this, "vertex_smooth", loc0.as_stl_array());
     }
+#endif
     start_protect_attributes();
     if (!smooth_after(loc0) || !invariants(get_one_ring_tris_for_vertex(loc0))) {
         rollback_protected_attributes();
+#if defined(USE_OPERATION_LOGGER)
         if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
             wp_op_rec.lock()->cancel();
         }
+#endif
         return false;
     }
 
 
-    release_protect_attributes();
+    release_protected_attributes();
     return true;
 }
 
@@ -847,10 +867,10 @@ std::array<size_t, 3> TriMesh::oriented_tri_vids(const Tuple& t) const
 
 void TriMesh::create_mesh(size_t n_vertices, const std::vector<std::array<size_t, 3>>& tris)
 {
-    std::fill(m_vertex_connectivity.begin(),m_vertex_connectivity.end(),VertexConnectivity{});
-    std::fill(m_tri_connectivity.begin(),m_tri_connectivity.end(),TriangleConnectivity{});
-    m_vertex_connectivity.resize(n_vertices,{});
-    m_tri_connectivity.resize(tris.size(),{});
+    std::fill(m_vertex_connectivity.begin(), m_vertex_connectivity.end(), VertexConnectivity{});
+    std::fill(m_tri_connectivity.begin(), m_tri_connectivity.end(), TriangleConnectivity{});
+    m_vertex_connectivity.resize(n_vertices, {});
+    m_tri_connectivity.resize(tris.size(), {});
     size_t hash_cnt = 0;
     for (int i = 0; i < tris.size(); i++) {
         m_tri_connectivity[i].m_indices = tris[i];
@@ -1261,4 +1281,27 @@ void wmtk::TriMesh::for_each_face(const std::function<void(const TriMesh::Tuple&
                 }
             });
     });
+}
+
+
+void TriMesh::release_protected_attributes()
+{
+    if (p_vertex_attrs) {
+        if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
+            p_vertex_attrs->record_updates(*wp_op_rec.lock(), "vertex");
+        }
+        p_vertex_attrs->end_protect();
+    }
+    if (p_edge_attrs) {
+        if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
+            p_vertex_attrs->record_updates(*wp_op_rec.lock(), "edge");
+        }
+        p_edge_attrs->end_protect();
+    }
+    if (p_face_attrs) {
+        if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
+            p_vertex_attrs->record_updates(*wp_op_rec.lock(), "face");
+        }
+        p_face_attrs->end_protect();
+    }
 }

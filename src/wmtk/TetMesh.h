@@ -266,7 +266,7 @@ public:
                     e[1] = j;
             }
             if (e[0] > e[1]) std::swap(e[0], e[1]);
-            int i =
+            size_t i =
                 std::find(m_local_edges.begin(), m_local_edges.end(), e) - m_local_edges.begin();
             if (i >= m_local_edges.size()) return -1;
             return i;
@@ -284,7 +284,7 @@ public:
                     f[2] = j;
             }
             std::sort(f.begin(), f.end());
-            int i =
+            size_t i =
                 std::find(m_local_faces.begin(), m_local_faces.end(), f) - m_local_faces.begin();
             if (i >= m_local_edges.size()) return -1;
             return i;
@@ -321,7 +321,7 @@ public:
     size_t vertex_size() const
     {
         int cnt = 0;
-        for (auto i = 0; i < vert_capacity(); i++) {
+        for (size_t i = 0; i < vert_capacity(); i++) {
             if (!m_vertex_connectivity[i].m_is_removed) cnt++;
         }
         return cnt;
@@ -333,7 +333,7 @@ public:
     size_t tet_size() const
     {
         int cnt = 0;
-        for (auto i = 0; i < tet_capacity(); i++) {
+        for (size_t i = 0; i < tet_capacity(); i++) {
             if (!m_tet_connectivity[i].m_is_removed) cnt++;
         }
         return cnt;
