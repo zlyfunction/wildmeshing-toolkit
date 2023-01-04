@@ -3,7 +3,7 @@
 #include <highfive/H5DataType.hpp>
 #include <highfive/H5File.hpp>
 #include <wmtk/AttributeCollection.hpp>
-#include <wmtk/utils/OperatorRecordingDataTypes.hpp>
+#include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
 
 namespace wmtk {

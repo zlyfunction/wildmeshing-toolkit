@@ -18,7 +18,7 @@
 #endif
 #include <ostream>
 #include <wmtk/utils/Logger.hpp>
-#include <wmtk/utils/OperatorRecordingDataTypes.hpp>
+#include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
 HIGHFIVE_REGISTER_TYPE(wmtk::AttributeChanges, wmtk::AttributeChanges::datatype);
 HIGHFIVE_REGISTER_TYPE(wmtk::TriMeshOperation, wmtk::TriMeshOperation::datatype);
@@ -55,10 +55,10 @@ OperationLogger::~OperationLogger() = default;
 template <size_t Size>
 OperationRecorder::OperationRecorder(
     OperationLogger& logger_,
-    const TriMesh& m,
+    OperationType type,
     const std::string_view& cmd,
     const std::array<size_t, Size>& tuple)
-    : OperationRecorder(logger_, m, cmd, tuple.data(), Size)
+    : OperationRecorder(logger_, type, cmd, tuple.data(), Size)
 {}
 auto OperationLogger::start(
 
@@ -66,7 +66,7 @@ auto OperationLogger::start(
     const std::string_view& cmd,
     const std::array<size_t, 3>& tuple) -> OperationRecorder
 {
-    return OperationRecorder(*this, m, cmd, tuple);
+    return OperationRecorder(*this, OperationRecorder::OperationType::TriMesh, cmd, tuple);
 }
 
 auto OperationLogger::start_ptr(
@@ -74,17 +74,22 @@ auto OperationLogger::start_ptr(
     const std::string_view& cmd,
     const std::array<size_t, 3>& tuple) -> OperationRecorder::Ptr
 {
-    return std::make_shared<OperationRecorder>(*this, m, cmd, tuple);
+    return std::make_shared<OperationRecorder>(
+        *this,
+        OperationRecorder::OperationType::TriMesh,
+        cmd,
+        tuple);
 }
 
 
 OperationRecorder::OperationRecorder(
     OperationLogger& logger_,
-    const TriMesh& m,
+    OperationType type_,
     const std::string_view& cmd,
     const size_t* tuple,
     size_t tuple_size)
     : logger(logger_)
+    , type(type_)
     , name(cmd)
     , tuple_data(tuple, tuple + tuple_size)
 {
@@ -117,21 +122,27 @@ OperationRecorder::~OperationRecorder()
         auto [start, end] = append_values_to_1d_dataset(logger.attribute_changes_dataset, changes);
 
         // commit command itself
-        TriMeshOperation op;
-        strncpy(
-            op.name,
-            name.c_str(),
-            sizeof(name) / sizeof(char)); // yes sizeof(char)==1, maybe chartype changes someday?
-        assert(tuple_data.size() == 3);
-        op.triangle_id = tuple_data[0];
-        op.local_edge_id = tuple_data[1];
-        op.vertex_id = tuple_data[2];
-        op.update_range_begin = start;
-        op.update_range_end = end;
+        switch (this->type) {
+        case OperationType::TriMesh: {
+            TriMeshOperation op;
+            strncpy(
+                op.name,
+                name.c_str(),
+                sizeof(name) /
+                    sizeof(char)); // yes sizeof(char)==1, maybe chartype changes someday?
+            assert(tuple_data.size() == 3);
+            op.triangle_id = tuple_data[0];
+            op.local_edge_id = tuple_data[1];
+            op.vertex_id = tuple_data[2];
+            op.update_range_begin = start;
+            op.update_range_end = end;
 
 
-        spdlog::info("Op name {}", op.name);
-        auto size = append_value_to_1d_dataset(logger.operation_dataset, op);
+            auto size = append_value_to_1d_dataset(logger.operation_dataset, op);
+        } break;
+        case OperationType::TetMesh: {
+        } break;
+        }
     } else {
     }
 }

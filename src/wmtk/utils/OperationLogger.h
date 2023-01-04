@@ -34,6 +34,7 @@ class AttributeCollectionRecorderBase;
 class OperationRecorder
 {
 public:
+    enum class OperationType { TriMesh, TetMesh };
     // struct UpdateData;
     struct OperationData;
     using Ptr = std::shared_ptr<OperationRecorder>;
@@ -42,7 +43,7 @@ public:
     template <size_t Size>
     OperationRecorder(
         OperationLogger& logger,
-        const TriMesh& m,
+        OperationType type,
         const std::string_view& cmd,
         const std::array<size_t, Size>& tuple);
 
@@ -50,7 +51,7 @@ public:
     // grr std::span would be nice here
     OperationRecorder(
         OperationLogger& logger,
-        const TriMesh& m,
+        OperationType type,
         const std::string_view& cmd,
         const size_t* tuple,
         size_t tuple_size);
@@ -62,6 +63,7 @@ public:
 
 private:
     OperationLogger& logger;
+    OperationType type;
     std::string name;
     std::vector<size_t> tuple_data; // Tet/Tri use different sizes
     std::vector<std::pair<std::string, std::array<size_t, 2>>> attribute_updates;
@@ -72,6 +74,7 @@ class OperationLogger
 {
 public:
     friend class OperationRecorder;
+    friend class OperationReplayer;
     OperationLogger(HighFive::File& file);
     ~OperationLogger();
     OperationRecorder
