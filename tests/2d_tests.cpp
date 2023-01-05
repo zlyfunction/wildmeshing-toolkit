@@ -1,12 +1,13 @@
 #include <wmtk/TriMesh.h>
 //#include <wmtk/utils/OperationLogger.h>
 //#include <nlohmann/json.hpp>
+#include <wmtk/utils/OperationReplayer.h>
 #include <wmtk/ExecutionScheduler.hpp>
 
-#include <highfive/H5File.hpp>
 #include <igl/read_triangle_mesh.h>
 #include <stdlib.h>
 #include <catch2/catch.hpp>
+#include <highfive/H5File.hpp>
 #include <iostream>
 
 using namespace wmtk;
@@ -496,7 +497,6 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
     ExecutePass<TriMesh, ExecutionPolicy::kSeq> scheduler;
 
 
-
     auto edge_vids = [&](const TriMesh& m, const TriMesh::Tuple& edge) -> std::array<size_t, 2> {
         std::array<size_t, 2> ret;
         ret[0] = edge.vid(m);
@@ -506,19 +506,20 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
     };
 
 
-    auto check_vertex_indices = [&](const TriMesh& m, const TriMesh::Tuple& tuple, const std::set<size_t>& expected) {
-        REQUIRE(tuple.is_valid(m));
-        int size = expected.size();
-        std::set<size_t> orig;
-        if (size == 3) {
-            auto tri_vids = m.oriented_tri_vids(tuple);
-            orig = {tri_vids.begin(), tri_vids.end()};
-        } else if (size == 2) {
-            auto e_vids = edge_vids(m,tuple);
-            orig = {e_vids.begin(), e_vids.end()};
-        }
-        REQUIRE(orig == expected);
-    };
+    auto check_vertex_indices =
+        [&](const TriMesh& m, const TriMesh::Tuple& tuple, const std::set<size_t>& expected) {
+            REQUIRE(tuple.is_valid(m));
+            int size = expected.size();
+            std::set<size_t> orig;
+            if (size == 3) {
+                auto tri_vids = m.oriented_tri_vids(tuple);
+                orig = {tri_vids.begin(), tri_vids.end()};
+            } else if (size == 2) {
+                auto e_vids = edge_vids(m, tuple);
+                orig = {e_vids.begin(), e_vids.end()};
+            }
+            REQUIRE(orig == expected);
+        };
 
     auto check_face_equality = [&](const TriMesh& a, const TriMesh& b) {
         auto a_face_tuples = a.get_faces();
@@ -573,7 +574,6 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
     {
         std::vector<std::pair<std::string, TriMesh::Tuple>> operations;
         TriMesh::Tuple edge(0, 2, 0, final_mesh);
-
 
 
         REQUIRE(edge.is_valid(final_mesh));
@@ -649,6 +649,7 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
 
         DataSet ops = file.getDataSet("operations");
 
+
         /*
 
         for (std::string line; std::getline(output, line);) {
@@ -678,20 +679,23 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
         */
     }
 
-    /*
     SECTION("replay the old operations");
     {
         TriMesh m;
         m.create_mesh(4, tris);
-
-        for (const auto& [op_name, tup] : recorded_operations) {
-
-            TriMesh::Tuple run_tup(tup.vid(m), tup.local_eid(m), tup.fid(m), m);
-            REQUIRE(run_tup.is_valid(m));
-            scheduler.edit_operation_maps[op_name](m, run_tup);
+        OperationLogger logger(file);
+        OperationReplayer replayer(m, logger);
+        for (size_t j = 0; j < replayer.operation_count(); ++j) {
+            size_t new_index = replayer.play(1);
+            REQUIRE(new_index == j + 1);
         }
+
+        // for (const auto& [op_name, tup] : recorded_operations) {
+        //     TriMesh::Tuple run_tup(tup.vid(m), tup.local_eid(m), tup.fid(m), m);
+        //     REQUIRE(run_tup.is_valid(m));
+        //     scheduler.edit_operation_maps[op_name](m, run_tup);
+        // }
 
         check_face_equality(m, final_mesh);
     }
-    */
 }

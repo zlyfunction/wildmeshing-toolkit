@@ -1,6 +1,7 @@
 #include <wmtk/TriMesh.h>
 #include <wmtk/utils/AttributeRecorder.h>
 #include <wmtk/utils/OperationLogger.h>
+#include <wmtk/utils/Logger.hpp>
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wcast-qual"
@@ -27,8 +28,18 @@ namespace wmtk {
 namespace {
 
 template <typename T>
-HighFive::DataSet create_dataset(HighFive::File& file, const std::string_view& name)
+HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
 {
+    if (file.exist(name)) {
+        if (HighFive::ObjectType::Dataset == file.getObjectType(name)) {
+            return file.getDataSet(name);
+        } else {
+            logger().error(
+                "create_dataset: {} had root node {} but it was not a dataset",
+                file.getName(),
+                name);
+        }
+    }
     HighFive::DataSetCreateProps props;
     props.add(HighFive::Chunking(std::vector<hsize_t>{2}));
 
