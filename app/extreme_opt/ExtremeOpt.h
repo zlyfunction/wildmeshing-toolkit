@@ -70,31 +70,54 @@ public:
         }
         m.release_protect_connectivity();
         m.release_protect_attributes();
-        
-        // bool flag = m.check_constraints();
-        // if (flag)
-        // {
-        //     std::cout << "constraint fine" << std::endl;
-        // }
-        // else
-        // {
-        //     std::cout << "constraint fail" << std::endl;
-        // }
         return true;
     }
 
     bool execute(const Tuple& t, ExtremeOpt& m, std::vector<Tuple> &new_tris)
     {
+        return false;
+        // TODO: Relocate this code
+        if (!t.is_valid(m))
+        {
+            std::cout << "not valid" << std::endl;
+            return false;
+        }
+        if (!m.wmtk::TriMesh::collapse_edge_before(t))
+        {
+            std::cout << "link condition error" << std::endl;
+            return false;
+        }
+
+        Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
+        // Skip cases that paired edges are in the same triangle
+        if (t_pair_input.fid(m) == t.fid(m))
+        {
+            return false;
+        }
+
+        // Get E_max before collapse
+        double E_max_t_input = std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
+        double E_max_t_pair_input = std::max(m.get_e_max_onering(t_pair_input), m.get_e_max_onering(t_pair_input.switch_vertex(m)));
+        double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
+
+        std::cout << "trying to collapse a boudnary edge" << std::endl;
+        std::cout << "E_max before collapsing is " << E_max_input << std::endl;
+
+        // get neighbor edges
+        auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
+        auto onering_t_r = m.get_one_ring_edges_for_vertex(t.switch_vertex(m));
+
+        
+        return false;
         if (before(t, m))
-            {
-                auto new_t = m.collapse_edge_new(t, new_tris);
-                // m.collapse_edge_new(m.edge_attrs[t.eid(m)].pair, new_tris);
-                return after(new_t, m, new_tris);
-            }
-            else
-            {
-                return false;
-            }
+        {
+            auto new_t = m.collapse_edge_new(t, new_tris);
+            return after(new_t, m, new_tris);
+        }
+        else
+        {
+            return false;
+        }
     }
 
     bool before_check(const Tuple& t, ExtremeOpt& m) 
@@ -260,6 +283,7 @@ struct PositionInfoCache
 };
 tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
+tbb::enumerable_thread_specific<std::pair<Tuple, Tuple>> swap_cache;
 // Initializes the mesh
 void create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv);
 
@@ -280,6 +304,7 @@ Eigen::VectorXd get_quality_all_triangles();
 
 // compute the max_E of a one ring
 void get_mesh_onering(const Tuple& t, Eigen::MatrixXd &V_local, Eigen::MatrixXd &uv_local, Eigen::MatrixXi &F_local);
+double get_e_max_onering(const Tuple &t);
 
 // Check if a triangle is inverted
 bool is_inverted(const Tuple& loc) const;

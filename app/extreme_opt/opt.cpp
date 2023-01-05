@@ -30,6 +30,24 @@ auto renew = [](auto& m, auto op, auto& tris) {
     return optup;
 };
 
+auto renew_collapse = [](auto& m, auto op, auto& tris) {
+    auto edges = m.new_edges_after(tris);
+    auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
+    for (auto& e : edges) 
+    {
+        if (m.is_boundary_edge(e))
+        {
+            optup.emplace_back("test_op", e);
+        }
+        else
+        {
+            optup.emplace_back("edge_collapse", e);
+        }
+
+    }
+    return optup;
+};
+
 
 namespace extremeopt {
 void get_grad_op(Eigen::MatrixXd& V, const Eigen::MatrixXi& F, Eigen::SparseMatrix<double>& grad_op)
@@ -62,6 +80,17 @@ void get_grad_op(Eigen::MatrixXd& V, const Eigen::MatrixXi& F, Eigen::SparseMatr
     grad_op = igl::cat(1, igl::cat(2, hstack, empty), igl::cat(2, empty, hstack));
 }
 } // namespace extremeopt
+
+double extremeopt::ExtremeOpt::get_e_max_onering(const Tuple& t)
+{
+    Eigen::MatrixXd V_local, uv_local, Ji;
+    Eigen::MatrixXi F_local;
+    Eigen::SparseMatrix<double> G_local;
+    get_mesh_onering(t, V_local, uv_local, F_local);
+    get_grad_op(V_local, F_local, G_local);
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+}
 
 void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
 {
@@ -130,21 +159,10 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
         }
     }
     double E1, E2;
-    Eigen::MatrixXd V_local, uv_local, Ji;
-    Eigen::MatrixXi F_local;
-    Eigen::SparseMatrix<double> G_local;
-    get_mesh_onering(t, V_local, uv_local, F_local);
-    get_grad_op(V_local, F_local, G_local);
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
-
-    get_mesh_onering(t.switch_vertex(*this), V_local, uv_local, F_local);
-    get_grad_op(V_local, F_local, G_local);
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+    E1 = get_e_max_onering(t);
+    E2 = get_e_max_onering(t.switch_vertex(*this));
 
     position_cache.local().E_max_before_collpase = std::max(E1, E2);
-    // std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase << std::endl;
 }   
 
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
@@ -245,16 +263,6 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
         return false;
     }
     cache_edge_positions(t);
-    // if (position_cache.local().is_v1_bd || position_cache.local().is_v2_bd)
-    // {
-    //     std::cout << "check valid before collapse" << std::endl;
-
-    //     std::cout << "t: " << t.is_valid(*this) << " t.switch_vertex: " << t.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "position_cache.local().bd_e1: " << position_cache.local().bd_e1.is_valid(*this) << " position_cache.local().bd_e1.switch_vertex: " << position_cache.local().bd_e1.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "edge_attrs[position_cache.local().bd_e1.eid(*this)].pair: " << edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.is_valid(*this) << " edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex: " << edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "position_cache.local().bd_e2: " << position_cache.local().bd_e2.is_valid(*this) << " position_cache.local().bd_e2.switch_vertex: " << position_cache.local().bd_e2.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "edge_attrs[position_cache.local().bd_e2.eid(*this)].pair: " << edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.is_valid(*this) << " edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex: " << edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex(*this).is_valid(*this) << std::endl;
-    // }
     return true;
 }
 
@@ -375,7 +383,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 
         if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) == e_old_l.eid_unsafe(*this))
         {
-            std::cout << "in this case the two new bd edges is a pair" << std::endl;
+            // std::cout << "in this case the two new bd edges is a pair" << std::endl;
             edge_attrs[e_new_r.eid(*this)].pair = e_new_l;
             edge_attrs[e_new_l.eid(*this)].pair = e_new_r;
         }
@@ -422,6 +430,11 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
     if (!TriMesh::swap_edge_before(t)) return false;
     // if (vertex_attrs[t.vid(*this)].fixed &&
     // vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
+    Tuple t1 = t.switch_vertex(*this).switch_edge(*this);
+    Tuple t2 = t.switch_face(*this).value().switch_edge(*this);
+    if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+    if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
+    swap_cache.local() = std::make_pair(t1, t2);
     return true;
 }
 
@@ -589,31 +602,62 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
         // std::cout << "energy increase after swapping" << std::endl;
         return false;
     }
-    else
+     
+    // update constraints after collapse
+    Tuple t1 = t.switch_edge(*this);
+    Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
+    Tuple t1_old = swap_cache.local().first;
+    Tuple t2_old = swap_cache.local().second;
+    if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+    if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
+    bool flag = true;
+    if (is_boundary_edge(t1))
     {
-        // std::cout << "energy decreased, do swap" << std::endl;
-        // if (Es.minCoeff() < 0)
-        // {
-        //     std::cout << "new Energy: \n" << Es << std::endl;
-        //     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-        //     std::cout << "Jacobian:\n"<< Ji << std::endl;
-        //     auto det = Ji.col(0).array() * Ji.col(3).array() - Ji.col(1).array() * Ji.col(2).array();
-        //     auto frob2 = Ji.col(0).array().abs2() + Ji.col(1).array().abs2() + Ji.col(2).array().abs2() + Ji.col(3).array().abs2();
-        //     std::cout << "det:\n" << det << std::endl;
-        //     std::cout << "det.inverse:\n" << det.inverse() << std::endl;
-        //     std::cout << "frob2:\n" << frob2 << std::endl;
-        //     std::cout << "(frob2 * det.inverse()).matrix():\n" << (frob2 * det.inverse()).matrix() << std::endl;
-        //     std::cout << wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)) << std::endl;
-        //     std::cout << "min 3d area " << dblarea_3d.minCoeff() << std::endl;
-        //     std::cout << "min 2d area " << dblarea.minCoeff() << std::endl;
-        //     std::cout << std::endl;
-        // }
-    }  
+        auto t1_old_pair = edge_attrs[t1_old.eid_unsafe(*this)].pair;
+        if (t1_old_pair.eid_unsafe(*this) == t2_old.eid_unsafe(*this))
+        {
+            flag = false;
+            edge_attrs[t1.eid(*this)].pair = t2;
+            edge_attrs[t2.eid(*this)].pair = t1;
+        }
+        else
+        {
+            edge_attrs[t1_old_pair.eid_unsafe(*this)].pair = t1;
+            edge_attrs[t1.eid(*this)].pair = t1_old_pair;
+        }
+    }
+    if (flag && is_boundary_edge(t2))
+    {
+        auto t2_old_pair = edge_attrs[t2_old.eid_unsafe(*this)].pair;
+        edge_attrs[t2_old_pair.eid_unsafe(*this)].pair = t2;
+        edge_attrs[t2.eid(*this)].pair = t2_old_pair;
+    }
 
-   
-    // if do swap, change the areas
-    // face_attrs[t.fid(*this)].area_3d = dblarea_3d[0];
-    // face_attrs[t_opp.value().fid(*this)].area_3d = dblarea_3d[1];
+    auto one_ring_tris = get_one_ring_tris_for_vertex(t);
+
+    for (auto t_tmp : one_ring_tris)
+    {
+        Tuple t0 = t_tmp;
+        Tuple t1 = t0.switch_edge(*this);
+        Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
+        if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
+        if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+        if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
+
+        if (is_boundary_edge(t0))
+        {
+            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;        
+        }
+        if (is_boundary_edge(t1))
+        {
+            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;        
+        }
+        if (is_boundary_edge(t2))
+        {
+            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;        
+        }
+    }
+
     return true;
 }
 
@@ -622,6 +666,11 @@ bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
     if (!t.is_valid(*this))
     {
         std::cout << "tuple not valid" << std::endl;
+        return false;
+    }
+
+    if (is_boundary_vertex(t))
+    {
         return false;
     }
     // // it's okay to move the boundary(for now)
@@ -780,11 +829,18 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
     auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
     for (auto& loc : get_edges())
     {
-        // collect_all_ops_collapse.emplace_back("edge_collapse", loc);
-        collect_all_ops_collapse.emplace_back("test_op", loc);
+        if (is_boundary_edge(loc))
+        {
+            collect_all_ops_collapse.emplace_back("test_op", loc);
+        }
+        else
+        {
+            collect_all_ops_collapse.emplace_back("edge_collapse", loc);
+        }
+        // collect_all_ops_collapse.emplace_back("test_op", loc);
     }
     auto setup_and_execute = [&](auto& executor_collapse) {
-        executor_collapse.renew_neighbor_tuples = renew;
+        executor_collapse.renew_neighbor_tuples = renew_collapse;
         // add term with energy
         executor_collapse.priority = [&](auto& m, auto _, auto& e) {
             return (vertex_attrs[e.vid(*this)].pos - vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
@@ -798,10 +854,8 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
                 {"test_op",
                  [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
                      std::vector<Tuple> ret;
-                    //  CollapseEdge ce_op;
 
                      ExtremeOpt::CollapsePair ce_op;
-                    //  if (m.collapse_edge(t, ret))
                     if (ce_op.execute(t, m, ret))
                          return ret;
                      else
@@ -825,8 +879,6 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
 
     std::cout << "before export" << std::endl;
     export_mesh(V, F, uv);
-
-    std::cout << "here" << std::endl;
 
     // compute threshold for splitting
     double elen_min = 999999, elen_min_3d = 999999;
@@ -879,17 +931,17 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
         }
 
         // do smoothing
-// timer.start();
-//         smooth_all_vertices();
-// time = timer.getElapsedTime();
-//         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-//         export_mesh(V, F, uv);
-//         get_grad_op(V, F, G_global);
-//         igl::doublearea(V, F, dblarea);
-//         E = compute_energy(uv);
-//         E_max = compute_energy_max(uv);
-//         wmtk::logger().info("After smoothing {}, E = {}", i, E);
-//         wmtk::logger().info("E_max = {}", E_max);
+timer.start();
+        smooth_all_vertices();
+time = timer.getElapsedTime();
+        wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+        export_mesh(V, F, uv);
+        get_grad_op(V, F, G_global);
+        igl::doublearea(V, F, dblarea);
+        E = compute_energy(uv);
+        E_max = compute_energy_max(uv);
+        wmtk::logger().info("After smoothing {}, E = {}", i, E);
+        wmtk::logger().info("E_max = {}", E_max);
 
         // do swaping
 

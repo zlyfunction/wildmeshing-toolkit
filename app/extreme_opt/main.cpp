@@ -167,10 +167,18 @@ bool uniform_upsample_with_cons(
         {
             std::cout << "cant find A" << std::endl;
         }
+        if (new_bd[(posA+2) % new_bd.size()] != B)
+        {
+            std::cout << "cant find B" << std::endl;
+        }
         int posC = std::find(new_bd.begin(), new_bd.end(), C) - new_bd.begin();
         if (posC == new_bd.size())
         {
             std::cout << "cant find C" << std::endl;
+        }
+        if (new_bd[(posC+2) % new_bd.size()] != D)
+        {
+            std::cout << "cant find D" << std::endl;
         }
         int new_v_AB = new_bd[(posA+1) % new_bd.size()];
         int new_v_CD = new_bd[(posC+1) % new_bd.size()];
@@ -182,6 +190,7 @@ bool uniform_upsample_with_cons(
     double new_cons_residual = check_constraints(new_EE, new_uv, new_F, new_Aeq);
     wmtk::logger().info("constraints error after upsample {}", new_cons_residual);
 
+    EE = new_EE;
     if (new_cons_residual > eps)
     {
         return false;
@@ -255,12 +264,13 @@ int main(int argc, char** argv)
     
     
     // std::cout << "try upsample constraints" << std::endl;
-    // Eigen::MatrixXi new_F;
-    // Eigen::MatrixXd new_V, new_uv;
+    Eigen::MatrixXi new_F;
+    Eigen::MatrixXd new_V, new_uv;
     // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     // Load the mesh in the trimesh class
 
     extremeopt::ExtremeOpt extremeopt;
+    // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     extremeopt.create_mesh(V,F,uv);
     extremeopt.m_params = param;
     std::vector<std::vector<int>> EE_e;
