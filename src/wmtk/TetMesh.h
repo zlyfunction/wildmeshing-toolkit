@@ -493,8 +493,8 @@ public:
     using vector = tbb::concurrent_vector<T>;
 
 public:
-    AbstractAttributeContainer *p_vertex_attrs, *p_edge_attrs, *p_face_attrs, *p_tet_attrs;
-    AbstractAttributeContainer vertex_attrs, edge_attrs, face_attrs, tet_attrs;
+    AbstractAttributeContainer *p_vertex_attrs = nullptr, *p_edge_attrs = nullptr, *p_face_attrs = nullptr, *p_tet_attrs = nullptr;
+    //AbstractAttributeContainer vertex_attrs, edge_attrs, face_attrs, tet_attrs;
 
 
 private:

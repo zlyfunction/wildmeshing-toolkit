@@ -66,10 +66,10 @@ OperationLogger::~OperationLogger() = default;
 template <size_t Size>
 OperationRecorder::OperationRecorder(
     OperationLogger& logger_,
-    OperationType type,
+    OperationType type_,
     const std::string_view& cmd,
     const std::array<size_t, Size>& tuple)
-    : OperationRecorder(logger_, type, cmd, tuple.data(), Size)
+    : OperationRecorder(logger_, type_, cmd, tuple.data(), Size)
 {}
 auto OperationLogger::start(
 

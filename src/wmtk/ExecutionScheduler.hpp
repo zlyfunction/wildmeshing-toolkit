@@ -36,13 +36,14 @@ template <class AppMesh, ExecutionPolicy policy = ExecutionPolicy::kSeq>
 struct ExecutePass
 {
     using Tuple = typename AppMesh::Tuple;
+    using OperatorFunc = std::function<std::optional<std::vector<Tuple>>(AppMesh&, const Tuple&)>;
     /**
      * @brief A dictionary that registers names with operations.
      *
      */
     std::map<
         Op, // strings
-        std::function<std::optional<std::vector<Tuple>>(AppMesh&, const Tuple&)>>
+        OperatorFunc>
         edit_operation_maps;
     /**
      * @brief Priority function (default to edge length)
@@ -116,7 +117,7 @@ struct ExecutePass
      *@note the constructor is differentiated by the type of mesh, namingly wmtk::TetMesh or
      *wmtk::TriMesh
      */
-    ExecutePass()
+    ExecutePass(const std::map<Op, OperatorFunc>& customized_ops = {})
     {
         if constexpr (std::is_base_of<wmtk::TetMesh, AppMesh>::value) {
             edit_operation_maps = {
@@ -169,147 +170,26 @@ struct ExecutePass
                  }}};
         }
         if constexpr (std::is_base_of<wmtk::TriMesh, AppMesh>::value) {
-            edit_operation_maps = {
-                {"edge_collapse",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     wmtk::TriMesh::CollapseEdge ce_op;
-                    //  if (m.collapse_edge(t, ret))
-                    if (ce_op.execute(t, m, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_swap",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                    //  if (m.swap_edge(t, ret))
-                     wmtk::TriMesh::SwapEdge se_op;
-                     if (se_op.execute(t, m, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_split",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                    //  if (m.split_edge(t, ret))
-                     wmtk::TriMesh::SplitEdge se_op;
-                     if (se_op.execute(t, m, ret))    
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"vertex_smooth",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                    std::vector<Tuple> ret;
-                    wmtk::TriMesh::SmoothVertex sv_op;
-                    //  if (m.smooth_vertex(t))
-                    if (sv_op.execute(t, m, ret))
-                         return std::vector<Tuple>{};
-                     else
-                         return {};
-                 }}};
-        }
-    };
+            auto make_op = []<typename T>(T t)
 
-    ExecutePass(std::map<Op,std::function<std::optional<std::vector<Tuple>>(AppMesh&, const Tuple&)>> &customized_ops)
-    {
-        if constexpr (std::is_base_of<wmtk::TetMesh, AppMesh>::value) {
-            edit_operation_maps = {
-                {"edge_collapse",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     if (m.collapse_edge(t, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_swap",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     if (m.swap_edge(t, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_swap_44",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     if (m.swap_edge_44(t, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_split",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     if (m.split_edge(t, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"face_swap",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     if (m.swap_face(t, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"vertex_smooth",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     if (m.smooth_vertex(t))
-                         return std::vector<Tuple>{};
-                     else
-                         return {};
-                 }}};
+                -> std::pair<const Op, OperatorFunc> {
+                return std::make_pair<const Op, OperatorFunc>(
+                    t.name(),
+                    [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
+                        return wmtk::TriMesh::SmoothVertex()(t, m);
+                    });
+            };
+            edit_operation_maps.emplace(make_op(wmtk::TriMesh::EdgeCollapse()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMesh::SwapEdge()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMesh::SplitEdge()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMesh::SmoothVertex()));
         }
-        if constexpr (std::is_base_of<wmtk::TriMesh, AppMesh>::value) {
-            edit_operation_maps = {
-                {"edge_collapse",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                     wmtk::TriMesh::CollapseEdge ce_op;
-                    //  if (m.collapse_edge(t, ret))
-                    if (ce_op.execute(t, m, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_swap",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                    //  if (m.swap_edge(t, ret))
-                     wmtk::TriMesh::SwapEdge se_op;
-                     if (se_op.execute(t, m, ret))
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"edge_split",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                    //  if (m.split_edge(t, ret))
-                     wmtk::TriMesh::SplitEdge se_op;
-                     if (se_op.execute(t, m, ret))    
-                         return ret;
-                     else
-                         return {};
-                 }},
-                {"vertex_smooth",
-                 [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                    std::vector<Tuple> ret;
-                    wmtk::TriMesh::SmoothVertex sv_op;
-                    //  if (m.smooth_vertex(t))
-                    if (sv_op.execute(t, m, ret))
-                         return std::vector<Tuple>{};
-                     else
-                         return {};
-                 }}};
+
+        if (!customized_ops.empty()) {
+            edit_operation_maps.insert(customized_ops.begin(), customized_ops.end());
         }
-        edit_operation_maps.insert(customized_ops.begin(), customized_ops.end());
-    };
+    }
+
 private:
     void operation_cleanup(AppMesh& m)
     { //

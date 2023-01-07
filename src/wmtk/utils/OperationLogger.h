@@ -8,6 +8,7 @@
 #elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wswitch-enum"
 #endif
 #include <highfive/H5DataSet.hpp>
 #if defined(__clang__)

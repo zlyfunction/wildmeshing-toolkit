@@ -23,12 +23,12 @@ class AbstractAttributeContainer
 {
 public:
     virtual ~AbstractAttributeContainer() = default;
-    virtual void move(size_t from, size_t to){};
-    virtual void resize(size_t){};
+    virtual void move(size_t /*from*/, size_t to) = 0;
+    virtual void resize(size_t) = 0;
     virtual void rollback(){};
     virtual void begin_protect(){};
     virtual void end_protect(){};
-    virtual void record_updates(OperationRecorder&, const std::string_view& name){};
+    virtual void record_updates(OperationRecorder&, const std::string_view& ){};
 };
 
 

@@ -76,23 +76,18 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
     position_cache.local().is_v1_bd = this->is_boundary_vertex(t);
     position_cache.local().is_v2_bd = this->is_boundary_vertex(t.switch_vertex(*this));
 
-    if (position_cache.local().is_v1_bd)
-    {
+    if (position_cache.local().is_v1_bd) {
         auto onering_e = get_one_ring_edges_for_vertex(t);
         int cnt = 0;
-        for (auto e : onering_e)
-        {
-            if (is_boundary_edge(e))
-            {
-                if (cnt == 0)
-                {
+        for (auto e : onering_e) {
+            if (is_boundary_edge(e)) {
+                if (cnt == 0) {
                     if (e.is_ccw(*this))
                         position_cache.local().bd_e1 = e;
                     else
                         position_cache.local().bd_e1 = e.switch_vertex(*this);
-                }
-                else
-                {   if (e.is_ccw(*this))
+                } else {
+                    if (e.is_ccw(*this))
                         position_cache.local().bd_e2 = e;
                     else
                         position_cache.local().bd_e2 = e.switch_vertex(*this);
@@ -101,24 +96,17 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
             }
             if (cnt == 2) break;
         }
-    }
-    else if (position_cache.local().is_v2_bd)
-    {
+    } else if (position_cache.local().is_v2_bd) {
         auto onering_e = get_one_ring_edges_for_vertex(t.switch_vertex(*this));
         int cnt = 0;
-        for (auto e : onering_e)
-        {
-            if (is_boundary_edge(e))
-            {
-                if (cnt == 0)
-                {
-                   if (e.is_ccw(*this))
+        for (auto e : onering_e) {
+            if (is_boundary_edge(e)) {
+                if (cnt == 0) {
+                    if (e.is_ccw(*this))
                         position_cache.local().bd_e1 = e;
                     else
                         position_cache.local().bd_e1 = e.switch_vertex(*this);
-                }
-                else
-                {
+                } else {
                     if (e.is_ccw(*this))
                         position_cache.local().bd_e2 = e;
                     else
@@ -144,52 +132,46 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
     E1 = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
 
     position_cache.local().E_max_before_collpase = std::max(E1, E2);
-    // std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase << std::endl;
-}   
+    // std::cout << "local E_max before collapse: " << position_cache.local().E_max_before_collpase
+    // << std::endl;
+}
 
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
 {
-    if (!t.is_valid(*this))
-    {
+    if (!t.is_valid(*this)) {
         return false;
     }
-    if (!TriMesh::split_edge_before(t)) 
-    {
+    if (!TriMesh::split_edge_before(t)) {
         return false;
     }
 
     // TODO: do we want to split boundary edges?
-    if (vertex_attrs[t.vid(*this)].fixed &&
-        vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) {
+    if (vertex_attrs[t.vid(*this)].fixed && vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) {
         if (!t.switch_face(*this).has_value()) return false; // check if it's bondary
     }
-    
+
     position_cache.local().V1 = vertex_attrs[t.vid(*this)].pos_3d;
     position_cache.local().V2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos_3d;
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
 
-    
 
     // check edge length thresholds
     double l = (position_cache.local().uv1 - position_cache.local().uv2).norm();
     double l3d = (position_cache.local().V1 - position_cache.local().V2).norm();
-    
-    
-    if (l < elen_threshold || l3d < elen_threshold_3d)
-    {
+
+
+    if (l < elen_threshold || l3d < elen_threshold_3d) {
         // std::cout << "The elen was too small, stop splitting" << std::endl; // for debugging
         return false;
     }
-    // std::cout << "edge: (" << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << ")" << std::endl;
-    // std::cout << "l = " << l << std::endl;
-    // std::cout << "l_3d = " << l3d << std::endl;
+    // std::cout << "edge: (" << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << ")" <<
+    // std::endl; std::cout << "l = " << l << std::endl; std::cout << "l_3d = " << l3d << std::endl;
     return true;
 }
 
 bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
 {
-
     Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
     Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
     auto vid = t.vid(*this);
@@ -208,14 +190,12 @@ void extremeopt::ExtremeOpt::split_all_edges()
 {
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
-    for (auto& loc : get_edges())
-    {
+    for (auto& loc : get_edges()) {
         collect_all_ops_split.emplace_back("edge_split", loc);
     }
     auto setup_and_execute = [&](auto& executor_split) {
         vid_threshold = vert_capacity();
-        executor_split.renew_neighbor_tuples = 
-            [&](auto& m, auto op, auto& tris) {
+        executor_split.renew_neighbor_tuples = [&](auto& m, auto op, auto& tris) {
             auto edges = m.replace_edges_after_split(tris, vid_threshold);
             auto optup = std::vector<std::pair<std::string, TriMesh::Tuple>>();
             for (auto& e : edges) optup.emplace_back(op, e);
@@ -230,18 +210,15 @@ void extremeopt::ExtremeOpt::split_all_edges()
 
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
-    if (!t.is_valid(*this)) 
-    {
+    if (!t.is_valid(*this)) {
         return false;
     }
-    if (!wmtk::TriMesh::collapse_edge_before(t)) 
-    {
+    if (!wmtk::TriMesh::collapse_edge_before(t)) {
         return false;
     }
-    
+
     // avoid boundary edges here
-    if (is_boundary_vertex(t) && is_boundary_vertex(t.switch_vertex(*this)))
-    {
+    if (is_boundary_vertex(t) && is_boundary_vertex(t.switch_vertex(*this))) {
         return false;
     }
     cache_edge_positions(t);
@@ -249,11 +226,24 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
     // {
     //     std::cout << "check valid before collapse" << std::endl;
 
-    //     std::cout << "t: " << t.is_valid(*this) << " t.switch_vertex: " << t.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "position_cache.local().bd_e1: " << position_cache.local().bd_e1.is_valid(*this) << " position_cache.local().bd_e1.switch_vertex: " << position_cache.local().bd_e1.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "edge_attrs[position_cache.local().bd_e1.eid(*this)].pair: " << edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.is_valid(*this) << " edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex: " << edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "position_cache.local().bd_e2: " << position_cache.local().bd_e2.is_valid(*this) << " position_cache.local().bd_e2.switch_vertex: " << position_cache.local().bd_e2.switch_vertex(*this).is_valid(*this) << std::endl;
-    //     std::cout << "edge_attrs[position_cache.local().bd_e2.eid(*this)].pair: " << edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.is_valid(*this) << " edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex: " << edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex(*this).is_valid(*this) << std::endl;
+    //     std::cout << "t: " << t.is_valid(*this) << " t.switch_vertex: " <<
+    //     t.switch_vertex(*this).is_valid(*this) << std::endl; std::cout <<
+    //     "position_cache.local().bd_e1: " << position_cache.local().bd_e1.is_valid(*this) << "
+    //     position_cache.local().bd_e1.switch_vertex: " <<
+    //     position_cache.local().bd_e1.switch_vertex(*this).is_valid(*this) << std::endl; std::cout
+    //     << "edge_attrs[position_cache.local().bd_e1.eid(*this)].pair: " <<
+    //     edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.is_valid(*this) << "
+    //     edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex: " <<
+    //     edge_attrs[position_cache.local().bd_e1.eid(*this)].pair.switch_vertex(*this).is_valid(*this)
+    //     << std::endl; std::cout << "position_cache.local().bd_e2: " <<
+    //     position_cache.local().bd_e2.is_valid(*this) << "
+    //     position_cache.local().bd_e2.switch_vertex: " <<
+    //     position_cache.local().bd_e2.switch_vertex(*this).is_valid(*this) << std::endl; std::cout
+    //     << "edge_attrs[position_cache.local().bd_e2.eid(*this)].pair: " <<
+    //     edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.is_valid(*this) << "
+    //     edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex: " <<
+    //     edge_attrs[position_cache.local().bd_e2.eid(*this)].pair.switch_vertex(*this).is_valid(*this)
+    //     << std::endl;
     // }
     return true;
 }
@@ -264,23 +254,20 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     // const Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
     Eigen::Vector3d V;
     Eigen::Vector2d uv;
-    if (position_cache.local().is_v1_bd)
-    {
+    if (position_cache.local().is_v1_bd) {
         V = position_cache.local().V1;
         uv = position_cache.local().uv1;
-    }
-    else
-    {
+    } else {
         V = position_cache.local().V2;
         uv = position_cache.local().uv2;
     }
     // const Eigen::Vector3d V = position_cache.local().V1;
     // const Eigen::Vector2d uv = position_cache.local().uv1;
-   
+
     auto vid = t.vid(*this);
     vertex_attrs[vid].pos_3d = V;
     vertex_attrs[vid].pos = uv;
-    
+
     // get local F,V,uv
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
     auto locs = get_one_ring_tris_for_vertex(t);
@@ -305,12 +292,11 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     Eigen::VectorXd area_local_3d, area_local;
     igl::doublearea(V_local, F_local, area_local_3d);
     igl::doublearea(uv_local, F_local, area_local);
-    
-    
+
+
     // export_mesh(V_local, F_local, uv_local);
     // first check flips
-    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0)
-    {
+    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0) {
         // std::cout << "collapse causing flips" << std::endl;
         return false;
     }
@@ -321,51 +307,42 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     double E_max_after_collapse;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    E_max_after_collapse = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
-    
-    if (E_max_after_collapse > position_cache.local().E_max_before_collpase)
-    {
+    E_max_after_collapse =
+        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+
+    if (E_max_after_collapse > position_cache.local().E_max_before_collpase) {
         // E_max does not go down
         return false;
     }
-    
+
     // std::cout << "collapse succeed" << std::endl;
 
     // update constraints
-    if (this->is_boundary_vertex(t))
-    {
+    if (this->is_boundary_vertex(t)) {
         // std::cout << "update constraints around vertex " << t.vid(*this) << std::endl;
 
         auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
         std::vector<Tuple> two_bd_e;
         Tuple e_old_l, e_old_r;
         Tuple e_new_l, e_new_r;
-        for (auto e : one_ring_edges)
-        {
-            if (this->is_boundary_edge(e))
-            {
+        for (auto e : one_ring_edges) {
+            if (this->is_boundary_edge(e)) {
                 Tuple candidate_e = e;
-                if (!candidate_e.is_ccw(*this))
-                {
+                if (!candidate_e.is_ccw(*this)) {
                     candidate_e = candidate_e.switch_vertex(*this);
                 }
-                if (candidate_e.vid(*this) == t.vid(*this))
-                {
+                if (candidate_e.vid(*this) == t.vid(*this)) {
                     e_new_r = candidate_e;
-                }
-                else
-                {
+                } else {
                     e_new_l = candidate_e;
                 }
             }
         }
-        if (position_cache.local().bd_e1.vid(*this) == position_cache.local().vid1 || position_cache.local().bd_e1.vid(*this) == position_cache.local().vid2)
-        {
+        if (position_cache.local().bd_e1.vid(*this) == position_cache.local().vid1 ||
+            position_cache.local().bd_e1.vid(*this) == position_cache.local().vid2) {
             e_old_r = position_cache.local().bd_e1;
             e_old_l = position_cache.local().bd_e2;
-        }
-        else
-        {
+        } else {
             e_old_r = position_cache.local().bd_e2;
             e_old_l = position_cache.local().bd_e1;
         }
@@ -373,14 +350,12 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         auto e_old_r_pair = edge_attrs[e_old_r.eid_unsafe(*this)].pair;
         auto e_old_l_pair = edge_attrs[e_old_l.eid_unsafe(*this)].pair;
 
-        if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) == e_old_l.eid_unsafe(*this))
-        {
+        if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) ==
+            e_old_l.eid_unsafe(*this)) {
             std::cout << "in this case the two new bd edges is a pair" << std::endl;
             edge_attrs[e_new_r.eid(*this)].pair = e_new_l;
             edge_attrs[e_new_l.eid(*this)].pair = e_new_r;
-        }
-        else
-        {
+        } else {
             edge_attrs[e_old_r_pair.eid(*this)].pair = e_new_r;
             edge_attrs[e_old_l_pair.eid(*this)].pair = e_new_l;
             edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
@@ -388,11 +363,10 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         }
     }
 
-    
+
     auto one_ring_tris = get_one_ring_tris_for_vertex(t);
 
-    for (auto t_tmp : one_ring_tris)
-    {
+    for (auto t_tmp : one_ring_tris) {
         Tuple t0 = t_tmp;
         Tuple t1 = t0.switch_edge(*this);
         Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
@@ -400,17 +374,14 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
         if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
 
-        if (is_boundary_edge(t0))
-        {
-            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;        
+        if (is_boundary_edge(t0)) {
+            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
         }
-        if (is_boundary_edge(t1))
-        {
-            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;        
+        if (is_boundary_edge(t1)) {
+            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
         }
-        if (is_boundary_edge(t2))
-        {
-            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;        
+        if (is_boundary_edge(t2)) {
+            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
         }
     }
 
@@ -440,7 +411,8 @@ std::vector<wmtk::TriMesh::Tuple> extremeopt::ExtremeOpt::new_edges_after(
 }
 
 std::vector<wmtk::TriMesh::Tuple> extremeopt::ExtremeOpt::replace_edges_after_split(
-    const std::vector<wmtk::TriMesh::Tuple>& tris, const size_t vid_threshold) const
+    const std::vector<wmtk::TriMesh::Tuple>& tris,
+    const size_t vid_threshold) const
 {
     std::vector<wmtk::TriMesh::Tuple> new_edges;
 
@@ -460,7 +432,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     auto tri1 = oriented_tri_vids(t);
     auto t_opp = t.switch_face(*this);
     auto tri2 = oriented_tri_vids(t_opp.value());
-    
+
     // std::cout << "trinagle 1 : ";
     // for (auto i : tri1) std::cout << i << " ";
     // std::cout << std::endl << "triangle 2 : ";
@@ -470,25 +442,21 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     std::vector<int> v_ids;
     Eigen::MatrixXi F_local(2, 3);
     Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
-    for (int i = 0; i < 3; i++)
-    {
+    for (int i = 0; i < 3; i++) {
         v_ids.push_back(tri1[i]);
         F_local(0, i) = i;
     }
-    for (int i = 0; i < 3; i++)
-    {
-        int j = 0; 
-        while (j < 3 && v_ids[j] != (int)tri2[i])
-        {
+    for (int i = 0; i < 3; i++) {
+        int j = 0;
+        while (j < 3 && v_ids[j] != (int)tri2[i]) {
             j++;
         }
-        if ( j == 3) v_ids.push_back((int)tri2[i]);
+        if (j == 3) v_ids.push_back((int)tri2[i]);
         F_local(1, i) = j;
     }
     assert(v_ids.size() == 4);
 
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++) {
         V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
         uv_local.row(i) = vertex_attrs[v_ids[i]].pos;
     }
@@ -498,13 +466,11 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     igl::doublearea(uv_local, F_local, dblarea);
 
 
-    if (dblarea_3d.minCoeff() <= 0.0)
-    {
+    if (dblarea_3d.minCoeff() <= 0.0) {
         // std::cout << "zero 3d area: " << dblarea_3d.minCoeff() << std::endl;
         return false;
     }
-    if (dblarea.minCoeff() <= 0.0)
-    {
+    if (dblarea.minCoeff() <= 0.0) {
         // std::cout << "zero/negative 2d area: " << dblarea.minCoeff() << std::endl;
         return false;
     }
@@ -515,47 +481,38 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     // get dblareas, then compute the energy
     Eigen::MatrixXi F_local_old(2, 3);
     int v_to_change = 0;
-    while (F_local(1, 0) != v_to_change && F_local(1, 1) != v_to_change && F_local(1, 2) != v_to_change)
-    {
+    while (F_local(1, 0) != v_to_change && F_local(1, 1) != v_to_change &&
+           F_local(1, 2) != v_to_change) {
         v_to_change++;
     }
     // std::cout << "change: " << v_to_change << "->3" << std::endl;
-    // std::cout << "change: " << (v_to_change + 1) % 3 << "<->" << (v_to_change + 2) % 3 << std::endl;
+    // std::cout << "change: " << (v_to_change + 1) % 3 << "<->" << (v_to_change + 2) % 3 <<
+    // std::endl;
 
-    for (int i = 0; i < 3; i++)
-    {
-        if (F_local(0, i) == v_to_change)
-        {
+    for (int i = 0; i < 3; i++) {
+        if (F_local(0, i) == v_to_change) {
             F_local_old(0, i) = 3;
-        }
-        else
-        {
+        } else {
             F_local_old(0, i) = F_local(0, i);
         }
     }
 
-    for (int i = 0; i < 3; i++)
-    {
-        if (F_local(1, i) == (v_to_change + 1) % 3)
-        {
+    for (int i = 0; i < 3; i++) {
+        if (F_local(1, i) == (v_to_change + 1) % 3) {
             F_local_old(1, i) = (v_to_change + 2) % 3;
-        }
-        else if (F_local(1, i) == (v_to_change + 2) % 3)
-        {
+        } else if (F_local(1, i) == (v_to_change + 2) % 3) {
             F_local_old(1, i) = (v_to_change + 1) % 3;
-        }
-        else
-        {
+        } else {
             F_local_old(1, i) = F_local(1, i);
         }
     }
 
     // std::cout << "F_local after swap:\n" << F_local << std::endl;
     // std::cout << "F_local before swap:\n" << F_local_old << std::endl;
-    
+
     Eigen::VectorXd dblarea_3d_old;
     igl::doublearea(V_local, F_local_old, dblarea_3d_old);
-    
+
     Eigen::SparseMatrix<double> G_local, G_local_old;
     get_grad_op(V_local, F_local, G_local);
     get_grad_op(V_local, F_local_old, G_local_old);
@@ -563,54 +520,50 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     double E, E_old;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    Eigen::MatrixXd Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    Eigen::MatrixXd Es =
+        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
     E = Es.maxCoeff(); // compute E_max
-    if (std::isnan(Es(0)) || std::isnan(Es(1)))
-    {
+    if (std::isnan(Es(0)) || std::isnan(Es(1))) {
         return false;
     }
-    if (Es.minCoeff() <= 0)
-    {
+    if (Es.minCoeff() <= 0) {
         return false;
     }
     // E = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d) * dblarea_3d.sum(); // compute E_sum
 
     Eigen::MatrixXd Ji_old;
     wmtk::jacobian_from_uv(G_local_old, uv_local, Ji);
-    
 
-    E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff(); // compute E_max
+
+    E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3))
+                .maxCoeff(); // compute E_max
     // E_old = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d_old) * dblarea_3d_old.sum(); // compute E_sum
 
-    
 
-    if (!(E_old >= E))
-    {
+    if (!(E_old >= E)) {
         // std::cout << "energy increase after swapping" << std::endl;
         return false;
-    }
-    else
-    {
+    } else {
         // std::cout << "energy decreased, do swap" << std::endl;
         // if (Es.minCoeff() < 0)
         // {
         //     std::cout << "new Energy: \n" << Es << std::endl;
         //     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
         //     std::cout << "Jacobian:\n"<< Ji << std::endl;
-        //     auto det = Ji.col(0).array() * Ji.col(3).array() - Ji.col(1).array() * Ji.col(2).array();
-        //     auto frob2 = Ji.col(0).array().abs2() + Ji.col(1).array().abs2() + Ji.col(2).array().abs2() + Ji.col(3).array().abs2();
-        //     std::cout << "det:\n" << det << std::endl;
-        //     std::cout << "det.inverse:\n" << det.inverse() << std::endl;
-        //     std::cout << "frob2:\n" << frob2 << std::endl;
-        //     std::cout << "(frob2 * det.inverse()).matrix():\n" << (frob2 * det.inverse()).matrix() << std::endl;
-        //     std::cout << wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)) << std::endl;
-        //     std::cout << "min 3d area " << dblarea_3d.minCoeff() << std::endl;
+        //     auto det = Ji.col(0).array() * Ji.col(3).array() - Ji.col(1).array() *
+        //     Ji.col(2).array(); auto frob2 = Ji.col(0).array().abs2() + Ji.col(1).array().abs2() +
+        //     Ji.col(2).array().abs2() + Ji.col(3).array().abs2(); std::cout << "det:\n" << det <<
+        //     std::endl; std::cout << "det.inverse:\n" << det.inverse() << std::endl; std::cout <<
+        //     "frob2:\n" << frob2 << std::endl; std::cout << "(frob2 * det.inverse()).matrix():\n"
+        //     << (frob2 * det.inverse()).matrix() << std::endl; std::cout <<
+        //     wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)) <<
+        //     std::endl; std::cout << "min 3d area " << dblarea_3d.minCoeff() << std::endl;
         //     std::cout << "min 2d area " << dblarea.minCoeff() << std::endl;
         //     std::cout << std::endl;
         // }
-    }  
+    }
 
-   
+
     // if do swap, change the areas
     // face_attrs[t.fid(*this)].area_3d = dblarea_3d[0];
     // face_attrs[t_opp.value().fid(*this)].area_3d = dblarea_3d[1];
@@ -619,8 +572,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 
 bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
 {
-    if (!t.is_valid(*this))
-    {
+    if (!t.is_valid(*this)) {
         std::cout << "tuple not valid" << std::endl;
         return false;
     }
@@ -761,25 +713,25 @@ void extremeopt::ExtremeOpt::swap_all_edges()
     for (auto& loc : get_edges()) {
         collect_all_ops_swap.emplace_back("edge_swap", loc);
     }
-    
+
     auto setup_and_execute = [&](auto& executor_swap) {
         executor_swap.renew_neighbor_tuples = renew;
         executor_swap.priority = [&](auto& m, auto _, auto& e) {
-            return -(vertex_attrs[e.vid(*this)].pos - vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
-            .norm();
+            return -(vertex_attrs[e.vid(*this)].pos -
+                     vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+                        .norm();
         };
         executor_swap.num_threads = NUM_THREADS;
         executor_swap(*this, collect_all_ops_swap);
     };
-    auto executor_swap = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq> executor_swap;
     setup_and_execute(executor_swap);
 }
 
 void extremeopt::ExtremeOpt::collapse_all_edges()
 {
     auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
-    for (auto& loc : get_edges())
-    {
+    for (auto& loc : get_edges()) {
         // collect_all_ops_collapse.emplace_back("edge_collapse", loc);
         collect_all_ops_collapse.emplace_back("test_op", loc);
     }
@@ -787,37 +739,31 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
         executor_collapse.renew_neighbor_tuples = renew;
         // add term with energy
         executor_collapse.priority = [&](auto& m, auto _, auto& e) {
-            return (vertex_attrs[e.vid(*this)].pos - vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
-            .norm();
+            return (vertex_attrs[e.vid(*this)].pos -
+                    vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+                .norm();
         };
         executor_collapse.num_threads = NUM_THREADS;
         executor_collapse(*this, collect_all_ops_collapse);
         // TODO: priority queue (edge length)
     };
-    std::map<Op,std::function<std::optional<std::vector<Tuple>>(ExtremeOpt&, const Tuple&)>> test_op = {
-                {"test_op",
-                 [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
-                    //  CollapseEdge ce_op;
-
-                     ExtremeOpt::CollapsePair ce_op;
-                    //  if (m.collapse_edge(t, ret))
-                    if (ce_op.execute(t, m, ret))
-                         return ret;
-                     else
-                         return {};
-                 }}}
-                 ;
+    std::map<Op, std::function<std::optional<std::vector<Tuple>>(ExtremeOpt&, const Tuple&)>>
+        test_op = {
+            {"test_op", [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
+                 ExtremeOpt::CollapsePair ce_op;
+                 //  if (m.collapse_edge(t, ret))
+                 return ce_op(t, m);
+             }}};
     auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>(test_op);
     setup_and_execute(executor_collapse);
 }
 
 
-void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
+void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 {
     igl::Timer timer;
     double time;
-    
+
     // prepare to compute energy
     Eigen::SparseMatrix<double> G_global;
     Eigen::MatrixXd V, uv;
@@ -830,12 +776,10 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
 
     // compute threshold for splitting
     double elen_min = 999999, elen_min_3d = 999999;
-    for (int i = 0; i < F.rows(); i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            double l = (uv.row(F(i, j)) - uv.row(F(i, (j+1)%3))).norm();
-            double l_3d = (V.row(F(i, j)) - V.row(F(i, (j+1)%3))).norm();
+    for (int i = 0; i < F.rows(); i++) {
+        for (int j = 0; j < 3; j++) {
+            double l = (uv.row(F(i, j)) - uv.row(F(i, (j + 1) % 3))).norm();
+            double l_3d = (V.row(F(i, j)) - V.row(F(i, (j + 1) % 3))).norm();
             if (l < elen_min) elen_min = l;
             if (l_3d < elen_min_3d) elen_min_3d = l_3d;
         }
@@ -852,51 +796,51 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
 
         return wmtk::compute_energy_from_jacobian(Ji, dblarea);
     };
-    auto compute_energy_max = [&G_global, &dblarea](Eigen::MatrixXd& aaa){
+    auto compute_energy_max = [&G_global, &dblarea](Eigen::MatrixXd& aaa) {
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
-        return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+        return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3))
+            .maxCoeff();
     };
 
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
 
     double E_old = E;
-    for (int i = 1; i <= m_params.max_iters; i++) 
-    {
+    for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
         // split edge lagacy will not be used
-        if (false)
-        {
+        if (false) {
             split_all_edges();
             export_mesh(V, F, uv);
             get_grad_op(V, F, G_global);
             igl::doublearea(V, F, dblarea);
             E = compute_energy(uv);
-            wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+            wmtk::logger()
+                .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After splitting, E = {}", E);
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
         }
 
         // do smoothing
-// timer.start();
-//         smooth_all_vertices();
-// time = timer.getElapsedTime();
-//         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-//         export_mesh(V, F, uv);
-//         get_grad_op(V, F, G_global);
-//         igl::doublearea(V, F, dblarea);
-//         E = compute_energy(uv);
-//         E_max = compute_energy_max(uv);
-//         wmtk::logger().info("After smoothing {}, E = {}", i, E);
-//         wmtk::logger().info("E_max = {}", E_max);
+        // timer.start();
+        //         smooth_all_vertices();
+        // time = timer.getElapsedTime();
+        //         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+        //         export_mesh(V, F, uv);
+        //         get_grad_op(V, F, G_global);
+        //         igl::doublearea(V, F, dblarea);
+        //         E = compute_energy(uv);
+        //         E_max = compute_energy_max(uv);
+        //         wmtk::logger().info("After smoothing {}, E = {}", i, E);
+        //         wmtk::logger().info("E_max = {}", E_max);
 
         // do swaping
 
         if (this->m_params.do_swap) {
-timer.start();
+            timer.start();
             swap_all_edges();
-time = timer.getElapsedTime();
+            time = timer.getElapsedTime();
             wmtk::logger().info("edges swapping operation time serial: {}s", time);
             export_mesh(V, F, uv);
 
@@ -915,22 +859,22 @@ time = timer.getElapsedTime();
         }
 
 
-
         // TODO: add other operations
-        if (this->m_params.do_collapse)
-        {
+        if (this->m_params.do_collapse) {
             collapse_all_edges();
             export_mesh(V, F, uv);
             get_grad_op(V, F, G_global);
             igl::doublearea(V, F, dblarea);
             E = compute_energy(uv);
-            wmtk::logger().info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+            wmtk::logger()
+                .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After collapsing, E = {}", E);
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
-       
-        opt_log["opt_log"].push_back({{"F_size", F.rows()},{"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
+
+        opt_log["opt_log"].push_back(
+            {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         // terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(
@@ -944,7 +888,5 @@ time = timer.getElapsedTime();
         // }
         E_old = E;
         std::cout << std::endl;
-
     }
-
 }
