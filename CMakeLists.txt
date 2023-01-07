@@ -68,11 +68,14 @@ target_compile_definitions(wildmeshing_toolkit PUBLIC NOMINMAX)
 # C++ standard
 target_compile_features(wildmeshing_toolkit PUBLIC cxx_std_17)
 
+
 # Set IDE folders
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src" PREFIX "Source Files" FILES ${SRC_FILES})
 
 # Dependencies
 if(NOT TARGET igl::core)
+    option(LIBIGL_WITH_OPENGL            "Use OpenGL"                   ON)
+    option(LIBIGL_WITH_OPENGL_GLFW       "Use GLFW"                     ON)
     include(libigl)
 endif()
 igl_include(predicates)

@@ -5,6 +5,7 @@ bin*/
 .idea*
 ./*build*
 *build*
+*debug*
 xcode*
 temp-plot.html
 matlab/*.msh
