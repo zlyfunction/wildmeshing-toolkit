@@ -138,9 +138,8 @@ OperationRecorder::~OperationRecorder()
             TriMeshOperation op;
             strncpy(
                 op.name,
-                name.c_str(),
-                sizeof(name) /
-                    sizeof(char)); // yes sizeof(char)==1, maybe chartype changes someday?
+                name.c_str(), sizeof(op.name)/sizeof(char)
+                    ); // yes sizeof(char)==1, maybe chartype changes someday?
             assert(tuple_data.size() == 3);
             op.triangle_id = tuple_data[0];
             op.local_edge_id = tuple_data[1];

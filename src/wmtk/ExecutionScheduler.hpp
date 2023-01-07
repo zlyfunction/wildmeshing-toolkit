@@ -176,7 +176,7 @@ struct ExecutePass
                 return std::make_pair<const Op, OperatorFunc>(
                     t.name(),
                     [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                        return wmtk::TriMesh::SmoothVertex()(t, m);
+                        return T()(t, m);
                     });
             };
             edit_operation_maps.emplace(make_op(wmtk::TriMesh::EdgeCollapse()));
