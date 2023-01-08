@@ -75,8 +75,12 @@ public:
 
     bool execute(const Tuple& t, ExtremeOpt& m, std::vector<Tuple> &new_tris)
     {
-        return false;
-        // TODO: Relocate this code
+        // TODO: Relocate this code in before check
+        if (!m.is_boundary_edge(t))
+        {
+            std::cout << "not boundary edge" << std::endl;
+            return false;
+        }
         if (!t.is_valid(m))
         {
             std::cout << "not valid" << std::endl;
@@ -87,37 +91,187 @@ public:
             std::cout << "link condition error" << std::endl;
             return false;
         }
-
         Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
+        if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input))
+        {
+            std::cout << "link condition error" << std::endl;
+            return false;
+        }
         // Skip cases that paired edges are in the same triangle
         if (t_pair_input.fid(m) == t.fid(m))
         {
             return false;
         }
-
+        if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m))
+        {
+            return false;
+        }
+        if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m))
+        {
+            return false;
+        }
         // Get E_max before collapse
         double E_max_t_input = std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
         double E_max_t_pair_input = std::max(m.get_e_max_onering(t_pair_input), m.get_e_max_onering(t_pair_input.switch_vertex(m)));
         double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
-
         std::cout << "trying to collapse a boudnary edge" << std::endl;
+        // t.print_info();
+        // t_pair_input.print_info();
         std::cout << "E_max before collapsing is " << E_max_input << std::endl;
 
         // get neighbor edges
         auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
         auto onering_t_r = m.get_one_ring_edges_for_vertex(t.switch_vertex(m));
-
-        
-        return false;
-        if (before(t, m))
+        Tuple bd_t_l, bd_t_r;
+        for (auto t_tmp : onering_t_l)
         {
-            auto new_t = m.collapse_edge_new(t, new_tris);
-            return after(new_t, m, new_tris);
+            if (m.is_boundary_edge(t_tmp))
+            {
+                if (t_tmp.eid(m) != t.eid(m))
+                {
+                    bd_t_l = t_tmp.is_ccw(m)?t_tmp:t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        for (auto t_tmp : onering_t_r)
+        {
+            if (m.is_boundary_edge(t_tmp))
+            {
+                if (t_tmp.eid(m) != t.eid(m))
+                {
+                    bd_t_r = t_tmp.is_ccw(m)?t_tmp:t_tmp.switch_vertex(m);
+                }
+            }
+        }
+
+        Tuple bd_t_l_pair = m.edge_attrs[bd_t_l.eid(m)].pair;
+        Tuple bd_t_r_pair = m.edge_attrs[bd_t_r.eid(m)].pair;
+        bool keep_t = false, keep_t_opp = false;
+        if (bd_t_r_pair.switch_vertex(m).vid(m) == t_pair_input.vid(m))
+        {   
+            auto len1 = (m.vertex_attrs[t.vid(m)].pos - m.vertex_attrs[bd_t_r.switch_vertex(m).vid(m)].pos).norm();
+            auto len2 = (m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos - m.vertex_attrs[bd_t_r_pair.vid(m)].pos).norm();
+            if (std::abs(len1 - len2) < 1e-7)
+            {
+                std::cout << "keep t.vid" << std::endl;
+                keep_t = true;
+            }
+            else
+            {
+                std::cout << "len diff, cannot keep t.vid" << std::endl;
+            }
         }
         else
         {
+            std::cout << "cannot keep t.vid" << std::endl;
+        }
+
+        if (bd_t_l_pair.vid(m) == t_pair_input.switch_vertex(m).vid(m))
+        {
+            auto len1 = (m.vertex_attrs[t.switch_vertex(m).vid(m)].pos - m.vertex_attrs[bd_t_l.vid(m)].pos).norm();
+            auto len2 = (m.vertex_attrs[t_pair_input.vid(m)].pos - m.vertex_attrs[bd_t_l_pair.switch_vertex(m).vid(m)].pos).norm();
+            if (std::abs(len1 - len2) < 1e-7)
+            {
+                std::cout << "keep t.switch_vertex.vid" << std::endl;
+                keep_t_opp = true;
+            }
+            else
+            {
+                std::cout << "len diff, cannot keep t.switch_vertex.vid" << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << "cannot keep t.switch_vertex.vid" << std::endl;
+        }
+        if (!keep_t && !keep_t_opp)
+        {
+            std::cout << "this boudnary edge cannot collapse" << std::endl;
             return false;
         }
+        Eigen::Vector3d V_keep_t, V_keep_t_pair;
+        Eigen::Vector2d uv_keep_t, uv_keep_t_pair;
+        if (keep_t)
+        {
+            V_keep_t = m.vertex_attrs[t.vid(m)].pos_3d;
+            uv_keep_t = m.vertex_attrs[t.vid(m)].pos;
+            V_keep_t_pair = m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos_3d;
+            uv_keep_t_pair = m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos;
+        }
+        else
+        {
+            V_keep_t = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos_3d;
+            uv_keep_t = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos;
+            V_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos_3d;
+            uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
+        }
+
+        m.start_protect_connectivity();
+        m.start_protect_attributes();
+        auto new_t = m.collapse_edge_new(t, new_tris);
+        
+        
+        double E_max_t, E_max_t_pair;
+        if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_max_t))
+        {
+            std::cout << "collapse t fail" << std::endl;
+            m.rollback_protected_connectivity();
+            m.rollback_protected_attributes();
+            return false;
+        }
+        else
+        {
+            std::cout << "collapse t ok" << std::endl;
+        }
+
+        Tuple t_pair = m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
+        auto onering_t_pair_l = m.get_one_ring_edges_for_vertex(t_pair);
+        auto onering_t_pair_r = m.get_one_ring_edges_for_vertex(t_pair.switch_vertex(m));
+        Tuple bd_t_pair_l, bd_t_pair_r;
+        for (auto t_tmp : onering_t_pair_l)
+        {
+            if (m.is_boundary_edge(t_tmp))
+            {
+                if (t_tmp.eid(m) != t_pair.eid(m))
+                {
+                    bd_t_pair_l = t_tmp.is_ccw(m)?t_tmp:t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        for (auto t_tmp : onering_t_pair_r)
+        {
+            if (m.is_boundary_edge(t_tmp))
+            {
+                if (t_tmp.eid(m) != t_pair.eid(m))
+                {
+                    bd_t_pair_r = t_tmp.is_ccw(m)?t_tmp:t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        new_t = m.collapse_edge_new(t_pair, new_tris);
+        if (!m.collapse_bd_edge_after(new_t, V_keep_t_pair, uv_keep_t_pair, bd_t_pair_l, bd_t_pair_r, E_max_t_pair))
+        {
+            std::cout << "collapse t pair fail" << std::endl;
+            m.rollback_protected_connectivity();
+            m.rollback_protected_attributes();
+            return false;
+        }
+        else
+        {
+            std::cout << "collapse t pair ok" << std::endl;
+        }
+        if (E_max_input < std::max(E_max_t, E_max_t_pair))
+        {
+            m.rollback_protected_connectivity();
+            m.rollback_protected_attributes();
+            return false;
+        }
+        std::cout << "good!" << std::endl;
+        m.release_protect_connectivity();
+        m.release_protect_attributes();
+
+                
+        return true;
     }
 
     bool before_check(const Tuple& t, ExtremeOpt& m) 
@@ -143,129 +297,9 @@ wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
 wmtk::AttributeCollection<FaceAttributes> face_attrs;
 wmtk::AttributeCollection<EdgeAttributes> edge_attrs;
 
-void consolidate_mesh_cons()
-{
-    auto v_cnt = 0;
-    std::vector<size_t> map_v_ids(vert_capacity(), -1);
-    for (auto i = 0; i < vert_capacity(); i++) {
-        if (m_vertex_connectivity[i].m_is_removed) continue;
-        map_v_ids[i] = v_cnt;
-        v_cnt++;
-    }
+void consolidate_mesh_cons();
 
-    auto t_cnt = 0;
-    std::vector<size_t> map_t_ids(tri_capacity(), -1);
-    for (auto i = 0; i < tri_capacity(); i++) {
-        if (m_tri_connectivity[i].m_is_removed) continue;
-        map_t_ids[i] = t_cnt;
-        t_cnt++;
-    }
-    v_cnt = 0;
-    for (auto i = 0; i < vert_capacity(); i++) {
-        if (m_vertex_connectivity[i].m_is_removed) continue;
-        if (v_cnt != i) {
-            assert(v_cnt < i);
-            m_vertex_connectivity[v_cnt] = m_vertex_connectivity[i];
-            if (p_vertex_attrs) p_vertex_attrs->move(i, v_cnt);
-        }
-        for (size_t& t_id : m_vertex_connectivity[v_cnt].m_conn_tris) t_id = map_t_ids[t_id];
-        v_cnt++;
-    }
-    t_cnt = 0;
-
-    for (int i = 0; i < tri_capacity(); i++) {
-        if (m_tri_connectivity[i].m_is_removed) continue;
-
-        if (t_cnt != i) {
-            assert(t_cnt < i);
-            m_tri_connectivity[t_cnt] = m_tri_connectivity[i];
-            m_tri_connectivity[t_cnt].hash = 0;
-            if (p_face_attrs) p_face_attrs->move(i, t_cnt);
-
-            for (auto j = 0; j < 3; j++) {
-                if (p_edge_attrs) p_edge_attrs->move(i * 3 + j, t_cnt * 3 + j);
-            }
-        }
-        for (size_t& v_id : m_tri_connectivity[t_cnt].m_indices) v_id = map_v_ids[v_id];
-        t_cnt++;
-    }
-
-    current_vert_size = v_cnt;
-    current_tri_size = t_cnt;
-
-    m_vertex_connectivity.m_attributes.resize(v_cnt);
-    m_vertex_connectivity.shrink_to_fit();
-    m_tri_connectivity.m_attributes.resize(t_cnt);
-    m_tri_connectivity.shrink_to_fit();
-
-    resize_mutex(vert_capacity());
-
-    // Resize user class attributes
-    if (p_vertex_attrs) p_vertex_attrs->resize(vert_capacity());
-    if (p_edge_attrs) p_edge_attrs->resize(tri_capacity() * 3);
-    if (p_face_attrs) p_face_attrs->resize(tri_capacity());
-
-
-    // update constraints(edge tuple pairs)
-    for (int i = 0; i < tri_capacity(); i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
-            auto cur_t = tuple_from_edge(i, j);
-            if (is_boundary_edge(cur_t))
-            {
-                auto pair_t = edge_attrs[3 * i + j].pair;
-                edge_attrs[3 * i + j].pair = tuple_from_edge(map_t_ids[pair_t.eid_unsafe(*this) / 3], pair_t.eid_unsafe(*this) % 3);
-            } 
-        }
-    }
-}
-
-bool check_constraints(double eps = 1e-7)
-{
-    auto all_edges = this->get_edges();
-    bool flag = true;
-    for (auto t_e : all_edges)
-    {
-        if (!this->is_boundary_edge(t_e)) continue;
-        auto t_e_pair = edge_attrs[t_e.eid(*this)].pair;
-        int v0 = t_e.vid(*this);
-        int v1 = t_e.switch_vertex(*this).vid(*this);
-        int v2 = t_e_pair.vid(*this);
-        int v3 = t_e_pair.switch_vertex(*this).vid(*this);
-        
-        // check length
-        auto e_ab = (vertex_attrs[v1].pos - vertex_attrs[v0].pos);
-        auto e_dc = (vertex_attrs[v2].pos - vertex_attrs[v3].pos);
-        // std::cout << "(" << v0 << "," << v1 << ") - (" << v2 << "," << v3 << ")" << std::endl;
-        // std::cout << abs(e_ab.norm() - e_dc.norm()) << std::endl;
-        if (abs(e_ab.norm() - e_dc.norm()) > eps) 
-        {
-            std::cout << "length error " << "(" << v0 << "," << v1 << ") - (" << v2 << "," << v3 << ")" << std::endl;
-            std::cout << abs(e_ab.norm() - e_dc.norm()) << std::endl;
-            flag = false;
-            // return false;
-        } 
-    
-        // check angle
-        Eigen::Vector2d e_ab_perp;
-        e_ab_perp(0) = -e_ab(1);
-        e_ab_perp(1) = e_ab(0);
-        double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
-        double index = 2 * angle / igl::PI;
-        // std::cout << index << std::endl;
-        if (abs(index - round(index)) > eps)
-        {
-            std::cout << "angle error " << "(" << v0 << "," << v1 << ") - (" << v2 << "," << v3 << ")" << std::endl;
-            std::cout << index << std::endl;
-            flag = false;
-            // return false;
-        }
-    }
-
-    return flag;
-    // return true;
-}
+bool check_constraints(double eps = 1e-7);
 
 struct PositionInfoCache
 {
@@ -330,7 +364,7 @@ void cache_edge_positions(const Tuple& t);
 bool collapse_edge_before(const Tuple& t) override;
 bool collapse_edge_after(const Tuple& t) override;
 void collapse_all_edges();
-
+bool collapse_bd_edge_after(const Tuple& t, const Eigen::Vector3d &V_keep, const Eigen::Vector2d &uv_keep,Tuple &t_l_old, Tuple &t_r_old, double &E_max);
 // Edge Splitting
 bool split_edge_before(const Tuple& t) override;
 bool split_edge_after(const Tuple& t) override;

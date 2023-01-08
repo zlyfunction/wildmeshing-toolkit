@@ -389,8 +389,8 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         }
         else
         {
-            edge_attrs[e_old_r_pair.eid(*this)].pair = e_new_r;
-            edge_attrs[e_old_l_pair.eid(*this)].pair = e_new_l;
+            edge_attrs[e_old_r_pair.eid_unsafe(*this)].pair = e_new_r;
+            edge_attrs[e_old_l_pair.eid_unsafe(*this)].pair = e_new_l;
             edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
             edge_attrs[e_new_l.eid(*this)].pair = e_old_l_pair;
         }
@@ -424,6 +424,87 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 
     return true;
 }
+
+bool extremeopt::ExtremeOpt::collapse_bd_edge_after(const Tuple& t, const Eigen::Vector3d &V_keep, const Eigen::Vector2d &uv_keep, Tuple &t_l_old, Tuple &t_r_old, double &E_max)
+{
+    // update vertex position
+    auto vid = t.vid(*this);
+    vertex_attrs[vid].pos_3d = V_keep;
+    vertex_attrs[vid].pos = uv_keep;
+
+    // get local mesh and check area/E_max
+    Eigen::MatrixXd V_local, uv_local;
+    Eigen::MatrixXi F_local;
+    get_mesh_onering(t, V_local, uv_local, F_local);Eigen::VectorXd area_local_3d, area_local;
+    igl::doublearea(V_local, F_local, area_local_3d);
+    igl::doublearea(uv_local, F_local, area_local);
+    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0)
+    {
+        return false;
+    }
+    Eigen::SparseMatrix<double> G_local;
+    get_grad_op(V_local, F_local, G_local);
+    Eigen::MatrixXd Ji;
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    E_max = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+
+    // update constraints
+    auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
+    Tuple e_new_l, e_new_r;
+    for (auto e : one_ring_edges)
+    {
+        if (this->is_boundary_edge(e))
+        {
+            Tuple candidate_e = e;
+            if (!candidate_e.is_ccw(*this))
+            {
+                candidate_e = candidate_e.switch_vertex(*this);
+            }
+            if (candidate_e.vid(*this) == t.vid(*this))
+            {
+                e_new_r = candidate_e;
+            }
+            else
+            {
+                e_new_l = candidate_e;
+            }
+        }
+    }
+    auto e_old_l_pair = edge_attrs[t_l_old.eid_unsafe(*this)].pair;
+    auto e_old_r_pair = edge_attrs[t_r_old.eid_unsafe(*this)].pair;
+    edge_attrs[e_old_r_pair.eid_unsafe(*this)].pair = e_new_r;
+    edge_attrs[e_old_l_pair.eid_unsafe(*this)].pair = e_new_l;
+    edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
+    edge_attrs[e_new_l.eid(*this)].pair = e_old_l_pair;
+    
+    auto one_ring_tris = get_one_ring_tris_for_vertex(t);
+    for (auto t_tmp : one_ring_tris)
+    {
+        Tuple t0 = t_tmp;
+        Tuple t1 = t0.switch_edge(*this);
+        Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
+        if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
+        if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+        if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
+
+        if (is_boundary_edge(t0))
+        {
+            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;        
+        }
+        if (is_boundary_edge(t1))
+        {
+            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;        
+        }
+        if (is_boundary_edge(t2))
+        {
+            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;        
+        }
+    }
+
+
+    return true;
+}
+
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) return false;

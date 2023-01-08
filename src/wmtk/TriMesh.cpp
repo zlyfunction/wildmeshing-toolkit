@@ -19,7 +19,7 @@ void TriMesh::Tuple::update_hash(const TriMesh& m)
     m_hash = m.m_tri_connectivity[m_fid].hash;
 }
 
-void TriMesh::Tuple::print_info()
+void TriMesh::Tuple::print_info() const
 {
     std::cout << m_vid << " " << m_eid << " " << m_fid << std::endl;
     logger().trace("tuple: {} {} {}", m_vid, m_eid, m_fid);

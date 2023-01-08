@@ -38,7 +38,7 @@ public:
         void update_hash(const TriMesh& m);
     public:
 
-        void print_info();
+        void print_info() const;
 
         //         v2        /
         //       /    \      /
