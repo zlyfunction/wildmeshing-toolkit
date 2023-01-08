@@ -222,6 +222,40 @@ bool TriMesh::Tuple::is_valid(const TriMesh& m) const
     return true;
 }
 
+bool TriMesh::invariants(const std::vector<Tuple>&)
+{
+    return true;
+}
+bool TriMesh::split_edge_before(const Tuple& t)
+{
+    return true;
+}
+bool TriMesh::split_edge_after(const Tuple& t)
+{
+    return true;
+}
+bool TriMesh::collapse_edge_before(const Tuple& t)
+{
+    if (check_link_condition(t)) return true;
+    return false;
+}
+bool TriMesh::collapse_edge_after(const Tuple& t)
+{
+    return true;
+}
+bool TriMesh::swap_edge_after(const Tuple& t)
+{
+    return true;
+}
+bool TriMesh::swap_edge_before(const Tuple& t);
+bool TriMesh::smooth_before(const Tuple& t)
+{
+    return true;
+}
+bool TriMesh::smooth_after(const Tuple& t)
+{
+    return true;
+}
 // a valid mesh can have triangles that are is_removed == true
 bool wmtk::TriMesh::check_mesh_connectivity_validity() const
 {

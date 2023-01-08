@@ -244,8 +244,8 @@ public:
     class SwapEdge;
     class SmoothVertex;
 
-    TriMesh() ;
-    virtual ~TriMesh() ;
+    TriMesh();
+    virtual ~TriMesh();
 
     /**
      * Generate the connectivity of the mesh
@@ -331,31 +331,24 @@ protected:
     size_t get_next_empty_slot_v();
 
 protected:
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
     /**
      * @brief User specified invariants that can't be violated
      * @param std::vector<Tuple> a vector of Tuples that are concerned in a given operation
      * @return true if the invairnats are not violated
      */
-    virtual bool invariants(const std::vector<Tuple>&) { return true; }
+    virtual bool invariants(const std::vector<Tuple>&);
     /**
      * @brief User specified preparations and desideratas for an edge split
      * @param the edge Tuple to be split
      * @return true if the preparation succeed
      */
-    virtual bool split_edge_before(const Tuple& t) { return true; }
+    virtual bool split_edge_before(const Tuple& t);
     /**
      * @brief User specified modifications and desideratas after an edge split
      * @param the edge Tuple to be split
      * @return true if the modifications succeed
      */
-    virtual bool split_edge_after(const Tuple& t) { return true; }
+    virtual bool split_edge_after(const Tuple& t);
 
     /**
      * @brief User specified preparations and desideratas for an edge collapse
@@ -374,13 +367,13 @@ protected:
      * @param the edge Tuple to be collapsed
      * @return true if the modifications succeed
      */
-    virtual bool collapse_edge_after(const Tuple& t) { return true; }
+    virtual bool collapse_edge_after(const Tuple& t);
     /**
      * @brief User specified modifications and desideras after an edge swap
      * @param the edge Tuple to be swaped
      * @return true if the modifications succeed
      */
-    virtual bool swap_edge_after(const Tuple& t) { return true; }
+    virtual bool swap_edge_after(const Tuple& t);
     /**
      * @brief User specified preparations and desideratas for an edge swap
      * including 1.can't swap on boundary edge. 2. when swap edge between v1, v2,
@@ -396,18 +389,13 @@ protected:
      * @param the edge Tuple to be smoothed
      * @return true if the preparation succeed
      */
-    virtual bool smooth_before(const Tuple& t) { return true; }
+    virtual bool smooth_before(const Tuple& t);
     /**
      * @brief User specified modifications and desideras after an edge smooth
      * @param the edge Tuple to be smoothed
      * @return true if the modifications succeed
      */
-    virtual bool smooth_after(const Tuple& t) { return true; }
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
-#pragma GCC diagnostic pop
-#endif
+    virtual bool smooth_after(const Tuple& t);
 
 public:
     /**
