@@ -91,6 +91,19 @@ void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::Matr
     }
 }
 
+void ExtremeOpt::export_EE(Eigen::MatrixXi &EE)
+{
+    EE.resize(0,0);
+    for (auto& loc : get_edges())
+    {
+        if (is_boundary_edge(loc))
+        {
+            EE.conservativeResize(EE.rows() + 1, 4);
+            EE.row(EE.rows() - 1) << loc.vid(*this), loc.switch_vertex(*this).vid(*this), edge_attrs[loc.eid(*this)].pair.vid(*this), edge_attrs[loc.eid(*this)].pair.switch_vertex(*this).vid(*this);
+        }
+    }
+}
+
 void ExtremeOpt::write_obj(const std::string& path)
 {
     Eigen::MatrixXd V, uv;
@@ -184,6 +197,130 @@ bool ExtremeOpt::is_inverted(const Tuple& loc) const
 
     // The element is inverted if it not positive (i.e. it is negative or it is degenerate)
     return (res != igl::predicates::Orientation::POSITIVE);
+}
+
+void ExtremeOpt::consolidate_mesh_cons()
+{
+    auto v_cnt = 0;
+    std::vector<size_t> map_v_ids(vert_capacity(), -1);
+    for (auto i = 0; i < vert_capacity(); i++) {
+        if (m_vertex_connectivity[i].m_is_removed) continue;
+        map_v_ids[i] = v_cnt;
+        v_cnt++;
+    }
+
+    auto t_cnt = 0;
+    std::vector<size_t> map_t_ids(tri_capacity(), -1);
+    for (auto i = 0; i < tri_capacity(); i++) {
+        if (m_tri_connectivity[i].m_is_removed) continue;
+        map_t_ids[i] = t_cnt;
+        t_cnt++;
+    }
+    v_cnt = 0;
+    for (auto i = 0; i < vert_capacity(); i++) {
+        if (m_vertex_connectivity[i].m_is_removed) continue;
+        if (v_cnt != i) {
+            assert(v_cnt < i);
+            m_vertex_connectivity[v_cnt] = m_vertex_connectivity[i];
+            if (p_vertex_attrs) p_vertex_attrs->move(i, v_cnt);
+        }
+        for (size_t& t_id : m_vertex_connectivity[v_cnt].m_conn_tris) t_id = map_t_ids[t_id];
+        v_cnt++;
+    }
+    t_cnt = 0;
+
+    for (int i = 0; i < tri_capacity(); i++) {
+        if (m_tri_connectivity[i].m_is_removed) continue;
+
+        if (t_cnt != i) {
+            assert(t_cnt < i);
+            m_tri_connectivity[t_cnt] = m_tri_connectivity[i];
+            m_tri_connectivity[t_cnt].hash = 0;
+            if (p_face_attrs) p_face_attrs->move(i, t_cnt);
+
+            for (auto j = 0; j < 3; j++) {
+                if (p_edge_attrs) p_edge_attrs->move(i * 3 + j, t_cnt * 3 + j);
+            }
+        }
+        for (size_t& v_id : m_tri_connectivity[t_cnt].m_indices) v_id = map_v_ids[v_id];
+        t_cnt++;
+    }
+
+    current_vert_size = v_cnt;
+    current_tri_size = t_cnt;
+
+    m_vertex_connectivity.m_attributes.resize(v_cnt);
+    m_vertex_connectivity.shrink_to_fit();
+    m_tri_connectivity.m_attributes.resize(t_cnt);
+    m_tri_connectivity.shrink_to_fit();
+
+    resize_mutex(vert_capacity());
+
+    // Resize user class attributes
+    if (p_vertex_attrs) p_vertex_attrs->resize(vert_capacity());
+    if (p_edge_attrs) p_edge_attrs->resize(tri_capacity() * 3);
+    if (p_face_attrs) p_face_attrs->resize(tri_capacity());
+
+
+    // update constraints(edge tuple pairs)
+    for (int i = 0; i < tri_capacity(); i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            auto cur_t = tuple_from_edge(i, j);
+            if (is_boundary_edge(cur_t))
+            {
+                auto pair_t = edge_attrs[3 * i + j].pair;
+                edge_attrs[3 * i + j].pair = tuple_from_edge(map_t_ids[pair_t.eid_unsafe(*this) / 3], pair_t.eid_unsafe(*this) % 3);
+            } 
+        }
+    }
+}
+
+bool ExtremeOpt::check_constraints(double eps)
+{
+    auto all_edges = this->get_edges();
+    bool flag = true;
+    for (auto t_e : all_edges)
+    {
+        if (!this->is_boundary_edge(t_e)) continue;
+        auto t_e_pair = edge_attrs[t_e.eid(*this)].pair;
+        int v0 = t_e.vid(*this);
+        int v1 = t_e.switch_vertex(*this).vid(*this);
+        int v2 = t_e_pair.vid(*this);
+        int v3 = t_e_pair.switch_vertex(*this).vid(*this);
+        
+        // check length
+        auto e_ab = (vertex_attrs[v1].pos - vertex_attrs[v0].pos);
+        auto e_dc = (vertex_attrs[v2].pos - vertex_attrs[v3].pos);
+        // std::cout << "(" << v0 << "," << v1 << ") - (" << v2 << "," << v3 << ")" << std::endl;
+        // std::cout << abs(e_ab.norm() - e_dc.norm()) << std::endl;
+        if (abs(e_ab.norm() - e_dc.norm()) > eps) 
+        {
+            std::cout << "length error " << "(" << v0 << "," << v1 << ") - (" << v2 << "," << v3 << ")" << std::endl;
+            std::cout << abs(e_ab.norm() - e_dc.norm()) << std::endl;
+            flag = false;
+            // return false;
+        } 
+    
+        // check angle
+        Eigen::Vector2d e_ab_perp;
+        e_ab_perp(0) = -e_ab(1);
+        e_ab_perp(1) = e_ab(0);
+        double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
+        double index = 2 * angle / igl::PI;
+        // std::cout << index << std::endl;
+        if (abs(index - round(index)) > eps)
+        {
+            std::cout << "angle error " << "(" << v0 << "," << v1 << ") - (" << v2 << "," << v3 << ")" << std::endl;
+            std::cout << index << std::endl;
+            flag = false;
+            // return false;
+        }
+    }
+
+    return flag;
+    // return true;
 }
 
 }

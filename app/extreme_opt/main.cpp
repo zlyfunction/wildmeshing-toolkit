@@ -167,10 +167,18 @@ bool uniform_upsample_with_cons(
         {
             std::cout << "cant find A" << std::endl;
         }
+        if (new_bd[(posA+2) % new_bd.size()] != B)
+        {
+            std::cout << "cant find B" << std::endl;
+        }
         int posC = std::find(new_bd.begin(), new_bd.end(), C) - new_bd.begin();
         if (posC == new_bd.size())
         {
             std::cout << "cant find C" << std::endl;
+        }
+        if (new_bd[(posC+2) % new_bd.size()] != D)
+        {
+            std::cout << "cant find D" << std::endl;
         }
         int new_v_AB = new_bd[(posA+1) % new_bd.size()];
         int new_v_CD = new_bd[(posC+1) % new_bd.size()];
@@ -182,6 +190,7 @@ bool uniform_upsample_with_cons(
     double new_cons_residual = check_constraints(new_EE, new_uv, new_F, new_Aeq);
     wmtk::logger().info("constraints error after upsample {}", new_cons_residual);
 
+    EE = new_EE;
     if (new_cons_residual > eps)
     {
         return false;
@@ -255,12 +264,13 @@ int main(int argc, char** argv)
     
     
     // std::cout << "try upsample constraints" << std::endl;
-    // Eigen::MatrixXi new_F;
-    // Eigen::MatrixXd new_V, new_uv;
+    Eigen::MatrixXi new_F;
+    Eigen::MatrixXd new_V, new_uv;
     // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     // Load the mesh in the trimesh class
 
     extremeopt::ExtremeOpt extremeopt;
+    // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     extremeopt.create_mesh(V,F,uv);
     extremeopt.m_params = param;
     std::vector<std::vector<int>> EE_e;
@@ -289,26 +299,66 @@ int main(int argc, char** argv)
         std::cout << "fails" << std::endl;
     }
     extremeopt.export_mesh(V, F, uv);
-    return true;
-    
+    extremeopt.export_EE(EE);
+
     for (int i = 0; i < 4; i++)
     {
-        std::cout << "do upsample" << std::endl;
-        Eigen::MatrixXi new_F;
-        Eigen::MatrixXd new_V, new_uv;
-        igl::upsample(V, F, new_V, new_F);
-        igl::upsample(uv, F, new_uv, new_F);
-        std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
-        std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
-
+        uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
+        V = new_V; uv = new_uv; F = new_F;
+        // std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
+        // std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
         extremeopt::ExtremeOpt extremeopt1;
-        extremeopt1.create_mesh(new_V,new_F,new_uv);
+        extremeopt1.create_mesh(V,F,uv);
         extremeopt1.m_params = param;
+        std::vector<std::vector<int>> EE_e;
+        transform_EE(F, EE, EE_e);
+        extremeopt1.init_constraints(EE_e);
+        std::cout << "check constraints inside wmtk" << std::endl;
+        if (extremeopt1.check_constraints())
+        {
+            std::cout << "initial constraints satisfied" << std::endl;
+        }
+        else
+        {
+            std::cout << "fails" << std::endl;
+        }
+
         extremeopt1.do_optimization(opt_log);
+
+        std::cout << "check constraints inside wmtk" << std::endl;
+        if (extremeopt1.check_constraints())
+        {
+            std::cout << "constraints satisfied" << std::endl;
+        }
+        else
+        {
+            std::cout << "fails" << std::endl;
+        }
         extremeopt1.export_mesh(V, F, uv);
+        extremeopt1.export_EE(EE);
     }
     igl::writeOBJ(output_dir + "/" + model + "_out.obj", V, F, V, F, uv, F);
     js_out << std::setw(4) << opt_log << std::endl;
+    return true;
+    
+    // for (int i = 0; i < 4; i++)
+    // {
+    //     std::cout << "do upsample" << std::endl;
+    //     Eigen::MatrixXi new_F;
+    //     Eigen::MatrixXd new_V, new_uv;
+    //     igl::upsample(V, F, new_V, new_F);
+    //     igl::upsample(uv, F, new_uv, new_F);
+    //     std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
+    //     std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
+
+    //     extremeopt::ExtremeOpt extremeopt1;
+    //     extremeopt1.create_mesh(new_V,new_F,new_uv);
+    //     extremeopt1.m_params = param;
+    //     extremeopt1.do_optimization(opt_log);
+    //     extremeopt1.export_mesh(V, F, uv);
+    // }
+    // igl::writeOBJ(output_dir + "/" + model + "_out.obj", V, F, V, F, uv, F);
+    // js_out << std::setw(4) << opt_log << std::endl;
     
     // extremeopt.write_obj("after_collpase.obj");
     // Do the mesh optimization

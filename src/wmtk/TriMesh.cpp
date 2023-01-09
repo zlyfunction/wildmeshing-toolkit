@@ -1429,6 +1429,7 @@ bool wmtk::TriMesh::check_link_condition(const Tuple& edge) const
     bool v_link =
         (lk_vid12.size() == lk_edge.size() &&
          std::equal(lk_vid12.begin(), lk_vid12.end(), lk_edge.begin()));
+    
 
     // check edge link condition
     // in 2d edge link for an edge is always empty
@@ -1443,8 +1444,10 @@ bool wmtk::TriMesh::check_link_condition(const Tuple& edge) const
         lk_e_vid2.begin(),
         lk_e_vid2.end(),
         std::back_inserter(res));
-    if (res.size() > 0) return false;
-
+    if (res.size() > 0) 
+    {
+        return false;
+    }
     return v_link;
 }
 
