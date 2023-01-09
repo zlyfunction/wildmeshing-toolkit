@@ -10,6 +10,7 @@
 #include <wmtk/utils/AMIPS2D.h>
 #include <Eigen/Sparse>
 #include <array>
+#include <iostream>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TriQualityUtils.hpp>
 
@@ -23,30 +24,29 @@
 #include <igl/upsample.h>
 
 using namespace wmtk;
-auto renew = [](auto& m, auto op, auto& tris) {
+namespace {
+auto renew(auto& m, auto op, auto& tris)
+{
     auto edges = m.new_edges_after(tris);
     auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
     for (auto& e : edges) optup.emplace_back(op, e);
     return optup;
 };
 
-auto renew_collapse = [](auto& m, auto op, auto& tris) {
+auto renew_collapse(auto& m, auto op, auto& tris)
+{
     auto edges = m.new_edges_after(tris);
     auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
-    for (auto& e : edges) 
-    {
-        if (m.is_boundary_edge(e))
-        {
+    for (auto& e : edges) {
+        if (m.is_boundary_edge(e)) {
             optup.emplace_back("test_op", e);
-        }
-        else
-        {
+        } else {
             optup.emplace_back("edge_collapse", e);
         }
-
     }
     return optup;
 };
+} // namespace
 
 
 namespace extremeopt {
@@ -151,7 +151,7 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
     E2 = get_e_max_onering(t.switch_vertex(*this));
 
     position_cache.local().E_max_before_collpase = std::max(E1, E2);
-}   
+}
 
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
 {
@@ -344,14 +344,12 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         auto e_old_r_pair = edge_attrs[e_old_r.eid_unsafe(*this)].pair;
         auto e_old_l_pair = edge_attrs[e_old_l.eid_unsafe(*this)].pair;
 
-        if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) == e_old_l.eid_unsafe(*this))
-        {
+        if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) ==
+            e_old_l.eid_unsafe(*this)) {
             // std::cout << "in this case the two new bd edges is a pair" << std::endl;
             edge_attrs[e_new_r.eid(*this)].pair = e_new_l;
             edge_attrs[e_new_l.eid(*this)].pair = e_new_r;
-        }
-        else
-        {
+        } else {
             edge_attrs[e_old_r_pair.eid_unsafe(*this)].pair = e_new_r;
             edge_attrs[e_old_l_pair.eid_unsafe(*this)].pair = e_new_l;
             edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
@@ -384,7 +382,13 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     return true;
 }
 
-bool extremeopt::ExtremeOpt::collapse_bd_edge_after(const Tuple& t, const Eigen::Vector3d &V_keep, const Eigen::Vector2d &uv_keep, Tuple &t_l_old, Tuple &t_r_old, double &E_max)
+bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
+    const Tuple& t,
+    const Eigen::Vector3d& V_keep,
+    const Eigen::Vector2d& uv_keep,
+    Tuple& t_l_old,
+    Tuple& t_r_old,
+    double& E_max)
 {
     // update vertex position
     auto vid = t.vid(*this);
@@ -394,11 +398,11 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(const Tuple& t, const Eigen:
     // get local mesh and check area/E_max
     Eigen::MatrixXd V_local, uv_local;
     Eigen::MatrixXi F_local;
-    get_mesh_onering(t, V_local, uv_local, F_local);Eigen::VectorXd area_local_3d, area_local;
+    get_mesh_onering(t, V_local, uv_local, F_local);
+    Eigen::VectorXd area_local_3d, area_local;
     igl::doublearea(V_local, F_local, area_local_3d);
     igl::doublearea(uv_local, F_local, area_local);
-    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0)
-    {
+    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0) {
         return false;
     }
     Eigen::SparseMatrix<double> G_local;
@@ -410,21 +414,15 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(const Tuple& t, const Eigen:
     // update constraints
     auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
     Tuple e_new_l, e_new_r;
-    for (auto e : one_ring_edges)
-    {
-        if (this->is_boundary_edge(e))
-        {
+    for (auto e : one_ring_edges) {
+        if (this->is_boundary_edge(e)) {
             Tuple candidate_e = e;
-            if (!candidate_e.is_ccw(*this))
-            {
+            if (!candidate_e.is_ccw(*this)) {
                 candidate_e = candidate_e.switch_vertex(*this);
             }
-            if (candidate_e.vid(*this) == t.vid(*this))
-            {
+            if (candidate_e.vid(*this) == t.vid(*this)) {
                 e_new_r = candidate_e;
-            }
-            else
-            {
+            } else {
                 e_new_l = candidate_e;
             }
         }
@@ -435,10 +433,9 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(const Tuple& t, const Eigen:
     edge_attrs[e_old_l_pair.eid_unsafe(*this)].pair = e_new_l;
     edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
     edge_attrs[e_new_l.eid(*this)].pair = e_old_l_pair;
-    
+
     auto one_ring_tris = get_one_ring_tris_for_vertex(t);
-    for (auto t_tmp : one_ring_tris)
-    {
+    for (auto t_tmp : one_ring_tris) {
         Tuple t0 = t_tmp;
         Tuple t1 = t0.switch_edge(*this);
         Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
@@ -446,17 +443,14 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(const Tuple& t, const Eigen:
         if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
         if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
 
-        if (is_boundary_edge(t0))
-        {
-            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;        
+        if (is_boundary_edge(t0)) {
+            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
         }
-        if (is_boundary_edge(t1))
-        {
-            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;        
+        if (is_boundary_edge(t1)) {
+            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
         }
-        if (is_boundary_edge(t2))
-        {
-            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;        
+        if (is_boundary_edge(t2)) {
+            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
         }
     }
 
@@ -626,7 +620,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
         // std::cout << "energy increase after swapping" << std::endl;
         return false;
     }
-     
+
     // update constraints after collapse
     Tuple t1 = t.switch_edge(*this);
     Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
@@ -635,23 +629,18 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
     if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
     bool flag = true;
-    if (is_boundary_edge(t1))
-    {
+    if (is_boundary_edge(t1)) {
         auto t1_old_pair = edge_attrs[t1_old.eid_unsafe(*this)].pair;
-        if (t1_old_pair.eid_unsafe(*this) == t2_old.eid_unsafe(*this))
-        {
+        if (t1_old_pair.eid_unsafe(*this) == t2_old.eid_unsafe(*this)) {
             flag = false;
             edge_attrs[t1.eid(*this)].pair = t2;
             edge_attrs[t2.eid(*this)].pair = t1;
-        }
-        else
-        {
+        } else {
             edge_attrs[t1_old_pair.eid_unsafe(*this)].pair = t1;
             edge_attrs[t1.eid(*this)].pair = t1_old_pair;
         }
     }
-    if (flag && is_boundary_edge(t2))
-    {
+    if (flag && is_boundary_edge(t2)) {
         auto t2_old_pair = edge_attrs[t2_old.eid_unsafe(*this)].pair;
         edge_attrs[t2_old_pair.eid_unsafe(*this)].pair = t2;
         edge_attrs[t2.eid(*this)].pair = t2_old_pair;
@@ -659,8 +648,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 
     auto one_ring_tris = get_one_ring_tris_for_vertex(t);
 
-    for (auto t_tmp : one_ring_tris)
-    {
+    for (auto t_tmp : one_ring_tris) {
         Tuple t0 = t_tmp;
         Tuple t1 = t0.switch_edge(*this);
         Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
@@ -668,17 +656,14 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
         if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
         if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
 
-        if (is_boundary_edge(t0))
-        {
-            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;        
+        if (is_boundary_edge(t0)) {
+            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
         }
-        if (is_boundary_edge(t1))
-        {
-            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;        
+        if (is_boundary_edge(t1)) {
+            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
         }
-        if (is_boundary_edge(t2))
-        {
-            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;        
+        if (is_boundary_edge(t2)) {
+            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
         }
     }
 
@@ -692,8 +677,7 @@ bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
         return false;
     }
 
-    if (is_boundary_vertex(t))
-    {
+    if (is_boundary_vertex(t)) {
         return false;
     }
     // // it's okay to move the boundary(for now)
@@ -851,14 +835,10 @@ void extremeopt::ExtremeOpt::swap_all_edges()
 void extremeopt::ExtremeOpt::collapse_all_edges()
 {
     auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
-    for (auto& loc : get_edges())
-    {
-        if (is_boundary_edge(loc))
-        {
+    for (auto& loc : get_edges()) {
+        if (is_boundary_edge(loc)) {
             collect_all_ops_collapse.emplace_back("test_op", loc);
-        }
-        else
-        {
+        } else {
             collect_all_ops_collapse.emplace_back("edge_collapse", loc);
         }
         // collect_all_ops_collapse.emplace_back("test_op", loc);
@@ -875,18 +855,17 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
         executor_collapse(*this, collect_all_ops_collapse);
         // TODO: priority queue (edge length)
     };
-    std::map<Op,std::function<std::optional<std::vector<Tuple>>(ExtremeOpt&, const Tuple&)>> test_op = {
-                {"test_op",
-                 [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                     std::vector<Tuple> ret;
+    std::map<Op, std::function<std::optional<std::vector<Tuple>>(ExtremeOpt&, const Tuple&)>>
+        test_op = {
+            {"test_op", [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
+                 std::vector<Tuple> ret;
 
-                     ExtremeOpt::CollapsePair ce_op;
-                    if (ce_op.execute(t, m, ret))
-                         return ret;
-                     else
-                         return {};
-                 }}}
-                 ;
+                 ExtremeOpt::CollapsePair ce_op;
+                 if (ce_op.execute(t, m, ret))
+                     return ret;
+                 else
+                     return {};
+             }}};
     auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>(test_op);
     setup_and_execute(executor_collapse);
 }
@@ -954,9 +933,9 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         }
 
         // do smoothing
-timer.start();
+        timer.start();
         smooth_all_vertices();
-time = timer.getElapsedTime();
+        time = timer.getElapsedTime();
         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
         export_mesh(V, F, uv);
         get_grad_op(V, F, G_global);
