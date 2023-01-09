@@ -299,26 +299,66 @@ int main(int argc, char** argv)
         std::cout << "fails" << std::endl;
     }
     extremeopt.export_mesh(V, F, uv);
-    return true;
-    
+    extremeopt.export_EE(EE);
+
     for (int i = 0; i < 4; i++)
     {
-        std::cout << "do upsample" << std::endl;
-        Eigen::MatrixXi new_F;
-        Eigen::MatrixXd new_V, new_uv;
-        igl::upsample(V, F, new_V, new_F);
-        igl::upsample(uv, F, new_uv, new_F);
-        std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
-        std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
-
+        uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
+        V = new_V; uv = new_uv; F = new_F;
+        // std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
+        // std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
         extremeopt::ExtremeOpt extremeopt1;
-        extremeopt1.create_mesh(new_V,new_F,new_uv);
+        extremeopt1.create_mesh(V,F,uv);
         extremeopt1.m_params = param;
+        std::vector<std::vector<int>> EE_e;
+        transform_EE(F, EE, EE_e);
+        extremeopt1.init_constraints(EE_e);
+        std::cout << "check constraints inside wmtk" << std::endl;
+        if (extremeopt1.check_constraints())
+        {
+            std::cout << "initial constraints satisfied" << std::endl;
+        }
+        else
+        {
+            std::cout << "fails" << std::endl;
+        }
+
         extremeopt1.do_optimization(opt_log);
+
+        std::cout << "check constraints inside wmtk" << std::endl;
+        if (extremeopt1.check_constraints())
+        {
+            std::cout << "constraints satisfied" << std::endl;
+        }
+        else
+        {
+            std::cout << "fails" << std::endl;
+        }
         extremeopt1.export_mesh(V, F, uv);
+        extremeopt1.export_EE(EE);
     }
     igl::writeOBJ(output_dir + "/" + model + "_out.obj", V, F, V, F, uv, F);
     js_out << std::setw(4) << opt_log << std::endl;
+    return true;
+    
+    // for (int i = 0; i < 4; i++)
+    // {
+    //     std::cout << "do upsample" << std::endl;
+    //     Eigen::MatrixXi new_F;
+    //     Eigen::MatrixXd new_V, new_uv;
+    //     igl::upsample(V, F, new_V, new_F);
+    //     igl::upsample(uv, F, new_uv, new_F);
+    //     std::cout << "F size " << F.rows() << " --> " << new_F.rows() << std::endl;
+    //     std::cout << "V size " << V.rows() << " --> " << new_V.rows() << std::endl;
+
+    //     extremeopt::ExtremeOpt extremeopt1;
+    //     extremeopt1.create_mesh(new_V,new_F,new_uv);
+    //     extremeopt1.m_params = param;
+    //     extremeopt1.do_optimization(opt_log);
+    //     extremeopt1.export_mesh(V, F, uv);
+    // }
+    // igl::writeOBJ(output_dir + "/" + model + "_out.obj", V, F, V, F, uv, F);
+    // js_out << std::setw(4) << opt_log << std::endl;
     
     // extremeopt.write_obj("after_collpase.obj");
     // Do the mesh optimization

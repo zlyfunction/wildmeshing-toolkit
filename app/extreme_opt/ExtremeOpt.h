@@ -78,7 +78,7 @@ public:
         // TODO: Relocate this code in before check
         if (!m.is_boundary_edge(t))
         {
-            std::cout << "not boundary edge" << std::endl;
+            // std::cout << "not boundary edge" << std::endl;
             return false;
         }
         if (!t.is_valid(m))
@@ -88,13 +88,13 @@ public:
         }
         if (!m.wmtk::TriMesh::collapse_edge_before(t))
         {
-            std::cout << "link condition error" << std::endl;
+            // std::cout << "link condition error" << std::endl;
             return false;
         }
         Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
         if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input))
         {
-            std::cout << "link condition error" << std::endl;
+            // std::cout << "link condition error" << std::endl;
             return false;
         }
         // Skip cases that paired edges are in the same triangle
@@ -114,10 +114,10 @@ public:
         double E_max_t_input = std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
         double E_max_t_pair_input = std::max(m.get_e_max_onering(t_pair_input), m.get_e_max_onering(t_pair_input.switch_vertex(m)));
         double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
-        std::cout << "trying to collapse a boudnary edge" << std::endl;
+        // std::cout << "trying to collapse a boudnary edge" << std::endl;
         // t.print_info();
         // t_pair_input.print_info();
-        std::cout << "E_max before collapsing is " << E_max_input << std::endl;
+        // std::cout << "E_max before collapsing is " << E_max_input << std::endl;
 
         // get neighbor edges
         auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
@@ -153,17 +153,17 @@ public:
             auto len2 = (m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos - m.vertex_attrs[bd_t_r_pair.vid(m)].pos).norm();
             if (std::abs(len1 - len2) < 1e-7)
             {
-                std::cout << "keep t.vid" << std::endl;
+                // std::cout << "keep t.vid" << std::endl;
                 keep_t = true;
             }
             else
             {
-                std::cout << "len diff, cannot keep t.vid" << std::endl;
+                // std::cout << "len diff, cannot keep t.vid" << std::endl;
             }
         }
         else
         {
-            std::cout << "cannot keep t.vid" << std::endl;
+            // std::cout << "cannot keep t.vid" << std::endl;
         }
 
         if (bd_t_l_pair.vid(m) == t_pair_input.switch_vertex(m).vid(m))
@@ -172,21 +172,21 @@ public:
             auto len2 = (m.vertex_attrs[t_pair_input.vid(m)].pos - m.vertex_attrs[bd_t_l_pair.switch_vertex(m).vid(m)].pos).norm();
             if (std::abs(len1 - len2) < 1e-7)
             {
-                std::cout << "keep t.switch_vertex.vid" << std::endl;
+                // std::cout << "keep t.switch_vertex.vid" << std::endl;
                 keep_t_opp = true;
             }
             else
             {
-                std::cout << "len diff, cannot keep t.switch_vertex.vid" << std::endl;
+                // std::cout << "len diff, cannot keep t.switch_vertex.vid" << std::endl;
             }
         }
         else
         {
-            std::cout << "cannot keep t.switch_vertex.vid" << std::endl;
+            // std::cout << "cannot keep t.switch_vertex.vid" << std::endl;
         }
         if (!keep_t && !keep_t_opp)
         {
-            std::cout << "this boudnary edge cannot collapse" << std::endl;
+            // std::cout << "this boudnary edge cannot collapse" << std::endl;
             return false;
         }
         Eigen::Vector3d V_keep_t, V_keep_t_pair;
@@ -214,14 +214,14 @@ public:
         double E_max_t, E_max_t_pair;
         if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_max_t))
         {
-            std::cout << "collapse t fail" << std::endl;
+            // std::cout << "collapse t fail" << std::endl;
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
             return false;
         }
         else
         {
-            std::cout << "collapse t ok" << std::endl;
+            // std::cout << "collapse t ok" << std::endl;
         }
 
         Tuple t_pair = m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
@@ -251,14 +251,14 @@ public:
         new_t = m.collapse_edge_new(t_pair, new_tris);
         if (!m.collapse_bd_edge_after(new_t, V_keep_t_pair, uv_keep_t_pair, bd_t_pair_l, bd_t_pair_r, E_max_t_pair))
         {
-            std::cout << "collapse t pair fail" << std::endl;
+            // std::cout << "collapse t pair fail" << std::endl;
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
             return false;
         }
         else
         {
-            std::cout << "collapse t pair ok" << std::endl;
+            // std::cout << "collapse t pair ok" << std::endl;
         }
         if (E_max_input < std::max(E_max_t, E_max_t_pair))
         {
@@ -266,7 +266,7 @@ public:
             m.rollback_protected_attributes();
             return false;
         }
-        std::cout << "good!" << std::endl;
+        // std::cout << "good!" << std::endl;
         m.release_protect_connectivity();
         m.release_protect_attributes();
 
@@ -326,6 +326,9 @@ void init_constraints(const std::vector<std::vector<int>> &EE_e);
 
 // Exports V and F of the stored mesh
 void export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv);
+
+// Export constraints EE
+void export_EE(Eigen::MatrixXi &EE);
 
 // Writes a triangle mesh in OBJ format
 void write_obj(const std::string& path);

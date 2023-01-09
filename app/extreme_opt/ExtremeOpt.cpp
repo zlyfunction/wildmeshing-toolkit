@@ -91,6 +91,19 @@ void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::Matr
     }
 }
 
+void ExtremeOpt::export_EE(Eigen::MatrixXi &EE)
+{
+    EE.resize(0,0);
+    for (auto& loc : get_edges())
+    {
+        if (is_boundary_edge(loc))
+        {
+            EE.conservativeResize(EE.rows() + 1, 4);
+            EE.row(EE.rows() - 1) << loc.vid(*this), loc.switch_vertex(*this).vid(*this), edge_attrs[loc.eid(*this)].pair.vid(*this), edge_attrs[loc.eid(*this)].pair.switch_vertex(*this).vid(*this);
+        }
+    }
+}
+
 void ExtremeOpt::write_obj(const std::string& path)
 {
     Eigen::MatrixXd V, uv;
