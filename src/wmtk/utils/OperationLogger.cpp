@@ -30,9 +30,24 @@ namespace {
 template <typename T>
 HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
 {
-    if (file.exist(name)) {
+    auto obj_names = file.listObjectNames();
+    spdlog::warn("Object names when looking for {}:  {}", name, fmt::join(obj_names, ","));
+    bool exists = file.exist(name);
+    // for whaterver reason file.exist doesn't work with my invocation so doing it the dumb way
+    if (!exists) {
+        for (auto&& n : obj_names) {
+            if (n == name) {
+                exists = true;
+                spdlog::info("Found objecT");
+                break;
+            }
+        }
+    }
+    if (exists) {
         if (HighFive::ObjectType::Dataset == file.getObjectType(name)) {
-            return file.getDataSet(name);
+            auto ds = file.getDataSet(name);
+            spdlog::info("Returning dataset {} with {} entries", name, ds.getElementCount());
+            return ds;
         } else {
             logger().error(
                 "create_dataset: {} had root node {} but it was not a dataset",
@@ -40,6 +55,7 @@ HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
                 name);
         }
     }
+    spdlog::info("Creating dataset");
     HighFive::DataSetCreateProps props;
     props.add(HighFive::Chunking(std::vector<hsize_t>{2}));
 
@@ -138,8 +154,9 @@ OperationRecorder::~OperationRecorder()
             TriMeshOperation op;
             strncpy(
                 op.name,
-                name.c_str(), sizeof(op.name)/sizeof(char)
-                    ); // yes sizeof(char)==1, maybe chartype changes someday?
+                name.c_str(),
+                sizeof(op.name) /
+                    sizeof(char)); // yes sizeof(char)==1, maybe chartype changes someday?
             assert(tuple_data.size() == 3);
             op.triangle_id = tuple_data[0];
             op.local_edge_id = tuple_data[1];
@@ -156,7 +173,15 @@ OperationRecorder::~OperationRecorder()
     } else {
     }
 }
+size_t OperationLogger::attribute_changes_count() const
+{
+    return attribute_changes_dataset.getElementCount();
+}
 
+size_t OperationLogger::operation_count() const
+{
+    return operation_dataset.getElementCount();
+}
 void OperationLogger::add_attribute_recorder(
     std::string&& name,
     AttributeCollectionRecorderBase& attribute_recorder)

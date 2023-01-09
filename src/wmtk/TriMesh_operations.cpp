@@ -4,12 +4,19 @@ std::optional<std::vector<TriMesh::Tuple>> TriMesh::Operation::operator()(
     const TriMesh::Tuple& t,
     TriMesh& m)
 {
+#if defined(USE_OPERATION_LOGGER)
+    // If the operation logger exists then log
+    if (m.p_operation_logger) {
+        auto& wp_op_rec = m.p_operation_recorder.local();
+        wp_op_rec = m.p_operation_logger->start_ptr(m, name(), t.as_stl_array());
+    }
+#endif
     if (before_check(t, m)) {
         m.start_protected_connectivity();
-        auto new_t = execute(t, m);
+        std::vector<Tuple> new_t = execute(t, m);
 
         m.start_protected_attributes();
-        if (after_check(t, m) && invariants(t,m, new_t)) {
+        if (after_check(t, m, new_t) && invariants(t,m, new_t)) {
             m.release_protected_connectivity();
             m.release_protected_attributes();
             return new_t;
@@ -45,9 +52,14 @@ bool TriMesh::SplitEdge::before_check(const TriMesh::Tuple& t, TriMesh& m)
 {
     return m.split_edge_before(t);
 }
-bool TriMesh::SplitEdge::after_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMesh::SplitEdge::after_check(
+    const TriMesh::Tuple&,
+    TriMesh& m,
+    const std::vector<TriMesh::Tuple>& new_tris) const
 {
-    return m.split_edge_after(t);
+    if(new_tris.size() == 0) { return false; }
+    // if we see a tri, the 
+    return m.split_edge_after(new_tris[0]);
 }
 std::string TriMesh::SplitEdge::name() const
 {
@@ -65,9 +77,14 @@ bool TriMesh::SwapEdge::before_check(const TriMesh::Tuple& t, TriMesh& m)
 {
     return m.swap_edge_before(t);
 }
-bool TriMesh::SwapEdge::after_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMesh::SwapEdge::after_check(
+    const TriMesh::Tuple&,
+    TriMesh& m,
+    const std::vector<TriMesh::Tuple>& new_tris) const
 {
-    return m.swap_edge_after(t);
+    if(new_tris.size() == 0) { return false; }
+    // if we see a tri, the 
+    return m.swap_edge_after(new_tris[0]);
 }
 std::string TriMesh::SwapEdge::name() const
 {
@@ -83,8 +100,12 @@ bool TriMesh::SmoothVertex::before_check(const TriMesh::Tuple& t, TriMesh& m)
 {
     return m.smooth_before(t);
 }
-bool TriMesh::SmoothVertex::after_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMesh::SmoothVertex::after_check(
+    const TriMesh::Tuple& t,
+    TriMesh& m,
+    const std::vector<TriMesh::Tuple>& ) const
 {
+    // if we see a tri, the 
     return m.smooth_after(t);
 }
 std::string TriMesh::SmoothVertex::name() const
@@ -111,7 +132,10 @@ bool TriMesh::EdgeCollapse::before_check(const TriMesh::Tuple& t, TriMesh& m)
 {
     return m.collapse_edge_before(t);
 }
-bool TriMesh::EdgeCollapse::after_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMesh::EdgeCollapse::after_check(
+    const TriMesh::Tuple&t,
+    TriMesh& m,
+    const std::vector<TriMesh::Tuple>& ) const
 {
     return m.collapse_edge_after(t);
 }

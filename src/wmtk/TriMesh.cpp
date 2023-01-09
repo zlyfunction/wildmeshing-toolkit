@@ -247,7 +247,6 @@ bool TriMesh::swap_edge_after(const Tuple& t)
 {
     return true;
 }
-bool TriMesh::swap_edge_before(const Tuple& t);
 bool TriMesh::smooth_before(const Tuple& t)
 {
     return true;

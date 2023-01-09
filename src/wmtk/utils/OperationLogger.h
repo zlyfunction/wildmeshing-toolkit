@@ -85,6 +85,8 @@ public:
     void add_attribute_recorder(
         std::string&& attribute_name,
         AttributeCollectionRecorderBase& attribute_recorder);
+    size_t operation_count() const;
+    size_t attribute_changes_count() const;
 
 
 private:

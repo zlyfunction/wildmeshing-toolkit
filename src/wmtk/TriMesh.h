@@ -301,11 +301,12 @@ public:
 
     OperationLogger* p_operation_logger = nullptr;
 
-protected:
-    // TODO:
+    // protected:
+    //  TODO:
     wmtk::AttributeCollection<VertexConnectivity> m_vertex_connectivity;
     wmtk::AttributeCollection<TriangleConnectivity> m_tri_connectivity;
 
+protected:
     std::atomic_long current_vert_size;
     std::atomic_long current_tri_size;
     tbb::spin_mutex vertex_connectivity_lock;
@@ -357,11 +358,7 @@ protected:
      * @param the edge Tuple to be split
      * @return true if the preparation succeed
      */
-    virtual bool collapse_edge_before(const Tuple& t)
-    {
-        if (check_link_condition(t)) return true;
-        return false;
-    }
+    virtual bool collapse_edge_before(const Tuple& t);
     /**
      * @brief User specified modifications and desideratas after an edge collapse
      * @param the edge Tuple to be collapsed
@@ -769,7 +766,10 @@ public:
 protected:
     virtual std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) = 0;
     virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) = 0;
-    virtual bool after_check(const TriMesh::Tuple& t, TriMesh& m) = 0;
+    virtual bool after_check(
+        const TriMesh::Tuple& t,
+        TriMesh& m,
+        const std::vector<TriMesh::Tuple>& new_tris) const = 0;
     virtual bool invariants(
         const TriMesh::Tuple& t,
         TriMesh& m,
@@ -781,7 +781,10 @@ class TriMesh::SplitEdge : public Operation
 public:
     std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    bool after_check(
+        const TriMesh::Tuple& t,
+        TriMesh& m,
+        const std::vector<TriMesh::Tuple>& new_tris) const override;
     std::string name() const override;
 };
 class TriMesh::SwapEdge : public Operation
@@ -789,7 +792,10 @@ class TriMesh::SwapEdge : public Operation
 public:
     std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    bool after_check(
+        const TriMesh::Tuple& t,
+        TriMesh& m,
+        const std::vector<TriMesh::Tuple>& new_tris) const override;
     std::string name() const override;
 };
 
@@ -798,7 +804,10 @@ class TriMesh::EdgeCollapse : public Operation
 public:
     std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    bool after_check(
+        const TriMesh::Tuple& t,
+        TriMesh& m,
+        const std::vector<TriMesh::Tuple>& new_tris) const override;
     std::string name() const override;
 };
 
@@ -807,7 +816,10 @@ class TriMesh::SmoothVertex : public Operation
 public:
     std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    bool after_check(
+        const TriMesh::Tuple& t,
+        TriMesh& m,
+        const std::vector<TriMesh::Tuple>& new_tris) const override;
     std::string name() const override;
     bool invariants(
         const TriMesh::Tuple& t,

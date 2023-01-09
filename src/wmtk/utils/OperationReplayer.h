@@ -14,7 +14,7 @@ public:
     //
     size_t play(int step_count);
     size_t play_to(size_t end);
-    size_t operation_count();
+    size_t operation_count() const;
 
 private:
     // start must be current_index

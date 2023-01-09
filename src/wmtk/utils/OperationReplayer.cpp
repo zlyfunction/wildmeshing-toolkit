@@ -19,9 +19,9 @@ OperationReplayer::OperationReplayer(TriMesh& m, const OperationLogger& logger_)
 {}
 
 
-size_t OperationReplayer::operation_count()
+size_t OperationReplayer::operation_count() const
 {
-    return logger.operation_dataset.getElementCount();
+    return logger.operation_count();
 }
 
 

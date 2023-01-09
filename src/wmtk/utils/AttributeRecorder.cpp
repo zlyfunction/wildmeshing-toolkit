@@ -1,6 +1,7 @@
 #include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/AttributeRecorder.h>
 
+WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(double)
 using namespace wmtk;
 AttributeCollectionRecorderBase::AttributeCollectionRecorderBase(
     HighFive::File& file,

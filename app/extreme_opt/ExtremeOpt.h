@@ -60,7 +60,7 @@ public:
             return dynamic_cast<ExtremeOpt&>(m).collapse_edge_before(t);
         }
 
-        bool after_check(const Tuple& t, TriMesh& m) override
+        bool after_check(const Tuple& t, TriMesh& m, const std::vector<Tuple>&) const override
         {
             return dynamic_cast<ExtremeOpt&>(m).collapse_edge_after(t);
         }

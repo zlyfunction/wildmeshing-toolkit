@@ -7,8 +7,7 @@ HighFive::CompoundType AttributeChanges::datatype()
     return HighFive::CompoundType{
         {"attribute_name", HighFive::create_datatype<char[20]>()},
         {"change_range_begin", HighFive::create_datatype<size_t>()},
-        {"change_range_end", HighFive::create_datatype<size_t>()},
-    };
+        {"change_range_end", HighFive::create_datatype<size_t>()}};
 }
 
 HighFive::CompoundType TriMeshOperation::datatype()
@@ -19,6 +18,5 @@ HighFive::CompoundType TriMeshOperation::datatype()
         {"local_edge_id", HighFive::create_datatype<size_t>()},
         {"vertex_id", HighFive::create_datatype<size_t>()},
         {"update_range_begin", HighFive::create_datatype<size_t>()},
-        {"update_range_end", HighFive::create_datatype<size_t>()},
-    };
+        {"update_range_end", HighFive::create_datatype<size_t>()}};
 }
