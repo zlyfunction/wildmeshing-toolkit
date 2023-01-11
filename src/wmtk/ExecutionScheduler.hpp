@@ -2,6 +2,7 @@
 
 #include "wmtk/TetMesh.h"
 #include "wmtk/TriMesh.h"
+#include "wmtk/TriMeshOperation.h"
 #include "wmtk/utils/Logger.hpp"
 
 // clang-format off
@@ -176,13 +177,18 @@ struct ExecutePass
                 return std::make_pair<const Op, OperatorFunc>(
                     t.name(),
                     [](AppMesh& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                        return T()(t, m);
+                        auto retdata = T()(t, m);
+                        if (retdata.success) {
+                            return retdata.new_tris;
+                        } else {
+                            return {};
+                        }
                     });
             };
-            edit_operation_maps.emplace(make_op(wmtk::TriMesh::EdgeCollapse()));
-            edit_operation_maps.emplace(make_op(wmtk::TriMesh::SwapEdge()));
-            edit_operation_maps.emplace(make_op(wmtk::TriMesh::SplitEdge()));
-            edit_operation_maps.emplace(make_op(wmtk::TriMesh::SmoothVertex()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshEdgeCollapse()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshSwapEdge()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshSplitEdge()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshSmoothVertex()));
         }
 
         if (!customized_ops.empty()) {

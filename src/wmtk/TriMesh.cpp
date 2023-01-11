@@ -1,6 +1,7 @@
 #include <igl/is_edge_manifold.h>
 #include <igl/writeDMAT.h>
 #include <wmtk/TriMesh.h>
+#include <wmtk/TriMeshOperation.h>
 #include <wmtk/utils/OperationLogger.h>
 #include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/Logger.hpp>
@@ -1018,66 +1019,8 @@ bool TriMesh::smooth_vertex(const Tuple& loc0)
 
 void TriMesh::consolidate_mesh()
 {
-    auto v_cnt = 0;
-    std::vector<size_t> map_v_ids(vert_capacity(), -1);
-    for (auto i = 0; i < vert_capacity(); i++) {
-        if (m_vertex_connectivity[i].m_is_removed) continue;
-        map_v_ids[i] = v_cnt;
-        v_cnt++;
-    }
-    auto t_cnt = 0;
-    std::vector<size_t> map_t_ids(tri_capacity(), -1);
-    for (auto i = 0; i < tri_capacity(); i++) {
-        if (m_tri_connectivity[i].m_is_removed) continue;
-        map_t_ids[i] = t_cnt;
-        t_cnt++;
-    }
-    v_cnt = 0;
-    for (auto i = 0; i < vert_capacity(); i++) {
-        if (m_vertex_connectivity[i].m_is_removed) continue;
-        if (v_cnt != i) {
-            assert(v_cnt < i);
-            m_vertex_connectivity[v_cnt] = m_vertex_connectivity[i];
-            if (p_vertex_attrs) p_vertex_attrs->move(i, v_cnt);
-        }
-        for (size_t& t_id : m_vertex_connectivity[v_cnt].m_conn_tris) t_id = map_t_ids[t_id];
-        v_cnt++;
-    }
-    t_cnt = 0;
-    for (int i = 0; i < tri_capacity(); i++) {
-        if (m_tri_connectivity[i].m_is_removed) continue;
-
-        if (t_cnt != i) {
-            assert(t_cnt < i);
-            m_tri_connectivity[t_cnt] = m_tri_connectivity[i];
-            m_tri_connectivity[t_cnt].hash = 0;
-            if (p_face_attrs) p_face_attrs->move(i, t_cnt);
-
-            for (auto j = 0; j < 3; j++) {
-                if (p_edge_attrs) p_edge_attrs->move(i * 3 + j, t_cnt * 3 + j);
-            }
-        }
-        for (size_t& v_id : m_tri_connectivity[t_cnt].m_indices) v_id = map_v_ids[v_id];
-        t_cnt++;
-    }
-
-    current_vert_size = v_cnt;
-    current_tri_size = t_cnt;
-
-    m_vertex_connectivity.m_attributes.resize(v_cnt);
-    m_vertex_connectivity.shrink_to_fit();
-    m_tri_connectivity.m_attributes.resize(t_cnt);
-    m_tri_connectivity.shrink_to_fit();
-
-    resize_mutex(vert_capacity());
-
-    // Resize user class attributes
-    if (p_vertex_attrs) p_vertex_attrs->resize(vert_capacity());
-    if (p_edge_attrs) p_edge_attrs->resize(tri_capacity() * 3);
-    if (p_face_attrs) p_face_attrs->resize(tri_capacity());
-
-    assert(check_edge_manifold());
-    assert(check_mesh_connectivity_validity());
+    TriMeshConsolidate op;
+    op.execute(TriMesh::Tuple{}, *this);
 }
 
 
@@ -1429,7 +1372,7 @@ bool wmtk::TriMesh::check_link_condition(const Tuple& edge) const
     bool v_link =
         (lk_vid12.size() == lk_edge.size() &&
          std::equal(lk_vid12.begin(), lk_vid12.end(), lk_edge.begin()));
-    
+
 
     // check edge link condition
     // in 2d edge link for an edge is always empty
@@ -1444,8 +1387,7 @@ bool wmtk::TriMesh::check_link_condition(const Tuple& edge) const
         lk_e_vid2.begin(),
         lk_e_vid2.end(),
         std::back_inserter(res));
-    if (res.size() > 0) 
-    {
+    if (res.size() > 0) {
         return false;
     }
     return v_link;

@@ -856,10 +856,13 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
                  std::vector<Tuple> ret;
 
                  ExtremeOpt::CollapsePair ce_op;
-                 if (ce_op.execute(t, m, ret))
-                     return ret;
-                 else
-                     return {};
+                 if (ce_op.before_check(t, m)) {
+                     if (auto [new_t, succ] = ce_op.execute(t, m, ret); succ) {
+                         return ret;
+                     }
+                 }
+
+                 return {};
              }}};
     auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>(test_op);
     setup_and_execute(executor_collapse);

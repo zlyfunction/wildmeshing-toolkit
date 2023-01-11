@@ -10,7 +10,7 @@ HighFive::CompoundType AttributeChanges::datatype()
         {"change_range_end", HighFive::create_datatype<size_t>()}};
 }
 
-HighFive::CompoundType TriMeshOperation::datatype()
+HighFive::CompoundType TriMeshOperationData::datatype()
 {
     return HighFive::CompoundType{
         {"name", HighFive::create_datatype<char[20]>()},

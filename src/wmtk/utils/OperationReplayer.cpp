@@ -9,7 +9,7 @@
 template <>
 HighFive::DataType HighFive::create_datatype<wmtk::AttributeChanges>();
 template <>
-HighFive::DataType HighFive::create_datatype<wmtk::TriMeshOperation>();
+HighFive::DataType HighFive::create_datatype<wmtk::TriMeshOperationData>();
 
 
 using namespace wmtk;
@@ -50,7 +50,7 @@ size_t OperationReplayer::play_to(size_t end)
     }
     size_t& start = current_index;
     bool reverse_mode = start > end;
-    std::vector<TriMeshOperation> tri_ops;
+    std::vector<TriMeshOperationData> tri_ops;
 
     {
         // get a valid interval to select things with
@@ -69,7 +69,7 @@ size_t OperationReplayer::play_to(size_t end)
     ExecutePass<TriMesh, ExecutionPolicy::kSeq> scheduler;
 
 
-    auto run = [&](const TriMeshOperation& tri_op) {
+    auto run = [&](const TriMeshOperationData& tri_op) {
         std::string op_name = tri_op.name;
         TriMesh::Tuple edge(tri_op.triangle_id, tri_op.local_edge_id, tri_op.vertex_id, mesh);
         // TODO: how does reverse mode get incorporated

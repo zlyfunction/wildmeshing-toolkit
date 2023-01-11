@@ -25,6 +25,7 @@ namespace wmtk {
 
 class OperationLogger;
 class OperationRecorder;
+class TriMeshOperation;
 
 
 class TriMesh
@@ -237,13 +238,8 @@ public:
         }
     };
 
-    class Operation;
-    friend class Operation;
+    friend class TriMeshOperation;
 
-    class SplitEdge;
-    class EdgeCollapse;
-    class SwapEdge;
-    class SmoothVertex;
 
     TriMesh();
     virtual ~TriMesh();
@@ -307,6 +303,7 @@ public:
     wmtk::AttributeCollection<VertexConnectivity> m_vertex_connectivity;
     wmtk::AttributeCollection<TriangleConnectivity> m_tri_connectivity;
 
+
 protected:
     std::atomic_long current_vert_size;
     std::atomic_long current_tri_size;
@@ -332,7 +329,7 @@ protected:
      */
     size_t get_next_empty_slot_v();
 
-protected:
+public: // MTAO: TODO:: these are all deprecatd and should be delegated to TriMeshOperation
     /**
      * @brief User specified invariants that can't be violated
      * @param std::vector<Tuple> a vector of Tuples that are concerned in a given operation
@@ -472,7 +469,7 @@ public:
      * Split an edge
      *
      * @param t Input Tuple for the edge to split.
-     * @param[out] new_edges a vector of Tuples refering to the triangles incident to the new vertex
+     * @param[out] tuples a vector of Tuples refering to the triangles incident to the new vertex
      * introduced
      * @return if split succeed
      */
@@ -483,7 +480,7 @@ public:
      * Collapse an edge
      *
      * @param t Input Tuple for the edge to be collapsed.
-     * @param[out] new_edges a vector of Tuples refering to the triangles incident to the new vertex
+     * @param[out] tuples a vector of Tuples refering to the triangles incident to the new vertex
      * introduced
      * @note collapse edge a,b and generate a new vertex c
      * @return if collapse succeed
@@ -495,7 +492,7 @@ public:
      * Swap an edge
      *
      * @param t Input Tuple for the edge to be swaped.
-     * @param[out] new_edges a vector of Tuples refering to the triangles incident to the new edge
+     * @param[out] tuples a vector of Tuples refering to the triangles incident to the new edge
      * introduced
      * @note swap edge a,b to edge c,d
      * @return if swap succeed
@@ -753,84 +750,5 @@ public:
     int NUM_THREADS = 0;
 };
 
-
-class TriMesh::Operation
-{
-public:
-    std::pair<std::vector<TriMesh::Tuple>, bool> operator()(const TriMesh::Tuple& t, TriMesh& m);
-    virtual std::string name() const = 0;
-
-
-    Operation() {}
-    virtual ~Operation() {}
-
-protected:
-    // returns the changed tris + whether success occured
-    virtual std::pair<std::vector<TriMesh::Tuple>, bool> execute(
-        const TriMesh::Tuple& t,
-        TriMesh& m) = 0;
-    virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) = 0;
-    virtual bool after_check(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) = 0;
-    virtual bool
-    invariants(const TriMesh::Tuple& t, TriMesh& m, const std::vector<TriMesh::Tuple>& new_tris);
-};
-
-class TriMesh::SplitEdge : public Operation
-{
-public:
-    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
-        override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) override;
-    std::string name() const override;
-};
-class TriMesh::SwapEdge : public Operation
-{
-public:
-    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
-        override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) override;
-    std::string name() const override;
-};
-
-class TriMesh::EdgeCollapse : public Operation
-{
-public:
-    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
-        override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) override;
-    std::string name() const override;
-};
-
-class TriMesh::SmoothVertex : public Operation
-{
-public:
-    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
-        override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) override;
-    std::string name() const override;
-    bool invariants(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const override;
-};
 
 } // namespace wmtk

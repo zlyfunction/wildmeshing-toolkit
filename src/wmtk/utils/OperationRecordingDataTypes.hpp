@@ -114,7 +114,7 @@ inline AttributeChanges::AttributeChanges(const std::string_view& view, size_t b
 // stores the update data for a single operation as well as a range into the table of per-attribute
 // updates
 //
-struct TriMeshOperation
+struct TriMeshOperationData
 {
     // TODO: operation_name could be mapped to an enum at some point
     char name[20];

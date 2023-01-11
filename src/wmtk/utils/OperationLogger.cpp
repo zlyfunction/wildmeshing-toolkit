@@ -22,7 +22,7 @@
 #include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
 HIGHFIVE_REGISTER_TYPE(wmtk::AttributeChanges, wmtk::AttributeChanges::datatype);
-HIGHFIVE_REGISTER_TYPE(wmtk::TriMeshOperation, wmtk::TriMeshOperation::datatype);
+HIGHFIVE_REGISTER_TYPE(wmtk::TriMeshOperationData, wmtk::TriMeshOperationData::datatype);
 namespace wmtk {
 
 namespace {
@@ -73,7 +73,7 @@ HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
 
 OperationLogger::OperationLogger(HighFive::File& f)
     : file(f)
-    , operation_dataset(create_dataset<TriMeshOperation>(f, "operations"))
+    , operation_dataset(create_dataset<TriMeshOperationData>(f, "operations"))
     , attribute_changes_dataset(create_dataset<AttributeChanges>(f, "attribute_changes"))
 {}
 OperationLogger::~OperationLogger() = default;
@@ -151,7 +151,7 @@ OperationRecorder::~OperationRecorder()
         // commit command itself
         switch (this->type) {
         case OperationType::TriMesh: {
-            TriMeshOperation op;
+            TriMeshOperationData op;
             strncpy(
                 op.name,
                 name.c_str(),
