@@ -353,6 +353,7 @@ void do_optimization(json &opt_log);
 bool smooth_before(const Tuple& t) override;
 bool smooth_after(const Tuple& t) override;
 void smooth_all_vertices();
+void smooth_global(int steps);
 
 // Edge Swapping
 std::vector<wmtk::TriMesh::Tuple> new_edges_after(const std::vector<wmtk::TriMesh::Tuple>& tris) const;
