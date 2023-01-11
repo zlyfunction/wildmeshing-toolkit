@@ -41,8 +41,8 @@ public:
 
 
         void update_hash(const TriMesh& m);
-    public:
 
+    public:
         void print_info() const;
 
         //         v2        /
@@ -238,6 +238,7 @@ public:
     };
 
     class Operation;
+    friend class Operation;
 
     class SplitEdge;
     class EdgeCollapse;
@@ -756,7 +757,7 @@ public:
 class TriMesh::Operation
 {
 public:
-    std::optional<std::vector<TriMesh::Tuple>> operator()(const TriMesh::Tuple& t, TriMesh& m);
+    std::pair<std::vector<TriMesh::Tuple>, bool> operator()(const TriMesh::Tuple& t, TriMesh& m);
     virtual std::string name() const = 0;
 
 
@@ -764,62 +765,67 @@ public:
     virtual ~Operation() {}
 
 protected:
-    virtual std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) = 0;
+    // returns the changed tris + whether success occured
+    virtual std::pair<std::vector<TriMesh::Tuple>, bool> execute(
+        const TriMesh::Tuple& t,
+        TriMesh& m) = 0;
     virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) = 0;
     virtual bool after_check(
         const TriMesh::Tuple& t,
         TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const = 0;
-    virtual bool invariants(
-        const TriMesh::Tuple& t,
-        TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const;
+        const std::vector<TriMesh::Tuple>& new_tris) = 0;
+    virtual bool
+    invariants(const TriMesh::Tuple& t, TriMesh& m, const std::vector<TriMesh::Tuple>& new_tris);
 };
 
 class TriMesh::SplitEdge : public Operation
 {
 public:
-    std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
+    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
+        override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
     bool after_check(
         const TriMesh::Tuple& t,
         TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const override;
+        const std::vector<TriMesh::Tuple>& new_tris) override;
     std::string name() const override;
 };
 class TriMesh::SwapEdge : public Operation
 {
 public:
-    std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
+    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
+        override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
     bool after_check(
         const TriMesh::Tuple& t,
         TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const override;
+        const std::vector<TriMesh::Tuple>& new_tris) override;
     std::string name() const override;
 };
 
 class TriMesh::EdgeCollapse : public Operation
 {
 public:
-    std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
+    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
+        override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
     bool after_check(
         const TriMesh::Tuple& t,
         TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const override;
+        const std::vector<TriMesh::Tuple>& new_tris) override;
     std::string name() const override;
 };
 
 class TriMesh::SmoothVertex : public Operation
 {
 public:
-    std::vector<TriMesh::Tuple> execute(const TriMesh::Tuple& t, TriMesh& m) override;
+    std::pair<std::vector<TriMesh::Tuple>, bool> execute(const TriMesh::Tuple& t, TriMesh& m)
+        override;
     bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
     bool after_check(
         const TriMesh::Tuple& t,
         TriMesh& m,
-        const std::vector<TriMesh::Tuple>& new_tris) const override;
+        const std::vector<TriMesh::Tuple>& new_tris) override;
     std::string name() const override;
     bool invariants(
         const TriMesh::Tuple& t,

@@ -48,44 +48,37 @@ public:
     class CollapsePair : public wmtk::TriMesh::Operation
     {
     public:
-        std::vector<Tuple> execute(const Tuple& t, TriMesh& m) override
+        bool before(const TriMesh::Tuple& t, TriMesh& m)
         {
-            std::vector<Tuple> new_tris;
-            m.collapse_edge_new(t, new_tris);
-            return new_tris;
+            const bool val = before_check(t, m);
+            if (val) {
+                m.start_protected_connectivity();
+            }
+            return val;
         }
-        std::optional<std::vector<TriMesh::Tuple>> operator()(const Tuple& t, TriMesh& m_)
+
+        bool after(const TriMesh::Tuple& t, ExtremeOpt& m, std::vector<TriMesh::Tuple>& new_tris)
         {
-            ExtremeOpt& m = dynamic_cast<ExtremeOpt& m>(m_);
-            std::vector<std::vector<TriMesh::Tuple>>  new_tris;
-            // TODO: Relocate this code in before check
-            if (!m.is_boundary_edge(t)) {
-                // std::cout << "not boundary edge" << std::endl;
-                return {};
+            m.start_protected_attributes();
+            const bool val = after_check(t, m);
+            if (!val || !m.invariants(new_tris)) {
+                m.rollback_protected_connectivity();
+                m.rollback_protected_attributes();
+                return false;
             }
-            if (!t.is_valid(m)) {
-                std::cout << "not valid" << std::endl;
-                return {};
-            }
-            if (!m.wmtk::TriMesh::collapse_edge_before(t)) {
-                // std::cout << "link condition error" << std::endl;
-                return {};
-            }
-            Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
-            if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input)) {
-                // std::cout << "link condition error" << std::endl;
-                return {};
-            }
-            // Skip cases that paired edges are in the same triangle
-            if (t_pair_input.fid(m) == t.fid(m)) {
-                return {};
-            }
-            if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m)) {
-                return {};
-            }
-            if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m)) {
-                return {};
-            }
+            m.release_protect_connectivity();
+            m.release_protect_attributes();
+            return true;
+        }
+
+
+        // namespace extremeopt
+        explicit std::vector<TriMesh::Tuple> execute(const Tuple& t, TriMesh& m) override
+        {
+            return execute(t, dynamic_cast<ExtremeOpt&>(m));
+        }
+        std::vector<TriMesh::Tuple> execute(const Tuple& t, ExtremeOpt& m) override
+        {
             // Get E_max before collapse
             double E_max_t_input =
                 std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
@@ -155,7 +148,7 @@ public:
             }
             if (!keep_t && !keep_t_opp) {
                 // std::cout << "this boudnary edge cannot collapse" << std::endl;
-                return {};
+                return false;
             }
             Eigen::Vector3d V_keep_t, V_keep_t_pair;
             Eigen::Vector2d uv_keep_t, uv_keep_t_pair;
@@ -171,8 +164,8 @@ public:
                 uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
             }
 
-            m.start_protect_connectivity();
-            m.start_protect_attributes();
+            m.start_protected_connectivity();
+            m.start_protected_attributes();
             auto new_t = m.collapse_edge_new(t, new_tris);
 
 
@@ -230,21 +223,48 @@ public:
             m.release_protect_attributes();
 
 
-            return new_tris;
+            return true;
         }
 
-        bool before_check(const Tuple& t, TriMesh& m) override
+        bool before_check(const TriMesh::Tuple& t, TriMesh& m) override
         {
-            return dynamic_cast<ExtremeOpt&>(m).collapse_edge_before(t);
+            if (!m.is_boundary_edge(t)) {
+                // std::cout << "not boundary edge" << std::endl;
+                return false;
+            }
+            if (!t.is_valid(m)) {
+                std::cout << "not valid" << std::endl;
+                return false;
+            }
+            if (!m.wmtk::TriMesh::collapse_edge_before(t)) {
+                // std::cout << "link condition error" << std::endl;
+                return false;
+            }
+            Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
+            if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input)) {
+                // std::cout << "link condition error" << std::endl;
+                return false;
+            }
+            // Skip cases that paired edges are in the same triangle
+            if (t_pair_input.fid(m) == t.fid(m)) {
+                return false;
+            }
+            if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m)) {
+                return false;
+            }
+            if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m)) {
+                return false;
+            }
         }
 
+        bool after_check(const Tuple& t, ExtremeOpt& m) const { return m.collapse_edge_after(t); }
         bool after_check(const Tuple& t, TriMesh& m, const std::vector<Tuple>&) const override
         {
-            return dynamic_cast<ExtremeOpt&>(m).collapse_edge_after(t);
+            return m.collapse_edge_after(t);
         }
-        std::string name() const override { return "collapse_pair"; }
-        CollapsePair(){}
-        virtual ~CollapsePair(){}
+        std::string name() const { return "edge_split"; }
+        CollapsePair(){};
+        virtual ~CollapsePair(){};
     };
 
     ExtremeOpt(){};
@@ -261,6 +281,20 @@ public:
 
     bool check_constraints(double eps = 1e-7);
 
+    struct PositionInfoCache
+    {
+        int vid1;
+        int vid2;
+        Eigen::Vector3d V1;
+        Eigen::Vector3d V2;
+        Eigen::Vector2d uv1;
+        Eigen::Vector2d uv2;
+        bool is_v1_bd;
+        bool is_v2_bd;
+        Tuple bd_e1;
+        Tuple bd_e2;
+        double E_max_before_collpase;
+    };
     tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
     tbb::enumerable_thread_specific<std::pair<Tuple, Tuple>> swap_cache;
@@ -331,5 +365,6 @@ public:
     bool split_edge_before(const Tuple& t) override;
     bool split_edge_after(const Tuple& t) override;
     void split_all_edges();
+};
 
 } // namespace extremeopt

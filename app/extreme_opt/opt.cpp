@@ -10,7 +10,6 @@
 #include <wmtk/utils/AMIPS2D.h>
 #include <Eigen/Sparse>
 #include <array>
-#include <iostream>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TriQualityUtils.hpp>
 
@@ -24,17 +23,14 @@
 #include <igl/upsample.h>
 
 using namespace wmtk;
-namespace {
-auto renew(auto& m, auto op, auto& tris)
-{
+auto renew = [](auto& m, auto op, auto& tris) {
     auto edges = m.new_edges_after(tris);
     auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
     for (auto& e : edges) optup.emplace_back(op, e);
     return optup;
 };
 
-auto renew_collapse(auto& m, auto op, auto& tris)
-{
+auto renew_collapse = [](auto& m, auto op, auto& tris) {
     auto edges = m.new_edges_after(tris);
     auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
     for (auto& e : edges) {
@@ -46,7 +42,6 @@ auto renew_collapse(auto& m, auto op, auto& tris)
     }
     return optup;
 };
-} // namespace
 
 
 namespace extremeopt {
@@ -828,7 +823,7 @@ void extremeopt::ExtremeOpt::swap_all_edges()
         executor_swap.num_threads = NUM_THREADS;
         executor_swap(*this, collect_all_ops_swap);
     };
-    wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq> executor_swap;
+    auto executor_swap = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_swap);
 }
 
