@@ -17,10 +17,133 @@
 #include <optional>
 #include <wmtk/utils/TupleUtils.hpp>
 #include "SYMDIR.h"
-
+#include <igl/predicates/predicates.h>
 #include <igl/writeOBJ.h>
-
+#include <igl/boundary_loop.h>
 #include <igl/upsample.h>
+
+void buildAeq(
+    const Eigen::MatrixXi &EE,
+    const Eigen::MatrixXd &uv,
+    const Eigen::MatrixXi &F,
+    Eigen::SparseMatrix<double> &Aeq
+)
+{
+    int N = uv.rows();
+    int c = 0;
+    int m = EE.rows() / 2;
+
+    std::vector<std::vector<int>> bds;
+    igl::boundary_loop(F, bds);
+
+    int n_fix_dof = 3;
+
+    std::set<std::pair<int, int>> added_e;
+
+    Aeq.resize(2 * m + n_fix_dof, uv.rows() * 2);
+    int A2, B2, C2, D2;
+    for (int i = 0; i < EE.rows(); i++)
+    {
+        int A2 = EE(i, 0);
+        int B2 = EE(i, 1);
+        int C2 = EE(i, 2);
+        int D2 = EE(i, 3);
+        auto e0 = std::make_pair(A2, B2);
+        auto e1 = std::make_pair(C2, D2);
+        if(added_e.find(e0) != added_e.end() || added_e.find(e1) != added_e.end()) continue;
+        added_e.insert(e0);
+        added_e.insert(e1);
+
+        Eigen::Matrix<double, 2, 1> e_ab = uv.row(B2) - uv.row(A2);
+        Eigen::Matrix<double, 2, 1> e_dc = uv.row(C2) - uv.row(D2);
+
+        Eigen::Matrix<double, 2, 1> e_ab_perp;
+        e_ab_perp(0) = -e_ab(1);
+        e_ab_perp(1) = e_ab(0);
+        double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
+        int r = (int)(round(2 * angle / double(igl::PI)) + 2) % 4;
+
+        std::vector<Eigen::Matrix<double, 2, 2>> r_mat(4);
+        r_mat[0] << -1, 0, 0, -1;
+        r_mat[1] << 0, 1, -1, 0;
+        r_mat[2] << 1, 0, 0, 1;
+        r_mat[3] << 0, -1, 1, 0;
+
+        Aeq.coeffRef(c, A2) += 1;
+        Aeq.coeffRef(c, B2) += -1;
+        Aeq.coeffRef(c + 1, A2 + N) += 1;
+        Aeq.coeffRef(c + 1, B2 + N) += -1;
+
+        Aeq.coeffRef(c, C2) += r_mat[r](0, 0);
+        Aeq.coeffRef(c, D2) += -r_mat[r](0, 0);
+        Aeq.coeffRef(c, C2 + N) += r_mat[r](0, 1);
+        Aeq.coeffRef(c, D2 + N) += -r_mat[r](0, 1);
+        Aeq.coeffRef(c + 1, C2) += r_mat[r](1, 0);
+        Aeq.coeffRef(c + 1, D2) += -r_mat[r](1, 0);
+        Aeq.coeffRef(c + 1, C2 + N) += r_mat[r](1, 1);
+        Aeq.coeffRef(c + 1, D2 + N) += -r_mat[r](1, 1);
+        c = c + 2;
+    }
+
+    double min_u_diff = 1e10;
+    int min_u_diff_id = 0;
+    auto l = bds[0];
+    for (int i = 0; i < l.size(); i++)
+    {
+        double u_diff = abs(uv(l[i], 0) - uv(l[(i + 1) % l.size()], 0));
+        if (u_diff < min_u_diff)
+        {
+            min_u_diff = u_diff;
+            min_u_diff_id = i;
+        }
+    }
+
+    std::cout << "fix " << l[min_u_diff_id] << std::endl;
+    Aeq.coeffRef(c, l[min_u_diff_id]) = 1;
+    Aeq.coeffRef(c + 1, l[min_u_diff_id] + N) = 1;
+    c = c + 2;
+    std::cout << "fix " << l[(min_u_diff_id + 1) % l.size()] << std::endl;
+    Aeq.coeffRef(c, l[(min_u_diff_id + 1) % l.size()]) = 1;
+    c = c + 1;
+}
+
+void buildkkt(Eigen::SparseMatrix<double> &hessian, Eigen::SparseMatrix<double> &Aeq, Eigen::SparseMatrix<double> &AeqT, Eigen::SparseMatrix<double> &kkt)
+{
+    kkt.reserve(hessian.nonZeros() + Aeq.nonZeros() + AeqT.nonZeros());
+    for (Eigen::Index c = 0; c < kkt.cols(); ++c)
+    {
+        kkt.startVec(c);
+        if (c < hessian.cols())
+        {
+            for (typename Eigen::SparseMatrix<double>::InnerIterator ithessian(hessian, c); ithessian; ++ithessian)
+                kkt.insertBack(ithessian.row(), c) = ithessian.value();
+            for (typename Eigen::SparseMatrix<double>::InnerIterator itAeq(Aeq, c); itAeq; ++itAeq)
+                kkt.insertBack(itAeq.row() + hessian.rows(), c) = itAeq.value();
+        }
+        else
+        {
+            for (typename Eigen::SparseMatrix<double>::InnerIterator itAeqT(AeqT, c - hessian.cols()); itAeqT; ++itAeqT)
+                kkt.insertBack(itAeqT.row(), c) = itAeqT.value();
+        }
+    }
+    kkt.finalize();
+}
+
+int check_flip(const Eigen::MatrixXd &uv, const Eigen::MatrixXi &Fn)
+{
+  int fl = 0;
+  for (int i = 0; i < Fn.rows(); i++)
+  {
+    Eigen::Matrix<double, 1, 2> a_db(uv(Fn(i, 0), 0), uv(Fn(i, 0), 1));
+    Eigen::Matrix<double, 1, 2> b_db(uv(Fn(i, 1), 0), uv(Fn(i, 1), 1));
+    Eigen::Matrix<double, 1, 2> c_db(uv(Fn(i, 2), 0), uv(Fn(i, 2), 1));
+    if (igl::predicates::orient2d(a_db, b_db, c_db) != igl::predicates::Orientation::POSITIVE)
+    {
+      fl++;
+    }
+  }
+  return fl;
+}
 
 using namespace wmtk;
 auto renew = [](auto& m, auto op, auto& tris) {
@@ -793,6 +916,85 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     return ls_good;
 }
 
+void extremeopt::ExtremeOpt::smooth_global(int steps)
+{
+    Eigen::MatrixXi F;
+    Eigen::MatrixXd V, uv;
+    export_mesh(V, F, uv);
+    Eigen::MatrixXi EE;
+    export_EE(EE);
+
+    Eigen::VectorXd area;
+    Eigen::SparseMatrix<double> G;
+    igl::doublearea(V, F, area);
+    get_grad_op(V, F, G);
+    Eigen::SparseMatrix<double> Aeq;
+    buildAeq(EE, uv, F, Aeq);
+    Eigen::SparseMatrix<double> AeqT = Aeq.transpose();
+
+    auto compute_energy = [G, area](Eigen::MatrixXd aaa){
+        Eigen::MatrixXd Ji;
+        wmtk::jacobian_from_uv(G, aaa, Ji);
+        return wmtk::compute_energy_from_jacobian(Ji, area);
+    };
+
+    // get grad and hessian
+    Eigen::SparseMatrix<double> hessian;
+    Eigen::VectorXd grad;
+    double energy_0 = wmtk::get_grad_and_hessian(G, area, uv, grad, hessian, m_params.do_newton);
+
+    // build kkt system
+    Eigen::SparseMatrix<double> kkt(hessian.rows() + Aeq.rows(), hessian.cols() + Aeq.rows());
+    buildkkt(hessian, Aeq, AeqT, kkt);
+    Eigen::VectorXd rhs(kkt.rows()); rhs.setZero();
+    rhs.topRows(grad.rows()) << -grad;
+
+    // solve the system  
+    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+    solver.analyzePattern(kkt);
+    solver.factorize(kkt);
+    Eigen::VectorXd newton = solver.solve(rhs);
+    if (solver.info() != Eigen::Success)
+    {
+        std::cout << "cannot solve newton system" << std::endl;
+        hessian.setIdentity();
+        buildkkt(hessian, Aeq, AeqT, kkt);
+        solver.analyzePattern(kkt);
+        solver.factorize(kkt);
+        newton = solver.solve(rhs);
+    }
+
+    Eigen::MatrixXd search_dir = Eigen::Map<Eigen::MatrixXd>(newton.data(), V.rows(), 2);
+
+    auto new_x = uv;
+    double ls_step_size = 1.0;
+    bool ls_good = false;
+    for (int i = 0; i < m_params.ls_iters; i++)
+    {
+        new_x = uv + ls_step_size * search_dir;
+        double new_E = compute_energy(new_x);
+        if (new_E < energy_0 && check_flip(new_x, F) == 0)
+        {
+            ls_good = true;
+            break;
+        }
+        ls_step_size *= 0.8;
+    }
+
+    if (ls_good)
+    {
+        // update vertex_attrs
+        std::cout << "ls_step_size = " << ls_step_size << std::endl;
+        for (int i = 0; i < new_x.rows(); i++)
+        {
+            vertex_attrs[i].pos = new_x.row(i);
+        }
+    }
+    else
+    {
+        std::cout << "smooth failed" << std::endl;
+    }
+}
 
 // TODO: seperate smooth operations and swap operations as 2 functions
 void extremeopt::ExtremeOpt::smooth_all_vertices()
@@ -930,18 +1132,18 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
         }
 
-        // do smoothing
-        timer.start();
-        smooth_all_vertices();
-        time = timer.getElapsedTime();
-        wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-        export_mesh(V, F, uv);
-        get_grad_op(V, F, G_global);
-        igl::doublearea(V, F, dblarea);
-        E = compute_energy(uv);
-        E_max = compute_energy_max(uv);
-        wmtk::logger().info("After smoothing {}, E = {}", i, E);
-        wmtk::logger().info("E_max = {}", E_max);
+//         // do smoothing
+// timer.start();
+//         smooth_all_vertices();
+// time = timer.getElapsedTime();
+//         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+//         export_mesh(V, F, uv);
+//         get_grad_op(V, F, G_global);
+//         igl::doublearea(V, F, dblarea);
+//         E = compute_energy(uv);
+//         E_max = compute_energy_max(uv);
+//         wmtk::logger().info("After smoothing {}, E = {}", i, E);
+//         wmtk::logger().info("E_max = {}", E_max);
 
         // do swaping
 
@@ -981,8 +1183,19 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", E_max);
         }
 
-        opt_log["opt_log"].push_back(
-            {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
+timer.start();
+        smooth_global(1);
+time = timer.getElapsedTime();
+        wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+        export_mesh(V, F, uv);
+        get_grad_op(V, F, G_global);
+        igl::doublearea(V, F, dblarea);
+        E = compute_energy(uv);
+        E_max = compute_energy_max(uv);
+        wmtk::logger().info("After smoothing {}, E = {}", i, E);
+        wmtk::logger().info("E_max = {}", E_max);
+       
+        opt_log["opt_log"].push_back({{"F_size", F.rows()},{"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         // terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(
