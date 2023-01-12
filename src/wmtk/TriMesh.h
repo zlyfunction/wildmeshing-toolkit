@@ -40,7 +40,6 @@ public:
         size_t m_fid = -1;
         size_t m_hash = -1;
 
-
         void update_hash(const TriMesh& m);
 
     public:
@@ -153,7 +152,10 @@ public:
         }
         friend bool operator<(const Tuple& a, const Tuple& t)
         {
-            return a.as_stl_tuple() < t.as_stl_tuple();
+            return (
+                std::tie(a.m_vid, a.m_eid, a.m_fid, a.m_hash) <
+                std::tie(t.m_vid, t.m_eid, t.m_fid, t.m_hash));
+            //return a.as_stl_tuple() < t.as_stl_tuple();
         }
     };
 
@@ -174,7 +176,7 @@ public:
          * @brief is the vertex removed
          *
          */
-        bool m_is_removed = true;
+         bool m_is_removed = true; 
 
         inline size_t& operator[](const size_t index)
         {
@@ -469,7 +471,7 @@ public:
      * Split an edge
      *
      * @param t Input Tuple for the edge to split.
-     * @param[out] tuples a vector of Tuples refering to the triangles incident to the new vertex
+     * @param[out] new_edges a vector of Tuples refering to the triangles incident to the new vertex
      * introduced
      * @return if split succeed
      */
@@ -480,7 +482,7 @@ public:
      * Collapse an edge
      *
      * @param t Input Tuple for the edge to be collapsed.
-     * @param[out] tuples a vector of Tuples refering to the triangles incident to the new vertex
+     * @param[out] new_edges a vector of Tuples refering to the triangles incident to the new vertex
      * introduced
      * @note collapse edge a,b and generate a new vertex c
      * @return if collapse succeed
@@ -492,7 +494,7 @@ public:
      * Swap an edge
      *
      * @param t Input Tuple for the edge to be swaped.
-     * @param[out] tuples a vector of Tuples refering to the triangles incident to the new edge
+     * @param[out] new_edges a vector of Tuples refering to the triangles incident to the new edge
      * introduced
      * @note swap edge a,b to edge c,d
      * @return if swap succeed
@@ -509,6 +511,7 @@ public:
      * @return if smooth succeed
      */
     bool smooth_vertex(const Tuple& t);
+
     /**
      * @brief Count the number of the one ring tris for a vertex
      *
@@ -614,7 +617,6 @@ protected:
         if (p_edge_attrs) p_edge_attrs->begin_protect();
         if (p_face_attrs) p_face_attrs->begin_protect();
     }
-
     /**
      * @brief Start caching the connectivity that will be modified
      */
@@ -749,6 +751,5 @@ public:
     void for_each_vertex(const std::function<void(const Tuple&)>&);
     int NUM_THREADS = 0;
 };
-
 
 } // namespace wmtk

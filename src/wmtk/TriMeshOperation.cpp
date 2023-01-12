@@ -12,8 +12,8 @@ auto TriMeshOperation::operator()(const TriMesh::Tuple& t, TriMesh& m) -> Execut
 #endif
     if (before_check(t, m)) {
         m.start_protected_connectivity();
-        m.start_protected_attributes();
         retdata = execute(t, m);
+        m.start_protected_attributes();
 
         if (after_check(retdata, m) && invariants(retdata, m)) {
             m.release_protected_connectivity();
@@ -30,6 +30,8 @@ auto TriMeshOperation::operator()(const TriMesh::Tuple& t, TriMesh& m) -> Execut
             m.rollback_protected_attributes();
         }
     }
+
+    
     return retdata;
 }
 
@@ -116,7 +118,7 @@ bool TriMeshSmoothVertex::after_check(const ExecuteReturnData& ret_data, TriMesh
 }
 std::string TriMeshSmoothVertex::name() const
 {
-    return "smooth_vertex";
+    return "vertex_smooth";
 }
 
 bool TriMeshSmoothVertex::invariants(const ExecuteReturnData& ret_data, TriMesh& m)
@@ -206,6 +208,7 @@ auto TriMeshConsolidate::execute(const TriMesh::Tuple& t, TriMesh& m) -> Execute
     ExecuteReturnData ret;
     ret.success = true;
     return ret;
+
 }
 bool TriMeshConsolidate::before_check(const TriMesh::Tuple& t, TriMesh& m)
 {
@@ -219,3 +222,4 @@ std::string TriMeshConsolidate::name() const
 {
     return "consolidate";
 }
+

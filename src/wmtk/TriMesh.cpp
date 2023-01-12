@@ -27,7 +27,6 @@ void TriMesh::Tuple::update_hash(const TriMesh& m)
 
 void TriMesh::Tuple::print_info() const
 {
-    std::cout << m_vid << " " << m_eid << " " << m_fid << std::endl;
     logger().trace("tuple: {} {} {}", m_vid, m_eid, m_fid);
 }
 
@@ -304,6 +303,9 @@ bool wmtk::TriMesh::check_edge_manifold() const
 
 TriMesh::Tuple TriMesh::split_edge_new(const Tuple& t, std::vector<Tuple>& new_tris)
 {
+    // get local eid for return tuple construction
+    auto eid = t.local_eid(*this);
+
     // get the vids
     size_t vid1 = t.vid(*this);
     size_t vid2 = switch_vertex(t).vid(*this);
@@ -414,11 +416,13 @@ TriMesh::Tuple TriMesh::split_edge_new(const Tuple& t, std::vector<Tuple>& new_t
     size_t new_fid = std::min(fid1, new_fid1);
     if (new_fid2.has_value()) new_fid = std::min(new_fid, new_fid2.value());
     int l = m_tri_connectivity[new_fid].find(new_vid);
-    auto new_t = Tuple(new_vid, (l + 2) % 3, new_fid, *this);
-    assert(new_t.is_valid(*this));
+    auto new_vertex = Tuple(new_vid, (l + 2) % 3, new_fid, *this);
+    auto return_tuple = Tuple(vid1, eid, fid1, *this);
+    assert(new_vertex.is_valid(*this));
+    assert(return_tuple.is_valid(*this));
 
-    new_tris = get_one_ring_tris_for_vertex(new_t);
-    return new_t;
+    new_tris = get_one_ring_tris_for_vertex(new_vertex);
+    return return_tuple;
 }
 
 bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
@@ -442,11 +446,12 @@ bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     size_t vid1 = t.vid(*this);
     size_t vid2 = switch_vertex(t).vid(*this);
     size_t fid1 = t.fid(*this);
-    size_t fid1_vid3;
+    size_t fid1_vid3 =
+        ((t.switch_vertex(*this)).switch_edge(*this)).switch_vertex(*this).vid(*this);
 
     for (auto vid : m_tri_connectivity[fid1].m_indices) {
         if ((vid != vid1) && (vid != vid2)) {
-            fid1_vid3 = vid;
+            assert(fid1_vid3 == vid);
             break;
         }
     }
@@ -556,15 +561,12 @@ bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     start_protected_attributes();
 
     // roll back if not successful
-    if (!split_edge_after(t) || !invariants(new_tris)) {
+    if (!split_edge_after(return_tuple) || !invariants(new_tris)) {
         // restore the vertex and faces
         rollback_protected_connectivity();
         rollback_protected_attributes();
         return false;
     }
-
-
-    release_protected_attributes();
     release_protected_attributes();
     return true;
 }
@@ -690,7 +692,6 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
     if (!collapse_edge_before(loc0)) {
         return false;
     }
-
 #if defined(USE_OPERATION_LOGGER)
     // If the operation logger exists then log
     if (p_operation_logger) {
@@ -699,6 +700,15 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
     }
 #endif
     start_protected_connectivity();
+
+    // get fid for the return tuple
+    // take the face that shares the same vertex the loc0 tuple is pointing to
+    // or if that face doesn't exit
+    // take the face that shares the same vertex of loc0
+    auto new_fid =
+        loc0.switch_vertex(*this).switch_edge(*this).switch_face(*this).has_value()
+            ? (loc0.switch_vertex(*this).switch_edge(*this).switch_face(*this).value()).fid(*this)
+            : (loc0.switch_edge(*this).switch_face(*this).value()).fid(*this);
     // get the vids
     size_t vid1 = loc0.vid(*this);
     size_t vid2 = switch_vertex(loc0).vid(*this);
@@ -805,14 +815,14 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
     const size_t gfid = m_vertex_connectivity[new_vid].m_conn_tris[0];
     int j = m_tri_connectivity[gfid].find(new_vid);
     auto new_t = Tuple(new_vid, (j + 2) % 3, gfid, *this);
-    int j_ret = m_tri_connectivity[gfid].find(new_vid);
-    auto return_t = Tuple(new_vid, (j_ret + 2) % 3, gfid, *this);
+    int j_ret = m_tri_connectivity[new_fid].find(new_vid);
+    auto return_t = Tuple(new_vid, (j_ret + 2) % 3, new_fid, *this);
     assert(new_t.is_valid(*this));
     new_tris = get_one_ring_tris_for_vertex(new_t);
 
     start_protected_attributes();
 
-    if (!collapse_edge_after(new_t) || !invariants(new_tris)) {
+    if (!collapse_edge_after(return_t) || !invariants(new_tris)) {
 #if defined(USE_OPERATION_LOGGER)
         if (auto& wp_op_rec = p_operation_recorder.local(); !wp_op_rec.expired()) {
             wp_op_rec.lock()->cancel();
@@ -1373,7 +1383,6 @@ bool wmtk::TriMesh::check_link_condition(const Tuple& edge) const
         (lk_vid12.size() == lk_edge.size() &&
          std::equal(lk_vid12.begin(), lk_vid12.end(), lk_edge.begin()));
 
-
     // check edge link condition
     // in 2d edge link for an edge is always empty
 
@@ -1587,4 +1596,3 @@ void TriMesh::release_protected_attributes()
         p_face_attrs->end_protect();
     }
 }
-

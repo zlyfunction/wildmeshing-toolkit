@@ -517,6 +517,7 @@ bool UniformRemeshing::split_remeshing(double L)
 
 bool UniformRemeshing::smooth_all_vertices()
 {
+
     auto collect_all_ops = std::vector<std::pair<std::string, Tuple>>();
     for (auto& loc : get_edges()) collect_all_ops.emplace_back("vertex_smooth", loc);
 
