@@ -185,10 +185,11 @@ struct ExecutePass
                         }
                     });
             };
-            edit_operation_maps.emplace(make_op(wmtk::TriMeshEdgeCollapse()));
-            edit_operation_maps.emplace(make_op(wmtk::TriMeshSwapEdge()));
-            edit_operation_maps.emplace(make_op(wmtk::TriMeshSplitEdge()));
-            edit_operation_maps.emplace(make_op(wmtk::TriMeshSmoothVertex()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshEdgeCollapseOperation()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshSwapEdgeOperation()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshSplitEdgeOperation()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshSmoothVertexOperation()));
+            edit_operation_maps.emplace(make_op(wmtk::TriMeshConsolidateOperation()));
         }
 
         if (!customized_ops.empty()) {

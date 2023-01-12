@@ -1,6 +1,6 @@
 #include <wmtk/TriMeshOperation.h>
 using namespace wmtk;
-auto TriMeshOperation::operator()(const TriMesh::Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
     ExecuteReturnData retdata;
 #if defined(USE_OPERATION_LOGGER)
@@ -60,95 +60,95 @@ void TriMeshOperation::set_tri_size(size_t t_cnt, TriMesh& m)
     m.m_tri_connectivity.shrink_to_fit();
 }
 
-auto TriMeshSplitEdge::execute(const TriMesh::Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshSplitEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
-    std::vector<TriMesh::Tuple> new_tris;
+    std::vector<Tuple> new_tris;
 
     auto new_t = m.split_edge_new(t, new_tris);
     return {new_t, new_tris, true};
 }
-bool TriMeshSplitEdge::before_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMeshSplitEdgeOperation::before_check(const Tuple& t, TriMesh& m)
 {
     return m.split_edge_before(t);
 }
-bool TriMeshSplitEdge::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSplitEdgeOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
 {
     return m.split_edge_after(ret_data.tuple);
 }
-std::string TriMeshSplitEdge::name() const
+std::string TriMeshSplitEdgeOperation::name() const
 {
     return "edge_split";
 }
 
 
-auto TriMeshSwapEdge::execute(const TriMesh::Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshSwapEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
-    std::vector<TriMesh::Tuple> new_tris;
+    std::vector<Tuple> new_tris;
     auto new_t = m.swap_edge_new(t, new_tris);
     return {new_t, new_tris, true};
 }
-bool TriMeshSwapEdge::before_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMeshSwapEdgeOperation::before_check(const Tuple& t, TriMesh& m)
 {
     return m.swap_edge_before(t);
 }
-bool TriMeshSwapEdge::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSwapEdgeOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
 {
     return m.swap_edge_after(ret_data.tuple);
     ;
 }
-std::string TriMeshSwapEdge::name() const
+std::string TriMeshSwapEdgeOperation::name() const
 {
     return "edge_swap";
 }
 
 
-auto TriMeshSmoothVertex::execute(const TriMesh::Tuple& t, TriMesh&) -> ExecuteReturnData
+auto TriMeshSmoothVertexOperation::execute(const Tuple& t, TriMesh&) -> ExecuteReturnData
 {
     // always succeed and return the Tuple for the (vertex) that we pointed at
     return {t, {}, true};
 }
-bool TriMeshSmoothVertex::before_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMeshSmoothVertexOperation::before_check(const Tuple& t, TriMesh& m)
 {
     return m.smooth_before(t);
 }
-bool TriMeshSmoothVertex::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSmoothVertexOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
 {
     // if we see a tri, the
     return m.smooth_after(ret_data.tuple);
 }
-std::string TriMeshSmoothVertex::name() const
+std::string TriMeshSmoothVertexOperation::name() const
 {
     return "vertex_smooth";
 }
 
-bool TriMeshSmoothVertex::invariants(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSmoothVertexOperation::invariants(const ExecuteReturnData& ret_data, TriMesh& m)
 {
     // our execute should have tuple set to the input tuple (vertex)
     return m.invariants(m.get_one_ring_tris_for_vertex(ret_data.tuple));
 }
 
 
-auto TriMeshEdgeCollapse::execute(const TriMesh::Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshEdgeCollapseOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
-    std::vector<TriMesh::Tuple> new_tris;
+    std::vector<Tuple> new_tris;
     Tuple new_t = m.collapse_edge_new(t, new_tris);
     return {new_t, new_tris, true};
 }
-bool TriMeshEdgeCollapse::before_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMeshEdgeCollapseOperation::before_check(const Tuple& t, TriMesh& m)
 {
     return m.collapse_edge_before(t);
 }
-bool TriMeshEdgeCollapse::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshEdgeCollapseOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
 {
     return m.collapse_edge_after(ret_data.tuple);
 }
 
-std::string TriMeshEdgeCollapse::name() const
+std::string TriMeshEdgeCollapseOperation::name() const
 {
     return "edge_collapse";
 }
 
-auto TriMeshConsolidate::execute(const TriMesh::Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshConsolidateOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
     auto v_cnt = 0;
     std::vector<size_t> map_v_ids(m.vert_capacity(), -1);
@@ -210,15 +210,15 @@ auto TriMeshConsolidate::execute(const TriMesh::Tuple& t, TriMesh& m) -> Execute
     return ret;
 
 }
-bool TriMeshConsolidate::before_check(const TriMesh::Tuple& t, TriMesh& m)
+bool TriMeshConsolidateOperation::before_check(const Tuple& t, TriMesh& m)
 {
     return true;
 }
-bool TriMeshConsolidate::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshConsolidateOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
 {
     return true;
 }
-std::string TriMeshConsolidate::name() const
+std::string TriMeshConsolidateOperation::name() const
 {
     return "consolidate";
 }

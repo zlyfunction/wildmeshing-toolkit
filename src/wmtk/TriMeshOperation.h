@@ -13,7 +13,7 @@ public:
         bool success = false;
     };
 
-    ExecuteReturnData operator()(const TriMesh::Tuple& t, TriMesh& m);
+    ExecuteReturnData operator()(const Tuple& t, TriMesh& m);
     virtual std::string name() const = 0;
 
 
@@ -22,8 +22,8 @@ public:
 
 protected:
     // returns the changed tris + whether success occured
-    virtual ExecuteReturnData execute(const TriMesh::Tuple& t, TriMesh& m) = 0;
-    virtual bool before_check(const TriMesh::Tuple& t, TriMesh& m) = 0;
+    virtual ExecuteReturnData execute(const Tuple& t, TriMesh& m) = 0;
+    virtual bool before_check(const Tuple& t, TriMesh& m) = 0;
     virtual bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) = 0;
     virtual bool invariants(const ExecuteReturnData& ret_data, TriMesh& m);
 
@@ -36,47 +36,47 @@ protected:
     void set_tri_size(size_t size, TriMesh& m);
 };
 
-class TriMeshSplitEdge : public TriMeshOperation
+class TriMeshSplitEdgeOperation : public TriMeshOperation
 {
 public:
-    ExecuteReturnData execute(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override;
+    bool before_check(const Tuple& t, TriMesh& m) override;
     bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override;
     std::string name() const override;
 };
-class TriMeshSwapEdge : public TriMeshOperation
+class TriMeshSwapEdgeOperation : public TriMeshOperation
 {
 public:
-    ExecuteReturnData execute(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override;
-    std::string name() const override;
-};
-
-class TriMeshEdgeCollapse : public TriMeshOperation
-{
-public:
-    ExecuteReturnData execute(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override;
+    bool before_check(const Tuple& t, TriMesh& m) override;
     bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override;
     std::string name() const override;
 };
 
-class TriMeshSmoothVertex : public TriMeshOperation
+class TriMeshEdgeCollapseOperation : public TriMeshOperation
 {
 public:
-    ExecuteReturnData execute(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override;
+    bool before_check(const Tuple& t, TriMesh& m) override;
+    bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override;
+    std::string name() const override;
+};
+
+class TriMeshSmoothVertexOperation : public TriMeshOperation
+{
+public:
+    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override;
+    bool before_check(const Tuple& t, TriMesh& m) override;
     bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override;
     std::string name() const override;
     bool invariants(const ExecuteReturnData& ret_data, TriMesh& m) override;
 };
 
-class TriMeshConsolidate : public TriMeshOperation
+class TriMeshConsolidateOperation : public TriMeshOperation
 {
 public:
-    ExecuteReturnData execute(const TriMesh::Tuple& t, TriMesh& m) override;
-    bool before_check(const TriMesh::Tuple& t, TriMesh& m) override;
+    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override;
+    bool before_check(const Tuple& t, TriMesh& m) override;
     bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override;
     std::string name() const override;
 };

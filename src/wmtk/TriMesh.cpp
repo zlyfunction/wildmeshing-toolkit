@@ -1029,7 +1029,7 @@ bool TriMesh::smooth_vertex(const Tuple& loc0)
 
 void TriMesh::consolidate_mesh()
 {
-    TriMeshConsolidate op;
+    TriMeshConsolidateOperation op;
     op.execute(TriMesh::Tuple{}, *this);
 }
 
