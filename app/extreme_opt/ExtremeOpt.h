@@ -62,15 +62,15 @@ const double MAX_ENERGY = 1e50;
 
     bool after(const TriMesh::Tuple& t, ExtremeOpt& m, std::vector<TriMesh::Tuple> &new_tris)
     {
-        m.start_protect_attributes();
+        m.start_protected_attributes();
         const bool val = after_check(t, m);
         if (!val || !m.invariants(new_tris)) {
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
             return false;
         }
-        m.release_protect_connectivity();
-        m.release_protect_attributes();
+        m.release_protected_connectivity();
+        m.release_protected_attributes();
         return true;
     }
 
@@ -200,8 +200,8 @@ const double MAX_ENERGY = 1e50;
             uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
         }
 
-        m.start_protect_connectivity();
-        m.start_protect_attributes();
+        m.start_protected_connectivity();
+        m.start_protected_attributes();
         auto new_t = m.collapse_edge_new(t, new_tris);
         
         
@@ -211,7 +211,7 @@ const double MAX_ENERGY = 1e50;
             // std::cout << "collapse t fail" << std::endl;
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
-            return false;
+            return {{}, false};
         }
         else
         {
@@ -248,7 +248,7 @@ const double MAX_ENERGY = 1e50;
             // std::cout << "collapse t pair fail" << std::endl;
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
-            return false;
+            return {{}, false};
         }
         else
         {
@@ -258,11 +258,11 @@ const double MAX_ENERGY = 1e50;
         {
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
-            return false;
+            return {{}, false};
         }
         // std::cout << "good!" << std::endl;
-        m.release_protect_connectivity();
-        m.release_protect_attributes();
+        m.release_protected_connectivity();
+        m.release_protected_attributes();
 
                 
         return {new_t,true};
@@ -301,44 +301,6 @@ const double MAX_ENERGY = 1e50;
 
     virtual ~ExtremeOpt(){};
 
-
-    // Store the per-vertex and per-face attributes
-    wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
-    wmtk::AttributeCollection<FaceAttributes> face_attrs;
-    wmtk::AttributeCollection<EdgeAttributes> edge_attrs;
-
-    void consolidate_mesh_cons();
-
-==== BASE ====
-// Check if a triangle is inverted
-bool is_inverted(const Tuple& loc) const;
-
-// Optimization
-void do_optimization(json &opt_log);
-
-// Vertex Smoothing
-bool smooth_before(const Tuple& t) override;
-bool smooth_after(const Tuple& t) override;
-void smooth_all_vertices();
-
-// Edge Swapping
-std::vector<wmtk::TriMesh::Tuple> new_edges_after(const std::vector<wmtk::TriMesh::Tuple>& tris) const;
-std::vector<wmtk::TriMesh::Tuple> replace_edges_after_split(const std::vector<wmtk::TriMesh::Tuple>& tris, const size_t vid_threshold) const;
-
-bool swap_edge_before(const Tuple& t) override;
-bool swap_edge_after(const Tuple& t) override;
-void swap_all_edges();
-
-// Edge Collapsing
-void cache_edge_positions(const Tuple& t);
-bool collapse_edge_before(const Tuple& t) override;
-bool collapse_edge_after(const Tuple& t) override;
-void collapse_all_edges();
-bool collapse_bd_edge_after(const Tuple& t, const Eigen::Vector3d &V_keep, const Eigen::Vector2d &uv_keep,Tuple &t_l_old, Tuple &t_r_old, double &E_max);
-// Edge Splitting
-bool split_edge_before(const Tuple& t) override;
-bool split_edge_after(const Tuple& t) override;
-void split_all_edges();
 // Store the per-vertex and per-face attributes
 wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
 wmtk::AttributeCollection<FaceAttributes> face_attrs;
