@@ -6,18 +6,18 @@
 #include <wmtk/utils/Logger.hpp>
 
 #include <tbb/concurrent_vector.h>
-#include <tbb/spin_mutex.h>
 #include <tbb/enumerable_thread_specific.h>
+#include <tbb/spin_mutex.h>
 
 #include <Tracy.hpp>
 
 #include <array>
 #include <cassert>
+#include <limits>
 #include <map>
 #include <optional>
 #include <queue>
 #include <vector>
-#include <limits>
 
 namespace wmtk {
 class TetMesh
@@ -493,8 +493,9 @@ public:
     using vector = tbb::concurrent_vector<T>;
 
 public:
-    AbstractAttributeContainer *p_vertex_attrs = nullptr, *p_edge_attrs = nullptr, *p_face_attrs = nullptr, *p_tet_attrs = nullptr;
-    //AbstractAttributeContainer vertex_attrs, edge_attrs, face_attrs, tet_attrs;
+    AbstractAttributeContainer *p_vertex_attrs = nullptr, *p_edge_attrs = nullptr,
+                               *p_face_attrs = nullptr, *p_tet_attrs = nullptr;
+    // AbstractAttributeContainer vertex_attrs, edge_attrs, face_attrs, tet_attrs;
 
 
 private:
@@ -874,26 +875,50 @@ private:
     }
     void start_protect_attributes()
     {
-        p_vertex_attrs->begin_protect();
-        p_edge_attrs->begin_protect();
-        p_face_attrs->begin_protect();
-        p_tet_attrs->begin_protect();
+        if (p_vertex_attrs != nullptr) {
+            p_vertex_attrs->begin_protect();
+        }
+        if (p_edge_attrs != nullptr) {
+            p_edge_attrs->begin_protect();
+        }
+        if (p_face_attrs != nullptr) {
+            p_face_attrs->begin_protect();
+        }
+        if (p_tet_attrs != nullptr) {
+            p_tet_attrs->begin_protect();
+        }
     }
 
     void release_protect_attributes()
     {
-        p_vertex_attrs->end_protect();
-        p_edge_attrs->end_protect();
-        p_face_attrs->end_protect();
-        p_tet_attrs->end_protect();
+        if (p_vertex_attrs != nullptr) {
+            p_vertex_attrs->end_protect();
+        }
+        if (p_edge_attrs != nullptr) {
+            p_edge_attrs->end_protect();
+        }
+        if (p_face_attrs != nullptr) {
+            p_face_attrs->end_protect();
+        }
+        if (p_tet_attrs != nullptr) {
+            p_tet_attrs->end_protect();
+        }
     }
 
     void rollback_protected_attributes()
     {
-        p_vertex_attrs->rollback();
-        p_edge_attrs->rollback();
-        p_face_attrs->rollback();
-        p_tet_attrs->rollback();
+        if (p_vertex_attrs != nullptr) {
+            p_vertex_attrs->rollback();
+        }
+        if (p_edge_attrs != nullptr) {
+            p_edge_attrs->rollback();
+        }
+        if (p_face_attrs != nullptr) {
+            p_face_attrs->rollback();
+        }
+        if (p_tet_attrs != nullptr) {
+            p_tet_attrs->rollback();
+        }
     }
 
 public:

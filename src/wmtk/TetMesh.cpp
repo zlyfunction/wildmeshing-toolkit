@@ -594,7 +594,9 @@ void wmtk::TetMesh::consolidate_mesh()
         if (v_cnt != i) {
             assert(v_cnt < i);
             m_vertex_connectivity[v_cnt] = m_vertex_connectivity[i];
-            p_vertex_attrs->move(i, v_cnt);
+            if (p_vertex_attrs != nullptr) {
+                p_vertex_attrs->move(i, v_cnt);
+            }
         }
         for (size_t& t_id : m_vertex_connectivity[v_cnt].m_conn_tets) t_id = map_t_ids[t_id];
         v_cnt++;
@@ -607,13 +609,15 @@ void wmtk::TetMesh::consolidate_mesh()
             assert(t_cnt < i);
             m_tet_connectivity[t_cnt] = m_tet_connectivity[i];
             m_tet_connectivity[t_cnt].hash = 0;
-            p_tet_attrs->move(i, t_cnt);
+            if (p_tet_attrs != nullptr) {
+                p_tet_attrs->move(i, t_cnt);
 
-            for (auto j = 0; j < 4; j++) {
-                p_face_attrs->move(i * 4 + j, t_cnt * 4 + j);
-            }
-            for (auto j = 0; j < 6; j++) {
-                p_edge_attrs->move(i * 6 + j, t_cnt * 6 + j);
+                for (auto j = 0; j < 4; j++) {
+                    p_face_attrs->move(i * 4 + j, t_cnt * 4 + j);
+                }
+                for (auto j = 0; j < 6; j++) {
+                    p_edge_attrs->move(i * 6 + j, t_cnt * 6 + j);
+                }
             }
         }
         for (size_t& v_id : m_tet_connectivity[t_cnt].m_indices) v_id = map_v_ids[v_id];
