@@ -323,6 +323,7 @@ void create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen
 
 // Initialize the mesh with constraints
 void init_constraints(const std::vector<std::vector<int>> &EE_e);
+void update_constraints_EE_v(const Eigen::MatrixXi &EE);
 
 // Exports V and F of the stored mesh
 void export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv);

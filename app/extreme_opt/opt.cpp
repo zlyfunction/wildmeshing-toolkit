@@ -22,6 +22,8 @@
 #include <igl/boundary_loop.h>
 #include <igl/upsample.h>
 
+
+
 void buildAeq(
     const Eigen::MatrixXi &EE,
     const Eigen::MatrixXd &uv,
@@ -299,10 +301,9 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
         return false;
     }
 
-    // TODO: do we want to split boundary edges?
-    if (vertex_attrs[t.vid(*this)].fixed &&
-        vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) {
-        if (!t.switch_face(*this).has_value()) return false; // check if it's bondary
+    if (is_boundary_edge(t))
+    {
+        return false;
     }
     
     position_cache.local().V1 = vertex_attrs[t.vid(*this)].pos_3d;
@@ -310,21 +311,7 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
 
-    
 
-    // check edge length thresholds
-    double l = (position_cache.local().uv1 - position_cache.local().uv2).norm();
-    double l3d = (position_cache.local().V1 - position_cache.local().V2).norm();
-    
-    
-    if (l < elen_threshold || l3d < elen_threshold_3d)
-    {
-        // std::cout << "The elen was too small, stop splitting" << std::endl; // for debugging
-        return false;
-    }
-    // std::cout << "edge: (" << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << ")" << std::endl;
-    // std::cout << "l = " << l << std::endl;
-    // std::cout << "l_3d = " << l3d << std::endl;
     return true;
 }
 
@@ -341,32 +328,59 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     vertex_attrs[vid].pos = uv;
     vertex_attrs[vid].pos_3d = V;
 
-    // TODO: check quality here?
     return true;
 }
 
 void extremeopt::ExtremeOpt::split_all_edges()
 {
+    Eigen::MatrixXi EE;
+    export_EE(EE);
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
-    for (auto& loc : get_edges())
+    for (auto& loc : get_faces())
     {
-        collect_all_ops_split.emplace_back("edge_split", loc);
+        auto t0 = loc;
+        auto t1 = t0.switch_edge(*this);
+        auto t2 = t0.switch_vertex(*this).switch_edge(*this);
+        double l0 = (vertex_attrs[t0.vid(*this)].pos - vertex_attrs[t0.switch_vertex(*this).vid(*this)].pos).norm();
+        double l1 = (vertex_attrs[t1.vid(*this)].pos - vertex_attrs[t1.switch_vertex(*this).vid(*this)].pos).norm();
+        double l2 = (vertex_attrs[t2.vid(*this)].pos - vertex_attrs[t2.switch_vertex(*this).vid(*this)].pos).norm();
+        if (is_boundary_edge(t0)) l0 = 0;
+        if (is_boundary_edge(t1)) l1 = 0;
+        if (is_boundary_edge(t2)) l2 = 0;
+    
+        if (l0 >= l1 && l0 >=l2)
+        {
+            collect_all_ops_split.emplace_back("edge_split", t0);
+        }
+        else if (l1 >= l2)
+        {
+            collect_all_ops_split.emplace_back("edge_split", t1);
+
+        }
+        else
+        {
+            collect_all_ops_split.emplace_back("edge_split", t2);
+            
+        }
     }
+
     auto setup_and_execute = [&](auto& executor_split) {
-        vid_threshold = vert_capacity();
-        executor_split.renew_neighbor_tuples = 
-            [&](auto& m, auto op, auto& tris) {
-            auto edges = m.replace_edges_after_split(tris, vid_threshold);
-            auto optup = std::vector<std::pair<std::string, TriMesh::Tuple>>();
-            for (auto& e : edges) optup.emplace_back(op, e);
-            return optup;
-        };
+        // vid_threshold = vert_capacity();
+        // executor_split.renew_neighbor_tuples = 
+        //     [&](auto& m, auto op, auto& tris) {
+        //     auto edges = m.replace_edges_after_split(tris, vid_threshold);
+        //     auto optup = std::vector<std::pair<std::string, TriMesh::Tuple>>();
+        //     for (auto& e : edges) optup.emplace_back(op, e);
+        //     return optup;
+        // };
         executor_split.num_threads = NUM_THREADS;
         executor_split(*this, collect_all_ops_split);
     };
     auto executor_split = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_split);
+
+    update_constraints_EE_v(EE);
 }
 
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
@@ -801,7 +815,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 
     
 
-    if (!(E_old >= E))
+    if (E >= E_old)
     {
         // std::cout << "energy increase after swapping" << std::endl;
         return false;
@@ -1201,7 +1215,7 @@ void extremeopt::ExtremeOpt::do_optimization(json &opt_log)
     {
         double E_max;
         // split edge lagacy will not be used
-        if (false)
+        if (true)
         {
             split_all_edges();
             export_mesh(V, F, uv);

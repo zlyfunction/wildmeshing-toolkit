@@ -301,7 +301,7 @@ int main(int argc, char** argv)
     extremeopt.export_mesh(V, F, uv);
     extremeopt.export_EE(EE);
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 0; i++)
     {
         uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
         V = new_V; uv = new_uv; F = new_F;
