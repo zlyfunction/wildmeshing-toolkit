@@ -1,5 +1,19 @@
 #include <wmtk/TriMeshOperation.h>
+#include <wmtk/utils/TriMeshOperationLogger.h>
 using namespace wmtk;
+
+auto TriMeshOperation::vertex_connectivity(TriMesh& m)
+    -> wmtk::AttributeCollection<VertexConnectivity>&
+{
+    return m.m_vertex_connectivity;
+}
+auto TriMeshOperation::tri_connectivity(TriMesh& m)
+    -> wmtk::AttributeCollection<TriangleConnectivity>&
+{
+    return m.m_tri_connectivity;
+}
+
+
 auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
     ExecuteReturnData retdata;
@@ -7,7 +21,7 @@ auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnDa
     // If the operation logger exists then log
     if (m.p_operation_logger) {
         auto& wp_op_rec = m.p_operation_recorder.local();
-        wp_op_rec = m.p_operation_logger->start_ptr(m, name(), t.as_stl_array());
+        wp_op_rec = m.p_operation_logger->start_ptr(m, name(), t);
     }
 #endif
     if (before_check(t, m)) {
@@ -31,7 +45,7 @@ auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnDa
         }
     }
 
-    
+
     return retdata;
 }
 
@@ -49,15 +63,18 @@ bool TriMeshOperation::invariants(const ExecuteReturnData& ret_data, TriMesh& m)
 void TriMeshOperation::set_vertex_size(size_t v_cnt, TriMesh& m)
 {
     m.current_vert_size = v_cnt;
-    m.m_vertex_connectivity.m_attributes.resize(v_cnt);
-    m.m_vertex_connectivity.shrink_to_fit();
+    auto& vertex_con = vertex_connectivity(m);
+    vertex_con.m_attributes.resize(v_cnt);
+    vertex_con.shrink_to_fit();
     m.resize_mutex(m.vert_capacity());
 }
 void TriMeshOperation::set_tri_size(size_t t_cnt, TriMesh& m)
 {
     m.current_tri_size = t_cnt;
-    m.m_tri_connectivity.m_attributes.resize(t_cnt);
-    m.m_tri_connectivity.shrink_to_fit();
+
+    auto& tri_con = tri_connectivity(m);
+    tri_con.m_attributes.resize(t_cnt);
+    tri_con.shrink_to_fit();
 }
 
 auto TriMeshSplitEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
@@ -150,48 +167,57 @@ std::string TriMeshEdgeCollapseOperation::name() const
 
 auto TriMeshConsolidateOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
+    auto& vertex_con = vertex_connectivity(m);
+    auto& tri_con = tri_connectivity(m);
+
     auto v_cnt = 0;
     std::vector<size_t> map_v_ids(m.vert_capacity(), -1);
     for (auto i = 0; i < m.vert_capacity(); i++) {
-        if (m.m_vertex_connectivity[i].m_is_removed) continue;
+        if (vertex_con[i].m_is_removed) continue;
         map_v_ids[i] = v_cnt;
         v_cnt++;
     }
     auto t_cnt = 0;
     std::vector<size_t> map_t_ids(m.tri_capacity(), -1);
     for (auto i = 0; i < m.tri_capacity(); i++) {
-        if (m.m_tri_connectivity[i].m_is_removed) continue;
+        if (tri_con[i].m_is_removed) continue;
         map_t_ids[i] = t_cnt;
         t_cnt++;
     }
     v_cnt = 0;
     for (auto i = 0; i < m.vert_capacity(); i++) {
-        if (m.m_vertex_connectivity[i].m_is_removed) continue;
+        if (vertex_con[i].m_is_removed) continue;
         if (v_cnt != i) {
             assert(v_cnt < i);
-            m.m_vertex_connectivity[v_cnt] = m.m_vertex_connectivity[i];
+            vertex_con[v_cnt] = vertex_con[i];
             if (m.p_vertex_attrs) m.p_vertex_attrs->move(i, v_cnt);
         }
-        for (size_t& t_id : m.m_vertex_connectivity[v_cnt].m_conn_tris) {
+        for (size_t& t_id : vertex_con[v_cnt].m_conn_tris) {
             t_id = map_t_ids[t_id];
         }
         v_cnt++;
     }
     t_cnt = 0;
     for (int i = 0; i < m.tri_capacity(); i++) {
-        if (m.m_tri_connectivity[i].m_is_removed) continue;
+        if (tri_con[i].m_is_removed) continue;
 
         if (t_cnt != i) {
             assert(t_cnt < i);
-            m.m_tri_connectivity[t_cnt] = m.m_tri_connectivity[i];
-            m.m_tri_connectivity[t_cnt].hash = 0;
-            if (m.p_face_attrs) m.p_face_attrs->move(i, t_cnt);
+            tri_con[t_cnt] = tri_con[i];
+            tri_con[t_cnt].hash = 0;
+            if (m.p_face_attrs) {
+                m.p_face_attrs->move(i, t_cnt);
+            }
 
             for (auto j = 0; j < 3; j++) {
-                if (m.p_edge_attrs) m.p_edge_attrs->move(i * 3 + j, t_cnt * 3 + j);
+                if (m.p_edge_attrs) {
+                    m.p_edge_attrs->move(i * 3 + j, t_cnt * 3 + j);
+                }
             }
         }
-        for (size_t& v_id : m.m_tri_connectivity[t_cnt].m_indices) v_id = map_v_ids[v_id];
+        for (size_t& v_id : tri_con[t_cnt].m_indices) {
+            v_id = map_v_ids[v_id];
+        }
         t_cnt++;
     }
 
@@ -208,7 +234,6 @@ auto TriMeshConsolidateOperation::execute(const Tuple& t, TriMesh& m) -> Execute
     ExecuteReturnData ret;
     ret.success = true;
     return ret;
-
 }
 bool TriMeshConsolidateOperation::before_check(const Tuple& t, TriMesh& m)
 {

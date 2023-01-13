@@ -1,45 +1,44 @@
 
 #include <wmtk/TriMesh.h>
-//#include <wmtk/utils/OperationLogger.h>
+#include <wmtk/utils/TriMeshOperationLogger.h>
 //#include <nlohmann/json.hpp>
 #include <wmtk/utils/AttributeRecorder.h>
 #include <wmtk/utils/OperationReplayer.h>
 #include <wmtk/ExecutionScheduler.hpp>
 
 namespace {
-struct TestVec2 {
-
+struct TestVec2
+{
     double x = 0;
     double y = 0;
 
-    static HighFive::CompoundType datatype() {
+    static HighFive::CompoundType datatype()
+    {
         return HighFive::CompoundType{
-        {"x", HighFive::create_datatype<double>()},
-        {"y", HighFive::create_datatype<double>()}};
+            {"x", HighFive::create_datatype<double>()},
+            {"y", HighFive::create_datatype<double>()}};
     }
 };
 
 
-class SimpleMesh: public wmtk::TriMesh {
-    
-    public:
-    bool split_edge_after(const Tuple& t)  override{
+class SimpleMesh : public wmtk::TriMesh
+{
+public:
+    bool split_edge_after(const Tuple& t) override
+    {
         bool res = TriMesh::split_edge_after(t);
 
-        if(res) {
-        size_t vid = t.vid(*this);
-        const TestVec2 v = vertices[vid];
-        spdlog::info("SimpleMesh::split_edge_after vid={} {} {}", vid, v.x, v.y);
+        if (res) {
+            size_t vid = t.vid(*this);
+            const TestVec2 v = vertices[vid];
+            spdlog::info("SimpleMesh::split_edge_after vid={} {} {}", vid, v.x, v.y);
         }
         return res;
-
     }
     wmtk::AttributeCollection<TestVec2> vertices;
 };
-}
-HIGHFIVE_REGISTER_TYPE(                                  
-        TestVec2, 
-        TestVec2::datatype)
+} // namespace
+HIGHFIVE_REGISTER_TYPE(TestVec2, TestVec2::datatype)
 
 WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(TestVec2)
 
@@ -48,7 +47,6 @@ WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(TestVec2)
 #include <catch2/catch.hpp>
 #include <highfive/H5File.hpp>
 #include <iostream>
-
 
 
 // template <>
@@ -61,8 +59,8 @@ WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(TestVec2)
 //    {"hash", HighFive::create_datatype<size_t>()},
 
 //}
-//WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(wmtk::TriMesh::VertexConnectivity)
-//WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(wmtk::TriMesh::TriangleConnectivity)
+// WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(wmtk::TriMesh::VertexConnectivity)
+// WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(wmtk::TriMesh::TriangleConnectivity)
 //
 using namespace wmtk;
 
@@ -598,7 +596,7 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
 
     // the mesh that will eventaully become the resulting mesh we hope to replay
     SimpleMesh final_mesh;
-    //SimpleMesh final_mesh;
+    // SimpleMesh final_mesh;
 
     final_mesh.p_vertex_attrs = &final_mesh.vertices;
 
@@ -635,16 +633,13 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
         using namespace HighFive;
         spdlog::info("Creating replay file");
         File file("replay_operations_2d.hd5", File::ReadWrite | File::Create | File::Truncate);
-        spdlog::info("Done creating replay file");
-        OperationLogger op_logger(file);
-        spdlog::info("Made logger and datasets");
+        TriMeshOperationLogger op_logger(final_mesh, file);
 
         std::vector<std::pair<std::string, TriMesh::Tuple>> recorded_operations;
 
-        final_mesh.p_operation_logger = &op_logger;
 
-        //        AttributeCollectionRecorder tri_recorder(file, "triangles",
-        //        final_mesh.m_tri_connectivity);
+        // AttributeCollectionRecorder tri_recorder(file, "triangles",
+        //         final_mesh.m_tri_connectivity);
 
         // op_recorder.add_attribute_recorder("vertices", vert_recorder);
         // op_recorder.add_attribute_recorder("triangles", tri_recorder);
@@ -765,10 +760,12 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
         spdlog::info("{}", file.getDataSet("operations").getElementCount());
         TriMesh m;
         m.create_mesh(4, tris);
-        OperationLogger logger(file);
+        TriMeshOperationLogger logger(m, file);
+        logger.set_readonly();
         REQUIRE(logger.operation_count() == 3);
         OperationReplayer replayer(m, logger);
         for (size_t j = 0; j < replayer.operation_count(); ++j) {
+            spdlog::info("Operation {}", j);
             size_t new_index = replayer.play(1);
 
             auto face_tuples = m.get_faces();
@@ -779,12 +776,6 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
             REQUIRE(new_index == j + 1);
         }
 
-        // for (const auto& [op_name, tup] : recorded_operations) {
-        //     TriMesh::Tuple run_tup(tup.vid(m), tup.local_eid(m), tup.fid(m), m);
-        //     REQUIRE(run_tup.is_valid(m));
-        //     scheduler.edit_operation_maps[op_name](m, run_tup);
-        // }
-
-        check_face_equality(m, final_mesh);
+         check_face_equality(m, final_mesh);
     }
 }

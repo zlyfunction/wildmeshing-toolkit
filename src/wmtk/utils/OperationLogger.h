@@ -28,6 +28,7 @@ class File;
 namespace wmtk {
 class TriMesh;
 class OperationLogger;
+class OperationReplayer;
 class AttributeCollectionRecorderBase;
 ;
 
@@ -35,40 +36,25 @@ class AttributeCollectionRecorderBase;
 class OperationRecorder
 {
 public:
-    enum class OperationType { TriMesh, TetMesh };
-    // struct UpdateData;
     struct OperationData;
     using Ptr = std::shared_ptr<OperationRecorder>;
+    OperationRecorder(OperationLogger& logger_, const std::string& cmd);
+    virtual ~OperationRecorder();
 
-
-    template <size_t Size>
-    OperationRecorder(
-        OperationLogger& logger,
-        OperationType type,
-        const std::string_view& cmd,
-        const std::array<size_t, Size>& tuple);
-
-
-    // grr std::span would be nice here
-    OperationRecorder(
-        OperationLogger& logger,
-        OperationType type,
-        const std::string_view& cmd,
-        const size_t* tuple,
-        size_t tuple_size);
-    ~OperationRecorder();
 
     // If the operation
     void cancel();
+    bool cancelled() const { return this->is_cancelled; }
+    virtual size_t commit(size_t start, size_t end) = 0;
+    void flush();
 
 
-private:
+protected:
     OperationLogger& logger;
-    OperationType type;
     std::string name;
-    std::vector<size_t> tuple_data; // Tet/Tri use different sizes
+    // each derived class is in charge of its own tuple data
     std::vector<std::pair<std::string, std::array<size_t, 2>>> attribute_updates;
-    bool cancelled = false;
+    bool is_cancelled = false;
 };
 
 class OperationLogger
@@ -76,22 +62,30 @@ class OperationLogger
 public:
     friend class OperationRecorder;
     friend class OperationReplayer;
-    OperationLogger(HighFive::File& file);
-    ~OperationLogger();
-    OperationRecorder
-    start(const TriMesh& m, const std::string_view& cmd, const std::array<size_t, 3>& tuple);
-    OperationRecorder::Ptr
-    start_ptr(const TriMesh& m, const std::string_view& cmd, const std::array<size_t, 3>& tuple);
+    OperationLogger(HighFive::File& file, const HighFive::DataType& operation_datatype);
+    virtual ~OperationLogger();
+
+
+    void set_readonly();
+    bool is_readonly();
+
     void add_attribute_recorder(
         std::string&& attribute_name,
         AttributeCollectionRecorderBase& attribute_recorder);
+    // the total number of operations that were logged
     size_t operation_count() const;
+    // the total number of attribute changes that were logged. multiple can happen per operation
     size_t attribute_changes_count() const;
 
 
 private:
+    HighFive::DataSet create_dataset(const std::string& name, const HighFive::DataType& datatype);
+
+private:
     oneapi::tbb::mutex output_mutex;
     HighFive::File& file;
+
+protected:
     HighFive::DataSet operation_dataset;
     HighFive::DataSet attribute_changes_dataset;
     // std::ostream& output_stream;
@@ -100,6 +94,7 @@ private:
 
     // returns true if attribute was successfully recorded
     std::array<size_t, 2> record_attribute(const std::string& attribute_name);
+    bool read_mode = false;
 };
 
 

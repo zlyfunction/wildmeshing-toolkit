@@ -35,7 +35,7 @@ HighFive::DataSetCreateProps AttributeCollectionRecorderBase::create_properties(
     return props;
 }
 
-std::array<size_t, 2> AttributeCollectionRecorderBase::record()
+std::array<size_t, 3> AttributeCollectionRecorderBase::record()
 {
     return record(dataset);
 }

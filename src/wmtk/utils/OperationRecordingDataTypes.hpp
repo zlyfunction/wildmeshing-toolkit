@@ -93,16 +93,22 @@ struct AttributeChanges
     AttributeChanges& operator=(AttributeChanges const&) = default;
     AttributeChanges& operator=(AttributeChanges&&) = default;
 
-    AttributeChanges(const std::string_view& view, size_t begin, size_t end);
+    AttributeChanges(const std::string_view& view, size_t begin, size_t end, size_t size);
     char name[20];
 
+    size_t attribute_size = 0;
     size_t change_range_begin = 0;
     size_t change_range_end = 0;
 
     static HighFive::CompoundType datatype();
 };
-inline AttributeChanges::AttributeChanges(const std::string_view& view, size_t begin, size_t end)
-    : change_range_begin(begin)
+inline AttributeChanges::AttributeChanges(
+    const std::string_view& view,
+    size_t begin,
+    size_t end,
+    size_t size)
+    : attribute_size(size)
+    , change_range_begin(begin)
     , change_range_end(end)
 {
     strncpy(

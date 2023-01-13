@@ -71,7 +71,7 @@ size_t OperationReplayer::play_to(size_t end)
 
     auto run = [&](const TriMeshOperationData& tri_op) {
         std::string op_name = tri_op.name;
-        TriMesh::Tuple edge(tri_op.triangle_id, tri_op.local_edge_id, tri_op.vertex_id, mesh);
+        TriMesh::Tuple edge(tri_op.vertex_id, tri_op.local_edge_id, tri_op.triangle_id, mesh);
         // TODO: how does reverse mode get incorporated
         scheduler.edit_operation_maps[op_name](mesh, edge);
 

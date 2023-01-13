@@ -22,11 +22,11 @@ public:
     static HighFive::CompoundType record_datatype();
     static HighFive::DataSetCreateProps create_properties();
     static HighFive::DataSetAccessProps access_properties();
-    // returns the range of values used
-    virtual std::array<size_t, 2> record(HighFive::DataSet& data_set) = 0;
+    // returns the range of values used and size
+    virtual std::array<size_t, 3> record(HighFive::DataSet& data_set) = 0;
 
-    // returns the range of values used
-    std::array<size_t, 2> record();
+    // returns the range of values used and size
+    std::array<size_t, 3> record();
 
 private:
     HighFive::DataSet dataset;
@@ -46,7 +46,7 @@ public:
         AttributeCollection<T>& attr_);
 
 
-    std::array<size_t, 2> record(HighFive::DataSet& data_set) override;
+    std::array<size_t, 3> record(HighFive::DataSet& data_set) override;
     using AttributeCollectionRecorderBase::record;
 
 private:
@@ -80,7 +80,7 @@ HighFive::CompoundType AttributeCollectionRecorder<T>::datatype()
 
 
 template <typename T>
-std::array<size_t, 2> AttributeCollectionRecorder<T>::record(HighFive::DataSet& data_set)
+std::array<size_t, 3> AttributeCollectionRecorder<T>::record(HighFive::DataSet& data_set)
 {
     const std::map<size_t, T>& rollback_list = attribute_collection.m_rollback_list.local();
     const tbb::concurrent_vector<T>& attributes = attribute_collection.m_attributes;
@@ -97,7 +97,8 @@ std::array<size_t, 2> AttributeCollectionRecorder<T>::record(HighFive::DataSet& 
             return UpdateData{index, old_value, new_value};
         });
 
-    return append_values_to_1d_dataset(data_set, data);
+    auto [start, end] = append_values_to_1d_dataset(data_set, data);
+    return std::array<size_t, 3>{{start, end, attribute_collection.size()}};
 }
 
 

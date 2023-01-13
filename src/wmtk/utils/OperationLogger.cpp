@@ -22,120 +22,108 @@
 #include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
 HIGHFIVE_REGISTER_TYPE(wmtk::AttributeChanges, wmtk::AttributeChanges::datatype);
-HIGHFIVE_REGISTER_TYPE(wmtk::TriMeshOperationData, wmtk::TriMeshOperationData::datatype);
-namespace wmtk {
 
+using namespace wmtk;
 namespace {
 
-template <typename T>
-HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
+// checks whether the file holding the dataset exists
+bool does_dataset_exist(const HighFive::File& file, const std::string& name)
 {
     auto obj_names = file.listObjectNames();
     spdlog::warn("Object names when looking for {}:  {}", name, fmt::join(obj_names, ","));
-    bool exists = file.exist(name);
+    if (file.exist(name)) {
+        return true;
+        ;
+    }
     // for whaterver reason file.exist doesn't work with my invocation so doing it the dumb way
-    if (!exists) {
-        for (auto&& n : obj_names) {
-            if (n == name) {
-                exists = true;
-                spdlog::info("Found objecT");
-                break;
+    for (auto&& n : obj_names) {
+        if (n == name) {
+            if (HighFive::ObjectType::Dataset == file.getObjectType(name)) {
+                return true;
+            } else {
+                logger().error(
+                    "create_dataset: {} had root node {} but it was not a dataset",
+                    file.getName(),
+                    name);
             }
         }
     }
-    if (exists) {
-        if (HighFive::ObjectType::Dataset == file.getObjectType(name)) {
-            auto ds = file.getDataSet(name);
-            spdlog::info("Returning dataset {} with {} entries", name, ds.getElementCount());
-            return ds;
-        } else {
-            logger().error(
-                "create_dataset: {} had root node {} but it was not a dataset",
-                file.getName(),
-                name);
-        }
-    }
-    spdlog::info("Creating dataset");
-    HighFive::DataSetCreateProps props;
-    props.add(HighFive::Chunking(std::vector<hsize_t>{2}));
+    return false;
+}
+HighFive::DataSet
+create_dataset(HighFive::File& file, const std::string& name, const HighFive::DataType& datatype)
+{
+    spdlog::info("Creating dataset {}", name);
 
-    return file.createDataSet(
-        std::string(name),
-        // create an empty dataspace of unlimited size
-        HighFive::DataSpace({0}, {HighFive::DataSpace::UNLIMITED}),
-        // configure its datatype according to derived class's datatype spec
-        HighFive::create_datatype<T>(),
-        // should enable chunking to allow appending
-        props);
+    if (does_dataset_exist(file, name)) {
+        auto ds = file.getDataSet(name);
+        spdlog::info("Returning dataset {} with {} entries", name, ds.getElementCount());
+        return ds;
+    } else {
+        HighFive::DataSetCreateProps props;
+        props.add(HighFive::Chunking(std::vector<hsize_t>{2}));
+        return file.createDataSet(
+            std::string(name),
+            // create an empty dataspace of unlimited size
+            HighFive::DataSpace({0}, {HighFive::DataSpace::UNLIMITED}),
+            // configure its datatype according to derived class's datatype spec
+            datatype,
+            // should enable chunking to allow appending
+            props);
+    }
+}
+template <typename T>
+HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
+{
+    return create_dataset(file, name, HighFive::create_datatype<T>());
 }
 
 } // namespace
 
-OperationLogger::OperationLogger(HighFive::File& f)
+void OperationLogger::set_readonly()
+{
+    read_mode = true;
+}
+bool OperationLogger::is_readonly()
+{
+    return read_mode;
+}
+OperationLogger::OperationLogger(HighFive::File& f, const HighFive::DataType& op_type)
     : file(f)
-    , operation_dataset(create_dataset<TriMeshOperationData>(f, "operations"))
-    , attribute_changes_dataset(create_dataset<AttributeChanges>(f, "attribute_changes"))
+    , operation_dataset(::create_dataset(f, "operations", op_type))
+    , attribute_changes_dataset(::create_dataset<AttributeChanges>(f, "attribute_changes"))
 {}
 OperationLogger::~OperationLogger() = default;
 
-
-template <size_t Size>
-OperationRecorder::OperationRecorder(
-    OperationLogger& logger_,
-    OperationType type_,
-    const std::string_view& cmd,
-    const std::array<size_t, Size>& tuple)
-    : OperationRecorder(logger_, type_, cmd, tuple.data(), Size)
-{}
-auto OperationLogger::start(
-
-    const TriMesh& m,
-    const std::string_view& cmd,
-    const std::array<size_t, 3>& tuple) -> OperationRecorder
+HighFive::DataSet OperationLogger::create_dataset(
+    const std::string& name,
+    const HighFive::DataType& datatype)
 {
-    return OperationRecorder(*this, OperationRecorder::OperationType::TriMesh, cmd, tuple);
-}
-
-auto OperationLogger::start_ptr(
-    const TriMesh& m,
-    const std::string_view& cmd,
-    const std::array<size_t, 3>& tuple) -> OperationRecorder::Ptr
-{
-    return std::make_shared<OperationRecorder>(
-        *this,
-        OperationRecorder::OperationType::TriMesh,
-        cmd,
-        tuple);
+    return ::create_dataset(file, name, datatype);
 }
 
 
-OperationRecorder::OperationRecorder(
-    OperationLogger& logger_,
-    OperationType type_,
-    const std::string_view& cmd,
-    const size_t* tuple,
-    size_t tuple_size)
+OperationRecorder::OperationRecorder(OperationLogger& logger_, const std::string& cmd)
     : logger(logger_)
-    , type(type_)
     , name(cmd)
-    , tuple_data(tuple, tuple + tuple_size)
-{
-    // nlohmann::json& js = *data;
-    // js["operation"] = cmd;
-    // auto& tup = js["tuple"];
-    // for (size_t j = 0; j < tuple_size; ++j) {
-    //     tup.push_back(tuple[j]);
-    // }
-}
-
+{}
 void OperationRecorder::OperationRecorder::cancel()
 {
-    cancelled = true;
+    is_cancelled = true;
 }
 
 OperationRecorder::~OperationRecorder()
-{ // only lock the mutex when we output to the output stream
-    if (!cancelled) {
+{
+    if (!cancelled()) {
+        spdlog::error(
+            "Recorder cannot be destroyed without being flushed! derived class must flush!");
+    }
+}
+
+void OperationRecorder::flush()
+{
+    // only lock the mutex when we output to the output stream
+    if (!cancelled()) {
         tbb::mutex::scoped_lock lock(logger.output_mutex);
 
 
@@ -143,35 +131,15 @@ OperationRecorder::~OperationRecorder()
         std::vector<AttributeChanges> changes;
 
         for (auto&& [attr_name, p_recorder] : logger.attribute_recorders) {
-            auto [start, end] = p_recorder->record();
-            changes.emplace_back(AttributeChanges{attr_name, start, end});
+            auto [start, end, size] = p_recorder->record();
+            changes.emplace_back(AttributeChanges{attr_name, size, start, end});
         }
         auto [start, end] = append_values_to_1d_dataset(logger.attribute_changes_dataset, changes);
 
         // commit command itself
-        switch (this->type) {
-        case OperationType::TriMesh: {
-            TriMeshOperationData op;
-            strncpy(
-                op.name,
-                name.c_str(),
-                sizeof(op.name) /
-                    sizeof(char)); // yes sizeof(char)==1, maybe chartype changes someday?
-            assert(tuple_data.size() == 3);
-            op.triangle_id = tuple_data[0];
-            op.local_edge_id = tuple_data[1];
-            op.vertex_id = tuple_data[2];
-            op.update_range_begin = start;
-            op.update_range_end = end;
-
-
-            auto size = append_value_to_1d_dataset(logger.operation_dataset, op);
-        } break;
-        case OperationType::TetMesh: {
-        } break;
-        }
-    } else {
+        commit(start, end);
     }
+    is_cancelled = true;
 }
 size_t OperationLogger::attribute_changes_count() const
 {
@@ -206,5 +174,4 @@ bool OperationLogger::record_attribute(const std::string& attribute_name)
     return true;
 }
 */
-} // namespace wmtk
 

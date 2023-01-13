@@ -3,6 +3,7 @@
 #include <wmtk/TriMesh.h>
 #include <wmtk/TriMeshOperation.h>
 #include <wmtk/utils/OperationLogger.h>
+#include <wmtk/utils/TriMeshOperationLogger.h>
 #include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TupleUtils.hpp>
@@ -434,7 +435,7 @@ bool TriMesh::split_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_split", t.as_stl_array());
+        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_split", t);
     }
 #endif
 
@@ -696,7 +697,7 @@ bool TriMesh::collapse_edge(const Tuple& loc0, std::vector<Tuple>& new_tris)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "collapse_edge", loc0.as_stl_array());
+        wp_op_rec = p_operation_logger->start_ptr(*this, "collapse_edge", loc0);
     }
 #endif
     start_protected_connectivity();
@@ -912,7 +913,7 @@ bool TriMesh::swap_edge(const Tuple& t, std::vector<Tuple>& new_tris)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_swap", t.as_stl_array());
+        wp_op_rec = p_operation_logger->start_ptr(*this, "edge_swap", t);
     }
 #endif
 
@@ -1008,7 +1009,7 @@ bool TriMesh::smooth_vertex(const Tuple& loc0)
     // If the operation logger exists then log
     if (p_operation_logger) {
         auto& wp_op_rec = p_operation_recorder.local();
-        wp_op_rec = p_operation_logger->start_ptr(*this, "vertex_smooth", loc0.as_stl_array());
+        wp_op_rec = p_operation_logger->start_ptr(*this, "vertex_smooth", loc0);
     }
 #endif
     start_protected_attributes();

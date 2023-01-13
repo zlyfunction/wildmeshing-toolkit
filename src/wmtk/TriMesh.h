@@ -25,7 +25,11 @@ namespace wmtk {
 
 class OperationLogger;
 class OperationRecorder;
+class TriMeshOperationLogger;
+class TriMeshOperationRecorder;
 class TriMeshOperation;
+template <typename T>
+class AttributeCollectionRecorder;
 
 
 class TriMesh
@@ -155,7 +159,7 @@ public:
             return (
                 std::tie(a.m_vid, a.m_eid, a.m_fid, a.m_hash) <
                 std::tie(t.m_vid, t.m_eid, t.m_fid, t.m_hash));
-            //return a.as_stl_tuple() < t.as_stl_tuple();
+            // return a.as_stl_tuple() < t.as_stl_tuple();
         }
     };
 
@@ -176,7 +180,7 @@ public:
          * @brief is the vertex removed
          *
          */
-         bool m_is_removed = true; 
+        bool m_is_removed = true;
 
         inline size_t& operator[](const size_t index)
         {
@@ -241,6 +245,10 @@ public:
     };
 
     friend class TriMeshOperation;
+    friend class TriMeshOperationLogger;
+    friend class TriMeshOperationRecorder;
+    template <typename T>
+    friend class AttributeCollectionRecorder;
 
 
     TriMesh();
@@ -298,13 +306,12 @@ public:
     AbstractAttributeContainer* p_edge_attrs = nullptr;
     AbstractAttributeContainer* p_face_attrs = nullptr;
 
-    OperationLogger* p_operation_logger = nullptr;
 
-    // protected:
-    //  TODO:
+protected:
     wmtk::AttributeCollection<VertexConnectivity> m_vertex_connectivity;
     wmtk::AttributeCollection<TriangleConnectivity> m_tri_connectivity;
 
+    TriMeshOperationLogger* p_operation_logger = nullptr;
 
 protected:
     std::atomic_long current_vert_size;
@@ -317,6 +324,7 @@ protected:
 
 #if defined(USE_OPERATION_LOGGER)
     tbb::enumerable_thread_specific<std::weak_ptr<OperationRecorder>> p_operation_recorder{{}};
+    tbb::enumerable_thread_specific<std::weak_ptr<OperationRecorder>> p__recorder{{}};
 #endif
     /**
      * @brief Get the next avaiblie global index for the triangle

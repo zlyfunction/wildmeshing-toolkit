@@ -85,6 +85,9 @@ struct AttributeCollection : public AbstractAttributeContainer
     void begin_protect() override
     {
         m_rollback_list.local().clear();
+        if(recording.local()) {
+            m_rollback_size.local() = m_attributes.size();
+        }
         recording.local() = true;
     };
     /**
@@ -117,6 +120,7 @@ struct AttributeCollection : public AbstractAttributeContainer
 
     size_t size() const { return m_attributes.size(); }
     tbb::enumerable_thread_specific<std::map<size_t, T>> m_rollback_list;
+    tbb::enumerable_thread_specific<size_t> m_rollback_size;
     // experimenting with tbb, could be templated as well.
     tbb::concurrent_vector<T> m_attributes;
     tbb::enumerable_thread_specific<bool> recording{false};

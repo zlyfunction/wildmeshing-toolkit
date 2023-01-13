@@ -6,6 +6,8 @@ class TriMeshOperation
 {
 public:
     using Tuple = TriMesh::Tuple;
+    using VertexConnectivity = TriMesh::VertexConnectivity;
+    using TriangleConnectivity = TriMesh::TriangleConnectivity;
     struct ExecuteReturnData
     {
         Tuple tuple;
@@ -26,6 +28,9 @@ protected:
     virtual bool before_check(const Tuple& t, TriMesh& m) = 0;
     virtual bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) = 0;
     virtual bool invariants(const ExecuteReturnData& ret_data, TriMesh& m);
+
+    wmtk::AttributeCollection<VertexConnectivity>& vertex_connectivity(TriMesh& m);
+    wmtk::AttributeCollection<TriangleConnectivity>& tri_connectivity(TriMesh& m);
 
 
 #if defined(USE_OPERATION_LOGGER)

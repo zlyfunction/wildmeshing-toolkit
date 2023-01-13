@@ -6,6 +6,7 @@ HighFive::CompoundType AttributeChanges::datatype()
 {
     return HighFive::CompoundType{
         {"attribute_name", HighFive::create_datatype<char[20]>()},
+        {"attribute_size", HighFive::create_datatype<size_t>()},
         {"change_range_begin", HighFive::create_datatype<size_t>()},
         {"change_range_end", HighFive::create_datatype<size_t>()}};
 }
