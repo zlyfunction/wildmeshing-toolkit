@@ -7,6 +7,8 @@
 #include <igl/doublearea.h>
 #include <igl/boundary_loop.h>
 
+
+
 namespace extremeopt {
 
 void ExtremeOpt::create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv)
@@ -66,6 +68,42 @@ void ExtremeOpt::init_constraints(const std::vector<std::vector<int>> &EE_e)
         
         edge_attrs[eid1].pair = t2;
         edge_attrs[eid2].pair = t1;
+    }
+}
+
+void ExtremeOpt::update_constraints_EE_v(const Eigen::MatrixXi &EE)
+{
+    edge_attrs.resize(tri_capacity() * 3);
+    for (int i = 0; i < EE.rows(); i++)
+    {
+        int v0 = EE(i, 0);
+        int v1 = EE(i, 1);
+        int v2 = EE(i, 2);
+        int v3 = EE(i, 3);
+
+        auto t = tuple_from_vertex(v0);
+        auto one_ring_v0 = get_one_ring_edges_for_vertex(t);
+        t = tuple_from_vertex(v2);
+        auto one_ring_v2 = get_one_ring_edges_for_vertex(t);
+        Tuple t_e01, t_e23;
+        for (auto t_tmp : one_ring_v0)
+        {
+            if (t_tmp.vid(*this) == v1)
+            {
+                t_e01 = t_tmp.switch_vertex(*this);
+            }
+        }
+        for (auto t_tmp : one_ring_v2)
+        {
+            if (t_tmp.vid(*this) == v3)
+            {
+                t_e23 = t_tmp.switch_vertex(*this);
+            }
+        }
+
+        edge_attrs[t_e01.eid(*this)].pair = t_e23;
+        edge_attrs[t_e23.eid(*this)].pair = t_e01;
+
     }
 }
 
