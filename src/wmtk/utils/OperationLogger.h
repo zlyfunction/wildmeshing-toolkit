@@ -62,6 +62,7 @@ class OperationLogger
 public:
     friend class OperationRecorder;
     friend class OperationReplayer;
+    friend class AttributeCollectionRecorderBase;
     OperationLogger(HighFive::File& file, const HighFive::DataType& operation_datatype);
     virtual ~OperationLogger();
 
@@ -78,7 +79,7 @@ public:
     size_t attribute_changes_count() const;
 
 
-private:
+protected:
     HighFive::DataSet create_dataset(const std::string& name, const HighFive::DataType& datatype);
 
 private:

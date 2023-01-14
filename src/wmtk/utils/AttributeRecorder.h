@@ -1,7 +1,5 @@
 #pragma once
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataType.hpp>
-#include <highfive/H5File.hpp>
+#include <wmtk/utils/Hdf5Utils.h>
 #include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
@@ -15,7 +13,7 @@ class AttributeCollectionRecorderBase
 public:
     AttributeCollectionRecorderBase(
         HighFive::File& file,
-        const std::string_view& name,
+        const std::string& name,
         const HighFive::DataType& data_type);
     AttributeCollectionRecorderBase(HighFive::DataSet&& dataset_);
     virtual ~AttributeCollectionRecorderBase();
@@ -38,11 +36,16 @@ template <typename T>
 class AttributeCollectionRecorder : public AttributeCollectionRecorderBase
 {
 public:
-    struct UpdateData;
+    struct UpdateData
+    {
+        size_t index;
+        T old_value;
+        T new_value;
+    };
     static HighFive::CompoundType datatype();
     AttributeCollectionRecorder(
         HighFive::File& file,
-        const std::string_view& name,
+        const std::string& name,
         AttributeCollection<T>& attr_);
 
 
@@ -57,13 +60,13 @@ private:
 template <typename T>
 AttributeCollectionRecorder(
     HighFive::File& file,
-    const std::string_view& name,
+    const std::string& name,
     const AttributeCollection<T>&) -> AttributeCollectionRecorder<T>;
 
 template <typename T>
 AttributeCollectionRecorder<T>::AttributeCollectionRecorder(
     HighFive::File& file,
-    const std::string_view& name,
+    const std::string& name,
     AttributeCollection<T>& attr_)
     : AttributeCollectionRecorderBase(file, name, datatype())
     , attribute_collection(attr_)
@@ -98,6 +101,7 @@ std::array<size_t, 3> AttributeCollectionRecorder<T>::record(HighFive::DataSet& 
         });
 
     auto [start, end] = append_values_to_1d_dataset(data_set, data);
+    spdlog::info("Added {}/{} values with {} {} size {}", rollback_list.size(), data.size(), start,end, attribute_collection.size());
     return std::array<size_t, 3>{{start, end, attribute_collection.size()}};
 }
 

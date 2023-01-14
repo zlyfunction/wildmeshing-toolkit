@@ -1,20 +1,14 @@
-#include <wmtk/AttributeCollection.hpp>
 #include <wmtk/utils/AttributeRecorder.h>
+#include <wmtk/AttributeCollection.hpp>
+#include <wmtk/utils/Hdf5Utils.h>
 
-WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(double)
 using namespace wmtk;
 AttributeCollectionRecorderBase::AttributeCollectionRecorderBase(
     HighFive::File& file,
-    const std::string_view& name, const HighFive::DataType& data_type)
-    : AttributeCollectionRecorderBase(file.createDataSet(
-          std::string(name),
-          // create an empty dataspace of unlimited size
-          HighFive::DataSpace({0}, {HighFive::DataSpace::UNLIMITED}),
-          // configure its datatype according to derived class's datatype spec
-          data_type,
-          // should enable chunking to allow appending
-          create_properties(),
-          access_properties()))
+    const std::string& name,
+    const HighFive::DataType& data_type)
+    : AttributeCollectionRecorderBase(
+            create_dataset(file, name, data_type))
 {}
 
 AttributeCollectionRecorderBase::AttributeCollectionRecorderBase(HighFive::DataSet&& dataset_)

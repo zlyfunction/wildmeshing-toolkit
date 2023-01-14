@@ -1,6 +1,5 @@
 #pragma once
 
-#include <wmtk/utils/OperationLogger.h>
 #include <wmtk/utils/VectorUtils.h>
 #include <wmtk/utils/Logger.hpp>
 
@@ -19,6 +18,7 @@ namespace wmtk {
  * @brief serving as buffers for attributes data that can be modified by operations
  *
  */
+class OperationRecorder;
 class AbstractAttributeContainer
 {
 public:
@@ -28,7 +28,7 @@ public:
     virtual void rollback(){};
     virtual void begin_protect(){};
     virtual void end_protect(){};
-    virtual void record_updates(OperationRecorder&, const std::string_view& ){};
+    virtual void record_updates(OperationRecorder&, const std::string_view&){};
 };
 
 
@@ -50,15 +50,9 @@ struct AttributeCollection : public AbstractAttributeContainer
         // TODO: in Concurrent, vertex partition id, vertex mutex should be part of attribute
     }
 
-    void shrink_to_fit()
-    {
-        m_attributes.shrink_to_fit();
-    }
+    void shrink_to_fit() { m_attributes.shrink_to_fit(); }
 
-    void grow_to_at_least(size_t s)
-    {
-        m_attributes.grow_to_at_least(s);
-    }
+    void grow_to_at_least(size_t s) { m_attributes.grow_to_at_least(s); }
 
     bool assign(size_t to, T&& val) // always use this in OP_after
     {
@@ -85,7 +79,7 @@ struct AttributeCollection : public AbstractAttributeContainer
     void begin_protect() override
     {
         m_rollback_list.local().clear();
-        if(recording.local()) {
+        if (recording.local()) {
             m_rollback_size.local() = m_attributes.size();
         }
         recording.local() = true;
@@ -99,12 +93,12 @@ struct AttributeCollection : public AbstractAttributeContainer
         m_rollback_list.local().clear();
         recording.local() = false;
     }
-    //void record_updates(OperationRecorder& recorder, const std::string_view& name) override
+    // void record_updates(OperationRecorder& recorder, const std::string_view& name) override
     //{
-    //    if (recording.local()) {
-    //        recorder.attribute_update(name, m_attributes, m_rollback_list.local());
-    //    }
-    //}
+    //     if (recording.local()) {
+    //         recorder.attribute_update(name, m_attributes, m_rollback_list.local());
+    //     }
+    // }
 
     const T& operator[](size_t i) const { return m_attributes[i]; }
 

@@ -72,6 +72,10 @@ size_t append_value_to_1d_dataset(HighFive::DataSet& dataset, const T& value);
         wmtk::AttributeCollectionRecorder<type>::UpdateData, \
         wmtk::AttributeCollectionRecorder<type>::datatype)
 
+#define WMTK_HDF5_DECLARE_ATTRIBUTE_TYPE(type)               \
+    HIGHFIVE_REGISTER_TYPE(                                  \
+        wmtk::AttributeCollectionRecorder<type>::UpdateData, \
+        wmtk::AttributeCollectionRecorder<type>::datatype)
 
 template <typename T>
 struct AttributeUpdateData
@@ -117,6 +121,20 @@ inline AttributeChanges::AttributeChanges(
         sizeof(name) / sizeof(char)); // yes sizeof(char)==1, maybe chartype changes someday?
 }
 
+struct TriMeshTupleData
+{
+    TriMeshTupleData() = default;
+    TriMeshTupleData(TriMeshTupleData&&) = default;
+    TriMeshTupleData(const TriMeshTupleData&) = default;
+    TriMeshTupleData& operator=(TriMeshTupleData&&) = default;
+    TriMeshTupleData& operator=(const TriMeshTupleData&) = default;
+    TriMeshTupleData(const TriMesh::Tuple& tuple);
+    size_t triangle_id = 0;
+    size_t local_edge_id = 0;
+    size_t vertex_id = 0;
+    static HighFive::CompoundType datatype();
+};
+
 // stores the update data for a single operation as well as a range into the table of per-attribute
 // updates
 //
@@ -124,9 +142,8 @@ struct TriMeshOperationData
 {
     // TODO: operation_name could be mapped to an enum at some point
     char name[20];
-    size_t triangle_id;
-    size_t local_edge_id;
-    size_t vertex_id;
+    TriMeshTupleData input_tuple;
+    TriMeshTupleData output_tuple;
     size_t update_range_begin = 0;
     size_t update_range_end = 0;
 

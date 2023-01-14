@@ -1,84 +1,16 @@
 #include <wmtk/TriMesh.h>
 #include <wmtk/utils/AttributeRecorder.h>
+#include <wmtk/utils/Hdf5Utils.h>
 #include <wmtk/utils/OperationLogger.h>
-#include <wmtk/utils/Logger.hpp>
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wcast-qual"
-#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#endif
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataType.hpp>
-#include <highfive/H5File.hpp>
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif (defined(__GNUC__) || defined(__GNUG__)) && !(defined(__clang__) || defined(__INTEL_COMPILER))
-#pragma GCC diagnostic pop
-#endif
 #include <ostream>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
-HIGHFIVE_REGISTER_TYPE(wmtk::AttributeChanges, wmtk::AttributeChanges::datatype);
 
+template <>
+HighFive::DataType HighFive::create_datatype<wmtk::AttributeChanges>();
 using namespace wmtk;
-namespace {
 
-// checks whether the file holding the dataset exists
-bool does_dataset_exist(const HighFive::File& file, const std::string& name)
-{
-    auto obj_names = file.listObjectNames();
-    spdlog::warn("Object names when looking for {}:  {}", name, fmt::join(obj_names, ","));
-    if (file.exist(name)) {
-        return true;
-        ;
-    }
-    // for whaterver reason file.exist doesn't work with my invocation so doing it the dumb way
-    for (auto&& n : obj_names) {
-        if (n == name) {
-            if (HighFive::ObjectType::Dataset == file.getObjectType(name)) {
-                return true;
-            } else {
-                logger().error(
-                    "create_dataset: {} had root node {} but it was not a dataset",
-                    file.getName(),
-                    name);
-            }
-        }
-    }
-    return false;
-}
-HighFive::DataSet
-create_dataset(HighFive::File& file, const std::string& name, const HighFive::DataType& datatype)
-{
-    spdlog::info("Creating dataset {}", name);
-
-    if (does_dataset_exist(file, name)) {
-        auto ds = file.getDataSet(name);
-        spdlog::info("Returning dataset {} with {} entries", name, ds.getElementCount());
-        return ds;
-    } else {
-        HighFive::DataSetCreateProps props;
-        props.add(HighFive::Chunking(std::vector<hsize_t>{2}));
-        return file.createDataSet(
-            std::string(name),
-            // create an empty dataspace of unlimited size
-            HighFive::DataSpace({0}, {HighFive::DataSpace::UNLIMITED}),
-            // configure its datatype according to derived class's datatype spec
-            datatype,
-            // should enable chunking to allow appending
-            props);
-    }
-}
-template <typename T>
-HighFive::DataSet create_dataset(HighFive::File& file, const std::string& name)
-{
-    return create_dataset(file, name, HighFive::create_datatype<T>());
-}
-
-} // namespace
 
 void OperationLogger::set_readonly()
 {

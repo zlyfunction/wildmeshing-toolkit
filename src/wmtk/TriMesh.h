@@ -28,6 +28,7 @@ class OperationRecorder;
 class TriMeshOperationLogger;
 class TriMeshOperationRecorder;
 class TriMeshOperation;
+class TriMeshTupleData;
 template <typename T>
 class AttributeCollectionRecorder;
 
@@ -39,6 +40,7 @@ public:
     class Tuple
     {
     private:
+        friend class TriMeshTupleData;
         size_t m_vid = -1;
         size_t m_eid = -1;
         size_t m_fid = -1;
@@ -323,8 +325,8 @@ protected:
     int MAX_THREADS = 128;
 
 #if defined(USE_OPERATION_LOGGER)
-    tbb::enumerable_thread_specific<std::weak_ptr<OperationRecorder>> p_operation_recorder{{}};
-    tbb::enumerable_thread_specific<std::weak_ptr<OperationRecorder>> p__recorder{{}};
+    tbb::enumerable_thread_specific<std::weak_ptr<TriMeshOperationRecorder>> p_operation_recorder{
+        {}};
 #endif
     /**
      * @brief Get the next avaiblie global index for the triangle
