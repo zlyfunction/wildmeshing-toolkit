@@ -6,6 +6,7 @@
 
 namespace wmtk {
 
+class OperationRecorder;
 
 // Interface for adding an attribute to a logged hdf5 file
 class AttributeCollectionRecorderBase
@@ -22,9 +23,15 @@ public:
     static HighFive::DataSetAccessProps access_properties();
     // returns the range of values used and size
     virtual std::array<size_t, 3> record(HighFive::DataSet& data_set) = 0;
+    virtual size_t size() const = 0;
 
     // returns the range of values used and size
     std::array<size_t, 3> record();
+
+protected:
+    friend class OperationRecorder;
+    void save_size();
+    tbb::enumerable_thread_specific<size_t> last_size{0};
 
 private:
     HighFive::DataSet dataset;
@@ -50,6 +57,7 @@ public:
 
 
     std::array<size_t, 3> record(HighFive::DataSet& data_set) override;
+    size_t size() const override { return attribute_collection.size(); }
     using AttributeCollectionRecorderBase::record;
 
 private:
@@ -95,13 +103,12 @@ std::array<size_t, 3> AttributeCollectionRecorder<T>::record(HighFive::DataSet& 
         rollback_list.end(),
         std::back_inserter(data),
         [&attributes](const std::pair<const size_t, T>& pr) -> UpdateData {
-            const auto& [index, new_value] = pr;
-            const T& old_value = attributes[index];
+            const auto& [index, old_value] = pr;
+            const T& new_value = attributes[index];
             return UpdateData{index, old_value, new_value};
         });
 
     auto [start, end] = append_values_to_1d_dataset(data_set, data);
-    spdlog::info("Added {}/{} values with {} {} size {}", rollback_list.size(), data.size(), start,end, attribute_collection.size());
     return std::array<size_t, 3>{{start, end, attribute_collection.size()}};
 }
 

@@ -38,7 +38,11 @@ HighFive::DataSet OperationLogger::create_dataset(
 OperationRecorder::OperationRecorder(OperationLogger& logger_, const std::string& cmd)
     : logger(logger_)
     , name(cmd)
-{}
+{
+    for (auto& [_, p_attr_recorder] : logger.attribute_recorders) {
+        p_attr_recorder->save_size();
+    }
+}
 void OperationRecorder::OperationRecorder::cancel()
 {
     is_cancelled = true;
@@ -64,7 +68,7 @@ void OperationRecorder::flush()
 
         for (auto&& [attr_name, p_recorder] : logger.attribute_recorders) {
             auto [start, end, size] = p_recorder->record();
-            changes.emplace_back(AttributeChanges{attr_name, size, start, end});
+            changes.emplace_back(AttributeChanges{attr_name, start, end, size});
         }
         auto [start, end] = append_values_to_1d_dataset(logger.attribute_changes_dataset, changes);
 

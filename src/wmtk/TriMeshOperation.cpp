@@ -17,41 +17,42 @@ auto TriMeshOperation::tri_connectivity(TriMesh& m)
 auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnData
 {
     ExecuteReturnData retdata;
+    retdata.success = false;
 
-#if defined(USE_OPERATION_LOGGER)
-    std::shared_ptr<TriMeshOperationRecorder> recorder;
-
-    // If the operation logger exists then log
-    if (m.p_operation_logger) {
-        auto& wp_op_rec = m.p_operation_recorder.local();
-        recorder = m.p_operation_logger->start_ptr(m, name(), t);
-        wp_op_rec = recorder;
-    }
-#endif
     if (before_check(t, m)) {
         m.start_protected_connectivity();
-        retdata = execute(t, m);
+        {
 #if defined(USE_OPERATION_LOGGER)
-        if (recorder != nullptr) {
-            recorder->set_output_tuple(retdata.tuple);
-        }
-#endif
-        m.start_protected_attributes();
+            std::shared_ptr<TriMeshOperationRecorder> recorder;
 
-        if (after_check(retdata, m) && invariants(retdata, m)) {
-            m.release_protected_connectivity();
-            m.release_protected_attributes();
-        } else {
-#if defined(USE_OPERATION_LOGGER)
-            if (recorder != nullptr) {
-                recorder->cancel();
+            // If the operation logger exists then log
+            if (m.p_operation_logger) {
+                auto& wp_op_rec = m.p_operation_recorder.local();
+                recorder = m.p_operation_logger->start_ptr(m, name(), t);
+                wp_op_rec = recorder;
             }
 #endif
+            retdata = execute(t, m);
+#if defined(USE_OPERATION_LOGGER)
+            if (recorder != nullptr) {
+                recorder->set_output_tuple(retdata.tuple);
+            }
+#endif
+            m.start_protected_attributes();
 
-            retdata.success = false;
-            m.rollback_protected_connectivity();
-            m.rollback_protected_attributes();
+            if (!(after_check(retdata, m) && invariants(retdata, m))) {
+#if defined(USE_OPERATION_LOGGER)
+                if (recorder != nullptr) {
+                    recorder->cancel();
+                }
+#endif
+
+                m.rollback_protected_connectivity();
+                m.rollback_protected_attributes();
+            }
         }
+        m.release_protected_connectivity();
+        m.release_protected_attributes();
     }
 
 

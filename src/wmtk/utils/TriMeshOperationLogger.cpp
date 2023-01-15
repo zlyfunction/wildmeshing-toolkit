@@ -16,7 +16,8 @@ HighFive::DataType HighFive::create_datatype<wmtk::TriMesh::TriangleConnectivity
         {"v0", HighFive::create_datatype<size_t>()},
         {"v1", HighFive::create_datatype<size_t>()},
         {"v2", HighFive::create_datatype<size_t>()},
-        {"is_removed", HighFive::create_datatype<bool>()}};
+        {"is_removed", HighFive::create_datatype<bool>()},
+        {"hash", HighFive::create_datatype<size_t>()}};
 }
 
 using namespace wmtk;

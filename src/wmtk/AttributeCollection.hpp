@@ -79,10 +79,8 @@ struct AttributeCollection : public AbstractAttributeContainer
     void begin_protect() override
     {
         m_rollback_list.local().clear();
-        if (recording.local()) {
-            m_rollback_size.local() = m_attributes.size();
-        }
         recording.local() = true;
+        m_rollback_size.local() = m_attributes.size();
     };
     /**
      * @brief clear local buffers and finish recording

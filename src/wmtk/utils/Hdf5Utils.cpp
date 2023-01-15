@@ -5,7 +5,6 @@ namespace wmtk {
 bool does_dataset_exist(const HighFive::File& file, const std::string& name)
 {
     auto obj_names = file.listObjectNames();
-    spdlog::warn("Object names when looking for {}:  {}", name, fmt::join(obj_names, ","));
     if (file.exist(name)) {
         return true;
         ;
@@ -28,11 +27,8 @@ bool does_dataset_exist(const HighFive::File& file, const std::string& name)
 HighFive::DataSet
 create_dataset(HighFive::File& file, const std::string& name, const HighFive::DataType& datatype)
 {
-    spdlog::info("Creating dataset {}", name);
-
     if (does_dataset_exist(file, name)) {
         auto ds = file.getDataSet(name);
-        spdlog::info("Returning dataset {} with {} entries", name, ds.getElementCount());
         return ds;
     } else {
         HighFive::DataSetCreateProps props;
