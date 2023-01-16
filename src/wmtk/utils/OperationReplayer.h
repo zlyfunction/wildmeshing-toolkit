@@ -1,5 +1,7 @@
 #pragma once
 
+#include <wmtk/utils/Hdf5Utils.h>
+#include <map>
 
 namespace wmtk {
 class TriMesh;
@@ -11,7 +13,9 @@ class OperationReplayer
 public:
     OperationReplayer(TriMesh& mesh, const OperationLogger& logger);
 
-    //
+    // test replay by actually executing operations
+    bool debug_play_with_executor = false;
+
     size_t play(int step_count);
     size_t play_to(size_t end);
     size_t operation_count() const;
@@ -20,6 +24,7 @@ private:
     // start must be current_index
     TriMesh& mesh;
     const OperationLogger& logger;
+    std::map<std::string, HighFive::DataSet> datasets;
     size_t current_index = 0;
     // HighFive::File& file;
     // HighFive::DataSet operation_dataset;

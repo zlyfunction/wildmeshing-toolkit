@@ -27,6 +27,7 @@ class OperationLogger;
 class OperationRecorder;
 class TriMeshOperationLogger;
 class TriMeshOperationRecorder;
+class OperationRecorder;
 class TriMeshOperation;
 class TriMeshTupleData;
 template <typename T>
@@ -249,6 +250,7 @@ public:
     friend class TriMeshOperation;
     friend class TriMeshOperationLogger;
     friend class TriMeshOperationRecorder;
+    friend class OperationReplayer;
     template <typename T>
     friend class AttributeCollectionRecorder;
 
@@ -617,6 +619,11 @@ public:
 
     // private:
 protected:
+    /**
+     * Generate the vertex connectivity of the mesh using the existing triangle structure
+     * @param n_vertices Input number of vertices
+     */
+    void build_vertex_connectivity(size_t n_vertices);
     /**
      * @brief Start the phase where the attributes that will be modified can be recorded
      *

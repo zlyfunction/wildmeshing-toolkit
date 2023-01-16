@@ -7,7 +7,9 @@
 namespace wmtk {
 
 class OperationRecorder;
-
+struct AttributeChanges;
+template <typename T>
+struct AttributeUpdateData;
 // Interface for adding an attribute to a logged hdf5 file
 class AttributeCollectionRecorderBase
 {
@@ -23,6 +25,11 @@ public:
     static HighFive::DataSetAccessProps access_properties();
     // returns the range of values used and size
     virtual std::array<size_t, 3> record(HighFive::DataSet& data_set) = 0;
+    virtual void load(
+        const AttributeChanges& changes,
+        const HighFive::DataSet& data_set,
+        bool forward = true) = 0;
+
     virtual size_t size() const = 0;
 
     // returns the range of values used and size
@@ -57,6 +64,10 @@ public:
 
 
     std::array<size_t, 3> record(HighFive::DataSet& data_set) override;
+    void load(
+        const AttributeChanges& changes,
+        const HighFive::DataSet& data_set,
+        bool forward = true) override;
     size_t size() const override { return attribute_collection.size(); }
     using AttributeCollectionRecorderBase::record;
 
@@ -112,6 +123,27 @@ std::array<size_t, 3> AttributeCollectionRecorder<T>::record(HighFive::DataSet& 
     return std::array<size_t, 3>{{start, end, attribute_collection.size()}};
 }
 
+template <typename T>
+void AttributeCollectionRecorder<T>::load(
+    const AttributeChanges& changes,
+    const HighFive::DataSet& data_set,
+    bool forward)
+{
+    std::vector<AttributeUpdateData<T>> updates;
+    std::vector<size_t> start, size;
+    start.emplace_back(changes.change_range_begin);
+    size.emplace_back(changes.change_range_end - changes.change_range_begin);
+    attribute_collection.grow_to_at_least(changes.attribute_size);
 
+    data_set.select(start, size).read(updates);
+
+    for (const AttributeUpdateData<T>& upd : updates) {
+        if (forward) {
+            attribute_collection.m_attributes[upd.index] = upd.new_value;
+        } else {
+            attribute_collection.m_attributes[upd.index] = upd.old_value;
+        }
+    }
+}
 } // namespace wmtk
 

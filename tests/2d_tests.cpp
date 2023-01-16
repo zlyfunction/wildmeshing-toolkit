@@ -24,6 +24,7 @@ struct TestVec2
 class SimpleMesh : public wmtk::TriMesh
 {
 public:
+    SimpleMesh() { p_vertex_attrs = &vertices; }
     bool split_edge_after(const Tuple& t) override
     {
         bool res = TriMesh::split_edge_after(t);
@@ -776,6 +777,6 @@ TEST_CASE("replay_operations", "[test_2d_operation]")
             REQUIRE(new_index == j + 1);
         }
 
-         check_face_equality(m, final_mesh);
+        check_face_equality(m, final_mesh);
     }
 }

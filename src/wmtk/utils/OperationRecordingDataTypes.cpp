@@ -21,7 +21,9 @@ HighFive::CompoundType TriMeshOperationData::datatype()
         {"input_tuple", HighFive::create_datatype<TriMeshTupleData>()},
         {"output_tuple", HighFive::create_datatype<TriMeshTupleData>()},
         {"update_range_begin", HighFive::create_datatype<size_t>()},
-        {"update_range_end", HighFive::create_datatype<size_t>()}};
+        {"update_range_end", HighFive::create_datatype<size_t>()},
+        {"vertex_size", HighFive::create_datatype<size_t>()},
+        {"triangle_size", HighFive::create_datatype<size_t>()}};
 }
 HighFive::CompoundType TriMeshTupleData::datatype()
 {

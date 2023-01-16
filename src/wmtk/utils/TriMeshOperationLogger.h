@@ -1,12 +1,21 @@
 #pragma once
 #include <wmtk/TriMesh.h>
-#include <wmtk/utils/AttributeRecorder.h>
-#include <wmtk/utils/OperationLogger.h>
+#include <wmtk/utils/OperationRecordingDataTypes.hpp>
 
 
 template <>
 HighFive::DataType HighFive::create_datatype<
     wmtk::AttributeCollectionRecorder<wmtk::TriMesh::TriangleConnectivity>::UpdateData>();
+template <>
+HighFive::DataType HighFive::create_datatype<wmtk::TriMesh::TriangleConnectivity>();
+template <>
+HighFive::DataType
+HighFive::create_datatype<wmtk::AttributeUpdateData<wmtk::TriMesh::TriangleConnectivity>>();
+
+
+#include <wmtk/utils/AttributeRecorder.h>
+#include <wmtk/utils/OperationLogger.h>
+
 namespace wmtk {
 
 

@@ -1,10 +1,8 @@
 #pragma once
 #include <wmtk/TriMesh.h>
 #include <wmtk/utils/AttributeRecorder.h>
+#include <wmtk/utils/Hdf5Utils.h>
 #include <wmtk/utils/OperationLogger.h>
-#include <highfive/H5DataSet.hpp>
-#include <highfive/H5DataType.hpp>
-#include <highfive/H5File.hpp>
 #include <ostream>
 #include <string_view>
 #include <wmtk/utils/Logger.hpp>
@@ -106,6 +104,7 @@ struct AttributeChanges
 
     static HighFive::CompoundType datatype();
 };
+
 inline AttributeChanges::AttributeChanges(
     const std::string_view& view,
     size_t begin,
@@ -146,6 +145,8 @@ struct TriMeshOperationData
     TriMeshTupleData output_tuple;
     size_t update_range_begin = 0;
     size_t update_range_end = 0;
+    size_t vertex_size = 0;
+    size_t triangle_size = 0;
 
     static HighFive::CompoundType datatype();
 };

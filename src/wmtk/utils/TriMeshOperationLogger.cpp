@@ -7,6 +7,9 @@ template <>
 HighFive::DataType HighFive::create_datatype<wmtk::TriMeshTupleData>();
 
 WMTK_HDF5_REGISTER_ATTRIBUTE_TYPE(wmtk::TriMesh::TriangleConnectivity)
+HIGHFIVE_REGISTER_TYPE(
+    wmtk::AttributeUpdateData<wmtk::TriMesh::TriangleConnectivity>,
+    wmtk::AttributeUpdateData<wmtk::TriMesh::TriangleConnectivity>::datatype);
 
 
 template <>
@@ -50,6 +53,8 @@ size_t TriMeshOperationRecorder::commit(size_t start, size_t end)
     op.input_tuple = TriMeshTupleData(input_tuple);
     op.update_range_begin = start;
     op.update_range_end = end;
+    op.vertex_size = m.vert_capacity();
+    op.triangle_size = m.tri_capacity();
 
 
     auto size = append_value_to_1d_dataset(logger().operation_dataset(), op);

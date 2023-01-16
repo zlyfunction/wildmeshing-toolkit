@@ -1147,10 +1147,6 @@ void TriMesh::create_mesh(size_t n_vertices, const std::vector<std::array<size_t
     // std::fill(m_tri_connectivity.begin(), m_tri_connectivity.end(), TriangleConnectivity{});
     // m_vertex_connectivity.resize(n_vertices, {});
     // m_tri_connectivity.resize(tris.size(), {});
-    m_vertex_connectivity.m_attributes.resize(n_vertices);
-    for (int i = 0; i < n_vertices; i++) {
-        m_vertex_connectivity[i].m_is_removed = false;
-    }
     m_tri_connectivity.m_attributes.resize(tris.size());
 
     size_t hash_cnt = 0;
@@ -1160,19 +1156,33 @@ void TriMesh::create_mesh(size_t n_vertices, const std::vector<std::array<size_t
         m_tri_connectivity[i].m_indices = tris[i];
 
         m_tri_connectivity[i].hash = hash_cnt;
-        for (int j = 0; j < 3; j++) {
-            m_vertex_connectivity[tris[i][j]].m_conn_tris.push_back(i);
-        }
     }
-    current_vert_size = n_vertices;
     current_tri_size = tris.size();
 
-    m_vertex_mutex.grow_to_at_least(n_vertices);
+    build_vertex_connectivity(n_vertices);
 
     // Resize user class attributes
     if (p_vertex_attrs) p_vertex_attrs->resize(vert_capacity());
     if (p_edge_attrs) p_edge_attrs->resize(tri_capacity() * 3);
     if (p_face_attrs) p_face_attrs->resize(tri_capacity());
+}
+
+void TriMesh::build_vertex_connectivity(size_t n_vertices)
+{
+    m_vertex_connectivity.m_attributes.resize(n_vertices);
+    for (int i = 0; i < n_vertices; i++) {
+        m_vertex_connectivity[i].m_is_removed = false;
+    }
+    for (int i = 0; i < m_tri_connectivity.size(); i++) {
+        auto& tri_con = m_tri_connectivity[i];
+        if (!tri_con.m_is_removed) {
+            for (const size_t vind : tri_con.m_indices) {
+                m_vertex_connectivity[vind].m_conn_tris.push_back(i);
+            }
+        }
+    }
+    current_vert_size = n_vertices;
+    m_vertex_mutex.grow_to_at_least(n_vertices);
 }
 
 std::vector<TriMesh::Tuple> TriMesh::get_vertices() const
