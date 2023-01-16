@@ -1113,19 +1113,6 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     std::cout << "before export" << std::endl;
     export_mesh(V, F, uv);
 
-    // compute threshold for splitting
-    double elen_min = 999999, elen_min_3d = 999999;
-    for (int i = 0; i < F.rows(); i++) {
-        for (int j = 0; j < 3; j++) {
-            double l = (uv.row(F(i, j)) - uv.row(F(i, (j + 1) % 3))).norm();
-            double l_3d = (V.row(F(i, j)) - V.row(F(i, (j + 1) % 3))).norm();
-            if (l < elen_min) elen_min = l;
-            if (l_3d < elen_min_3d) elen_min_3d = l_3d;
-        }
-    }
-    elen_threshold = elen_min * this->m_params.split_thresh;
-    elen_threshold_3d = elen_min_3d * this->m_params.split_thresh;
-
     get_grad_op(V, F, G_global);
     Eigen::VectorXd dblarea;
     igl::doublearea(V, F, dblarea);
@@ -1148,9 +1135,8 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
-        // split edge lagacy will not be used
 
-        if (true)
+        if (this->m_params.do_split)
         {
             split_all_edges();
             export_mesh(V, F, uv);
@@ -1163,21 +1149,18 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
         }
 
-//         // do smoothing
-// timer.start();
-//         smooth_all_vertices();
-// time = timer.getElapsedTime();
-//         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-//         export_mesh(V, F, uv);
-//         get_grad_op(V, F, G_global);
-//         igl::doublearea(V, F, dblarea);
-//         E = compute_energy(uv);
-//         E_max = compute_energy_max(uv);
-//         wmtk::logger().info("After smoothing {}, E = {}", i, E);
-//         wmtk::logger().info("E_max = {}", E_max);
-
-        // do swaping
-
+        if (this->m_params.local_smooth)
+        {
+            smooth_all_vertices();
+            export_mesh(V, F, uv);
+            get_grad_op(V, F, G_global);
+            igl::doublearea(V, F, dblarea);
+            E = compute_energy(uv);
+            E_max = compute_energy_max(uv);
+            wmtk::logger().info("After LOCAL smoothing {}, E = {}", i, E);
+            wmtk::logger().info("E_max = {}", E_max);
+        }
+        
         if (this->m_params.do_swap) {
             timer.start();
             swap_all_edges();
@@ -1199,8 +1182,6 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", E_max);
         }
 
-
-        // TODO: add other operations
         if (this->m_params.do_collapse) {
             collapse_all_edges();
             export_mesh(V, F, uv);
@@ -1214,19 +1195,23 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", E_max);
         }
 
+        if (this->m_params.global_smooth)
+        {
 timer.start();
-        smooth_global(1);
+            smooth_global(1);
 time = timer.getElapsedTime();
-        wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-        export_mesh(V, F, uv);
-        get_grad_op(V, F, G_global);
-        igl::doublearea(V, F, dblarea);
-        E = compute_energy(uv);
-        E_max = compute_energy_max(uv);
-        wmtk::logger().info("After smoothing {}, E = {}", i, E);
-        wmtk::logger().info("E_max = {}", E_max);
-       
-        opt_log["opt_log"].push_back({{"F_size", F.rows()},{"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
+            wmtk::logger().info("GLOBAL smoothing operation time serial: {}s", time);
+            export_mesh(V, F, uv);
+            get_grad_op(V, F, G_global);
+            igl::doublearea(V, F, dblarea);
+            E = compute_energy(uv);
+            E_max = compute_energy_max(uv);
+            wmtk::logger().info("After GLOBAL smoothing {}, E = {}", i, E);
+            wmtk::logger().info("E_max = {}", E_max);
+        
+            opt_log["opt_log"].push_back({{"F_size", F.rows()},{"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
+        }
+
         // terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(
@@ -1238,6 +1223,7 @@ time = timer.getElapsedTime();
         //     wmtk::logger().info("Energy get stuck, optimization failed.");
         //     break;
         // }
+
         E_old = E;
         std::cout << std::endl;
     }
