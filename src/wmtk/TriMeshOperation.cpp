@@ -33,26 +33,31 @@ auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnDa
             }
 #endif
             retdata = execute(t, m);
-#if defined(USE_OPERATION_LOGGER)
-            if (recorder != nullptr) {
-                recorder->set_output_tuple(retdata.tuple);
-            }
-#endif
-            m.start_protected_attributes();
-
-            if (!(after_check(retdata, m) && invariants(retdata, m))) {
+            if (retdata.success) {
 #if defined(USE_OPERATION_LOGGER)
                 if (recorder != nullptr) {
-                    recorder->cancel();
+                    recorder->set_output_tuple(retdata.tuple);
                 }
 #endif
+                m.start_protected_attributes();
 
-                m.rollback_protected_connectivity();
-                m.rollback_protected_attributes();
+                if (!(after_check(retdata, m) && invariants(retdata, m))) {
+                    retdata.success = false;
+#if defined(USE_OPERATION_LOGGER)
+                    if (recorder != nullptr) {
+                        recorder->cancel();
+                    }
+#endif
+
+                    m.rollback_protected_connectivity();
+                    m.rollback_protected_attributes();
+                }
+            } else {
             }
         }
         m.release_protected_connectivity();
         m.release_protected_attributes();
+    } else {
     }
 
 
@@ -92,7 +97,7 @@ auto TriMeshSplitEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteRe
     std::vector<Tuple> new_tris;
 
     auto new_t = m.split_edge_new(t, new_tris);
-    return {new_t, new_tris, new_tris.empty()} ;
+    return {new_t, new_tris, !new_tris.empty()};
 }
 bool TriMeshSplitEdgeOperation::before_check(const Tuple& t, TriMesh& m)
 {
@@ -112,7 +117,7 @@ auto TriMeshSwapEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteRet
 {
     std::vector<Tuple> new_tris;
     auto new_t = m.swap_edge_new(t, new_tris);
-    return {new_t, new_tris, new_tris.empty()} ;
+    return {new_t, new_tris, !new_tris.empty()};
 }
 bool TriMeshSwapEdgeOperation::before_check(const Tuple& t, TriMesh& m)
 {
@@ -159,7 +164,7 @@ auto TriMeshEdgeCollapseOperation::execute(const Tuple& t, TriMesh& m) -> Execut
 {
     std::vector<Tuple> new_tris;
     Tuple new_t = m.collapse_edge_new(t, new_tris);
-    return {new_t, new_tris, new_tris.empty()} ;
+    return {new_t, new_tris, !new_tris.empty()};
 }
 bool TriMeshEdgeCollapseOperation::before_check(const Tuple& t, TriMesh& m)
 {
