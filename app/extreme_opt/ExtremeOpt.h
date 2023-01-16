@@ -1,8 +1,9 @@
 #pragma once
 
-#include <igl/Timer.h>
 #include <igl/PI.h>
+#include <igl/Timer.h>
 #include <wmtk/TriMesh.h>
+#include <wmtk/TriMeshOperation.h>
 #include "Parameters.h"
 #include "json.hpp"
 using json = nlohmann::json;
@@ -12,14 +13,13 @@ namespace extremeopt {
 class VertexAttributes
 {
 public:
-    Eigen::Vector2d pos; 
+    Eigen::Vector2d pos;
     Eigen::Vector3d pos_3d;
 
     size_t partition_id = 0; // TODO this should not be here
-    
+
     // Vertices marked as fixed cannot be modified by any local operation
     bool fixed = false;
-
 };
 
 
@@ -32,7 +32,7 @@ public:
 class EdgeAttributes
 {
 public:
-    wmtk::TriMesh::Tuple pair;    
+    wmtk::TriMesh::Tuple pair;
 };
 
 class ExtremeOpt : public wmtk::TriMesh
@@ -44,72 +44,66 @@ Parameters m_params;
 // TODO: why not the max double?
 const double MAX_ENERGY = 1e50;
 
-double elen_threshold;
-double elen_threshold_3d;
 
-class CollapsePair:public wmtk::TriMesh::Operation
-{
-public:
-    bool before(const TriMesh::Tuple& t, ExtremeOpt& m)
+    double elen_threshold;
+    double elen_threshold_3d;
+
+    class CollapsePair : public wmtk::TriMeshOperation
     {
-        const bool val = before_check(t, m);
-        if (val) {
-            m.start_protect_connectivity();
+    public:
+        bool before(const TriMesh::Tuple& t, ExtremeOpt& m)
+        {
+            const bool val = before_check(t, m);
+            if (val) {
+                m.start_protected_connectivity();
+            }
+            return val;
         }
-        return val;
-    }
 
     bool after(const TriMesh::Tuple& t, ExtremeOpt& m, std::vector<TriMesh::Tuple> &new_tris)
     {
-        m.start_protect_attributes();
+        m.start_protected_attributes();
         const bool val = after_check(t, m);
         if (!val || !m.invariants(new_tris)) {
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
             return false;
         }
-        m.release_protect_connectivity();
-        m.release_protect_attributes();
+        m.release_protected_connectivity();
+        m.release_protected_attributes();
         return true;
     }
 
-    bool execute(const Tuple& t, ExtremeOpt& m, std::vector<Tuple> &new_tris)
+    std::pair<Tuple, bool>  execute(const Tuple& t, ExtremeOpt& m, std::vector<Tuple> &new_tris)
     {
-        // TODO: Relocate this code in before check
-        if (!m.is_boundary_edge(t))
-        {
-            // std::cout << "not boundary edge" << std::endl;
-            return false;
-        }
-        if (!t.is_valid(m))
-        {
-            std::cout << "not valid" << std::endl;
-            return false;
-        }
-        if (!m.wmtk::TriMesh::collapse_edge_before(t))
-        {
-            // std::cout << "link condition error" << std::endl;
-            return false;
-        }
-        Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
-        if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input))
-        {
-            // std::cout << "link condition error" << std::endl;
-            return false;
-        }
-        // Skip cases that paired edges are in the same triangle
-        if (t_pair_input.fid(m) == t.fid(m))
-        {
-            return false;
-        }
-        if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m))
-        {
-            return false;
-        }
-        if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m))
-        {
-            return false;
-        }
+            // TODO: Relocate this code in before check
+            if (!m.is_boundary_edge(t)) {
+                // std::cout << "not boundary edge" << std::endl;
+                return {{}, false};
+            }
+            if (!t.is_valid(m)) {
+                std::cout << "not valid" << std::endl;
+                return {{}, false};
+            }
+            if (!m.wmtk::TriMesh::collapse_edge_before(t)) {
+                // std::cout << "link condition error" << std::endl;
+                return {{}, false};
+            }
+            Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
+            if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input)) {
+                // std::cout << "link condition error" << std::endl;
+                return {{}, false};
+            }
+            // Skip cases that paired edges are in the same triangle
+            if (t_pair_input.fid(m) == t.fid(m)) {
+                return {{}, false};
+            }
+            if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m)) {
+                return {{}, false};
+            }
+            if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m)) {
+                return {{}, false};
+            }
         // Get E_max before collapse
         double E_max_t_input = std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
         double E_max_t_pair_input = std::max(m.get_e_max_onering(t_pair_input), m.get_e_max_onering(t_pair_input.switch_vertex(m)));
@@ -187,7 +181,7 @@ public:
         if (!keep_t && !keep_t_opp)
         {
             // std::cout << "this boudnary edge cannot collapse" << std::endl;
-            return false;
+            return {{}, false};
         }
         Eigen::Vector3d V_keep_t, V_keep_t_pair;
         Eigen::Vector2d uv_keep_t, uv_keep_t_pair;
@@ -206,8 +200,8 @@ public:
             uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
         }
 
-        m.start_protect_connectivity();
-        m.start_protect_attributes();
+        m.start_protected_connectivity();
+        m.start_protected_attributes();
         auto new_t = m.collapse_edge_new(t, new_tris);
         
         
@@ -217,7 +211,7 @@ public:
             // std::cout << "collapse t fail" << std::endl;
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
-            return false;
+            return {{}, false};
         }
         else
         {
@@ -254,7 +248,7 @@ public:
             // std::cout << "collapse t pair fail" << std::endl;
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
-            return false;
+            return {{}, false};
         }
         else
         {
@@ -264,33 +258,48 @@ public:
         {
             m.rollback_protected_connectivity();
             m.rollback_protected_attributes();
-            return false;
+            return {{}, false};
         }
         // std::cout << "good!" << std::endl;
-        m.release_protect_connectivity();
-        m.release_protect_attributes();
+        m.release_protected_connectivity();
+        m.release_protected_attributes();
 
                 
-        return true;
+        return {new_t,true};
     }
 
-    bool before_check(const Tuple& t, ExtremeOpt& m) 
-    {
-        return m.collapse_edge_before(t); 
-    }
+        bool before_check(const Tuple& t, ExtremeOpt& m) { return m.collapse_edge_before(t); }
 
-    bool after_check(const Tuple& t, ExtremeOpt& m) 
-    {
-        return m.collapse_edge_after(t);
-    }
-    CollapsePair() {};
-    virtual ~CollapsePair(){};
-};
+        bool after_check(const Tuple& t, ExtremeOpt& m) { return m.collapse_edge_after(t); }
 
-ExtremeOpt() {};
+        ExecuteReturnData execute(const Tuple& t, TriMesh& m) override
+        {
+            ExecuteReturnData ret_data;
+            std::vector<TriMesh::Tuple> new_tris;
+            if (std::tie(ret_data.tuple, ret_data.success) =
+                    execute(t, dynamic_cast<ExtremeOpt&>(m), ret_data.new_tris);
+                ret_data.success) {
+                return ret_data;
+            } else {
+                return {};
+            }
+        }
+        bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override
+        {
+            return after_check(ret_data.tuple, dynamic_cast<ExtremeOpt&>(m));
+        }
+        bool before_check(const Tuple& t, TriMesh& m) override
+        {
+            return before_check(t, dynamic_cast<ExtremeOpt&>(m));
+        }
+        std::string name() const { return "edge_split"; }
+        CollapsePair(){};
+        virtual ~CollapsePair(){};
+    };
 
-virtual ~ExtremeOpt() {};
+    ExtremeOpt(){};
 
+    virtual ~ExtremeOpt(){};
 
 // Store the per-vertex and per-face attributes
 wmtk::AttributeCollection<VertexAttributes> vertex_attrs;
@@ -374,7 +383,6 @@ bool collapse_bd_edge_after(const Tuple& t, const Eigen::Vector3d &V_keep, const
 bool split_edge_before(const Tuple& t) override;
 bool split_edge_after(const Tuple& t) override;
 void split_all_edges();
-
 };
 
-} // namespace tetwild
+} // namespace extremeopt

@@ -1,6 +1,7 @@
 #include "UniformRemeshing.h"
 #include <igl/Timer.h>
 #include <igl/is_edge_manifold.h>
+#include <igl/predicates/predicates.h>
 #include <wmtk/TriMesh.h>
 #include <wmtk/utils/VectorUtils.h>
 #include <Eigen/Core>
@@ -8,7 +9,6 @@
 #include <atomic>
 #include <wmtk/ExecutionScheduler.hpp>
 #include <wmtk/utils/TupleUtils.hpp>
-
 using namespace app::remeshing;
 using namespace wmtk;
 
@@ -287,10 +287,6 @@ bool UniformRemeshing::collapse_edge_after(const TriMesh::Tuple& t)
 bool UniformRemeshing::split_edge_before(const Tuple& t)
 {
     if (!TriMesh::split_edge_before(t)) return false;
-    if (vertex_attrs[t.vid(*this)].freeze &&
-        vertex_attrs[t.switch_vertex(*this).vid(*this)].freeze) {
-        if (!t.switch_face(*this).has_value()) return false; // check if it's bondary
-    }
     cache_edge_positions(t);
     return true;
 }
@@ -299,7 +295,7 @@ bool UniformRemeshing::split_edge_before(const Tuple& t)
 bool UniformRemeshing::split_edge_after(const TriMesh::Tuple& t)
 {
     const Eigen::Vector3d p = (position_cache.local().v1p + position_cache.local().v2p) / 2.0;
-    auto vid = t.vid(*this);
+    auto vid = t.switch_vertex(*this).vid(*this);
     vertex_attrs[vid].pos = p;
     vertex_attrs[vid].partition_id = position_cache.local().partition_id;
     return true;
@@ -436,12 +432,12 @@ bool UniformRemeshing::collapse_remeshing(double L)
     wmtk::logger().info("size for edges to be collapse is {}", collect_all_ops.size());
     auto setup_and_execute = [&](auto executor) {
         executor.renew_neighbor_tuples = renew;
-        executor.priority = [&](auto& m, auto _, auto& e) {
+        executor.priority = [&](auto& m, auto, auto& e) {
             return m.compute_edge_cost_collapse(e, L);
         };
         executor.num_threads = NUM_THREADS;
         executor.should_renew = [](auto val) { return (val > 0); };
-        executor.is_weight_up_to_date = [](auto& m, auto& ele) {
+        executor.is_weight_up_to_date = [](auto& , auto& ele) {
             auto& [val, op, e] = ele;
             if (val < 0) return false; // priority is negated.
             return true;
@@ -488,11 +484,11 @@ bool UniformRemeshing::split_remeshing(double L)
             for (auto& e : edges) optup.emplace_back(op, e);
             return optup;
         };
-        executor.priority = [&](auto& m, auto _, auto& e) {
+        executor.priority = [&](auto& m, auto , auto& e) {
             return m.compute_edge_cost_split(e, L);
         };
         executor.should_renew = [](auto val) { return (val > 0); };
-        executor.is_weight_up_to_date = [](auto& m, auto& ele) {
+        executor.is_weight_up_to_date = [](auto& , auto& ele) {
             auto& [val, op, e] = ele;
             if (val < 0) return false;
             return true;
@@ -521,6 +517,7 @@ bool UniformRemeshing::split_remeshing(double L)
 
 bool UniformRemeshing::smooth_all_vertices()
 {
+
     auto collect_all_ops = std::vector<std::pair<std::string, Tuple>>();
     for (auto& loc : get_edges()) collect_all_ops.emplace_back("vertex_smooth", loc);
 
@@ -560,7 +557,7 @@ bool UniformRemeshing::swap_remeshing()
     auto setup_and_execute = [&](auto executor) {
         executor.renew_neighbor_tuples = renew;
         executor.num_threads = NUM_THREADS;
-        executor.priority = [](auto& m, auto op, const Tuple& e) {
+        executor.priority = [](auto& m, auto , const Tuple& e) {
             return m.compute_vertex_valence(e);
         };
         executor.should_renew = [](auto val) { return (val > 0); };
