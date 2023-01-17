@@ -303,7 +303,7 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
 {
     Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
     Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
-    auto vid = t.vid(*this);
+    auto vid = t.switch_vertex(*this).vid(*this);
 
     // std::cout << uv << std::endl;
     // std::cout << V << std::endl;
