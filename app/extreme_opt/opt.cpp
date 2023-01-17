@@ -321,7 +321,7 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     v.pos_3d = V;
 
     for (size_t nbr_vid : get_one_ring_vids_for_vertex(vid)) {
-        if (vertex_attrs[nbr_vid].pos == v.pos) {
+        if (nbr_vid != vid && vertex_attrs[nbr_vid].pos == v.pos) {
             return false;
         }
     }
@@ -417,8 +417,9 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     // const Eigen::Vector2d uv = position_cache.local().uv1;
 
     auto vid = t.vid(*this);
-    vertex_attrs[vid].pos_3d = V;
-    vertex_attrs[vid].pos = uv;
+    auto& v = vertex_attrs[vid];
+    v.pos_3d = V;
+    v.pos = uv;
 
     // get local F,V,uv
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
