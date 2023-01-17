@@ -37,6 +37,10 @@ double check_constraints(
     std::vector<std::vector<int>> bds;
     igl::boundary_loop(F, bds);
 
+    // if there are no constraints then the constraint error should be 0?
+    if (m == 0) {
+        return 0.0;
+    }
     double ret = 0;
     std::set<std::pair<int, int>> added_e;
     Aeq.resize(2 * m, uv.rows() * 2);

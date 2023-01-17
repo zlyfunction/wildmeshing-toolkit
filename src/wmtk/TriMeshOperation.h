@@ -29,8 +29,22 @@ protected:
     virtual bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) = 0;
     virtual bool invariants(const ExecuteReturnData& ret_data, TriMesh& m);
 
+    // forwarding of operations in TriMesh
     wmtk::AttributeCollection<VertexConnectivity>& vertex_connectivity(TriMesh& m);
     wmtk::AttributeCollection<TriangleConnectivity>& tri_connectivity(TriMesh& m);
+
+    /**
+     * @brief Get the next avaiblie global index for the triangle
+     *
+     * @return size_t
+     */
+    size_t get_next_empty_slot_t(TriMesh& m);
+    /**
+     * @brief Get the next avaiblie global index for the vertex
+     *
+     * @return size_t
+     */
+    size_t get_next_empty_slot_v(TriMesh& m);
 
 
 #if defined(USE_OPERATION_LOGGER)
