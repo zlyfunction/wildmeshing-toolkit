@@ -1214,7 +1214,8 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
-
+    opt_log["opt_log"].push_back(
+                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", compute_energy_max(uv)}, {"E_avg", E}});
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
