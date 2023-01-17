@@ -535,12 +535,30 @@ TEST_CASE("split_operation", "[test_2d_operation]")
     {
         std::vector<std::array<size_t, 3>> tris = {{{0, 1, 2}}, {{1, 3, 2}}};
         m.create_mesh(4, tris);
+        {
+            auto face_tuples = m.get_faces();
+            for (const auto& f : face_tuples) {
+                auto tri_vids = m.oriented_tri_vids(f);
+                spdlog::info("STA: {}", fmt::join(tri_vids, ","));
+            }
+        }
         auto edges = m.get_edges();
         TriMesh::Tuple edge(1, 0, 0, m);
+        edge.print_info();
         std::vector<TriMesh::Tuple> dummy;
         assert(edge.is_valid(m));
         REQUIRE(m.split_edge(edge, dummy));
-        for (auto e : edges) REQUIRE_FALSE(e.is_valid(m));
+        {
+            auto face_tuples = m.get_faces();
+            for (const auto& f : face_tuples) {
+                auto tri_vids = m.oriented_tri_vids(f);
+                spdlog::info("END: {}", fmt::join(tri_vids, ","));
+            }
+        }
+        for (auto e : edges) {
+            e.print_info();
+            REQUIRE_FALSE(e.is_valid(m));
+        }
     }
 }
 
