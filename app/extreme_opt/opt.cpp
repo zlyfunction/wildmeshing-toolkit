@@ -320,6 +320,30 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     v.pos = uv;
     v.pos_3d = V;
 
+    Eigen::MatrixXd V_local, uv_local, Ji;
+    Eigen::MatrixXi F_local;
+    Eigen::SparseMatrix<double> G_local;
+    get_mesh_onering(t.switch_vertex(*this), V_local, uv_local, F_local);
+    Eigen::VectorXd area, area_3d;
+    igl::doublearea(V_local, F_local, area_3d);
+    igl::doublearea(uv_local, F_local, area);
+
+    if (area.minCoeff() <= 0 || area_3d.minCoeff() <= 0)
+    {
+        return false;
+    }
+    get_grad_op(V_local, F_local, G_local);
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    auto Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+
+    for (int i = 0; i < Es.rows(); i++)
+    {
+        if (!std::isfinite(Es(i)) || std::isnan(Es(i)))
+        {
+            return false;
+        }
+    }
+
     for (size_t nbr_vid : get_one_ring_vids_for_vertex(vid)) {
         if (nbr_vid != vid && vertex_attrs[nbr_vid].pos == v.pos) {
             return false;
@@ -708,11 +732,11 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     igl::doublearea(uv_local, F_local, dblarea);
 
 
-    if (dblarea_3d.minCoeff() <= 0.0) {
+    if (dblarea_3d.minCoeff() <= 0) {
         // std::cout << "zero 3d area: " << dblarea_3d.minCoeff() << std::endl;
         return false;
     }
-    if (dblarea.minCoeff() <= 0.0) {
+    if (dblarea.minCoeff() <= 0) {
         // std::cout << "zero/negative 2d area: " << dblarea.minCoeff() << std::endl;
         return false;
     }
@@ -784,12 +808,21 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     E_old = E_olds.maxCoeff();    
     // std::cout << "E_olds = " << E_olds(0) << ", " << E_olds(1) << std::endl;
 
+    if ((E_olds.maxCoeff() - E_olds.minCoeff()) / E_olds.maxCoeff() < 1e-10)
+    {
+        return false;
+    }
     if (E >= E_old)
     {
         return false;
     }
 
-    // update constraints after collapse
+    // std::cout << "fids are" << t.fid(*this) << "," << t.switch_face(*this).value().fid(*this) << std::endl;
+    // std::cout << "areas: " << dblarea << std::endl << dblarea_3d << std::endl;
+    // std::cout << "Es: " << Es.maxCoeff() << ", " << Es.minCoeff() << std::endl;
+    // std::cout << "Eolds: " << E_olds.maxCoeff() << ", " << E_olds.minCoeff() << std::endl << std::endl;
+    
+    // update constraints after swap
     Tuple t1 = t.switch_edge(*this);
     Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
     Tuple t1_old = swap_cache.local().first;
@@ -1180,10 +1213,10 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
                 .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After splitting, E = {}", E);
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
-            spdlog::info("E is {} {} {}", std::isfinite(E), std::isnan(E), std::isinf(E));
+            spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
             if (!std::isfinite(E)) {
                 // std::cout << uv << std::endl;
-                break;
+                // break;
             }
         }
 
