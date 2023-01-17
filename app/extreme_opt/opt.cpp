@@ -321,6 +321,7 @@ void extremeopt::ExtremeOpt::split_all_edges()
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
 
+    // int f_cnt = 0;
     for (auto& loc : get_faces())
     {
         auto t0 = loc;
@@ -347,9 +348,8 @@ void extremeopt::ExtremeOpt::split_all_edges()
             collect_all_ops_split.emplace_back("edge_split", t2);
             
         }
-
     }
-
+    
     auto setup_and_execute = [&](auto& executor_split) {
 
         // vid_threshold = vert_capacity();
@@ -360,7 +360,10 @@ void extremeopt::ExtremeOpt::split_all_edges()
         //     for (auto& e : edges) optup.emplace_back(op, e);
         //     return optup;
         // };
-
+        executor_split.stopping_criterion_checking_frequency = 300;
+        executor_split.stopping_criterion = [](const TriMesh&) {
+            return true; // non-stop, process everything
+        };
         executor_split.num_threads = NUM_THREADS;
         executor_split(*this, collect_all_ops_split);
     };
@@ -743,28 +746,28 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     Eigen::MatrixXd Es =
         wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    // std::cout << "Es = " << Es(0) << ", " << Es(1) << std::endl;
+    
     E = Es.maxCoeff(); // compute E_max
     if (std::isnan(Es(0)) || std::isnan(Es(1))) {
+        // std::cout << "nan fail" << std::endl;
         return false;
     }
     if (Es.minCoeff() <= 0) {
+        // std::cout << "<=0 fail" << std::endl;
         return false;
     }
-    // E = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d) * dblarea_3d.sum(); // compute E_sum
 
     Eigen::MatrixXd Ji_old;
     wmtk::jacobian_from_uv(G_local_old, uv_local, Ji);
 
 
-    E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3))
-                .maxCoeff(); // compute E_max
-    // E_old = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d_old) * dblarea_3d_old.sum(); // compute E_sum
-
-
+    auto E_olds = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    E_old = E_olds.maxCoeff();    
+    // std::cout << "E_olds = " << E_olds(0) << ", " << E_olds(1) << std::endl;
 
     if (E >= E_old)
     {
-        // std::cout << "energy increase after swapping" << std::endl;
         return false;
     }
 
@@ -1168,11 +1171,11 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
             get_grad_op(V, F, G_global);
             igl::doublearea(V, F, dblarea);
-            Eigen::VectorXd dblarea2d;
-            igl::doublearea(uv, F, dblarea2d);
+            // Eigen::VectorXd dblarea2d;
+            // igl::doublearea(uv, F, dblarea2d);
 
-            std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
-            std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
+            // std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
+            // std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
 
             E = compute_energy(uv);
             E_max = compute_energy_max(uv);
