@@ -10,6 +10,36 @@
 
 namespace extremeopt {
 
+bool ExtremeOpt::has_degenerate_tris(const std::vector<Tuple>& tris) const
+{
+    for (const Tuple& new_tri : tris) {
+        auto vids = this->oriented_tri_vids(new_tri);
+        const auto [ai, bi, ci] = vids;
+        assert(ai != bi);
+        assert(bi != ci);
+        assert(ai != ci);
+
+        {
+            const auto a = vertex_attrs[ai].pos;
+            const auto b = vertex_attrs[bi].pos;
+            const auto c = vertex_attrs[ci].pos;
+            if (a == b || b == c || a == c) {
+                spdlog::warn("DEGENERATE CASE FOUND");
+                return true;
+            }
+        }
+        {
+            const auto a = vertex_attrs[ai].pos_3d;
+            const auto b = vertex_attrs[bi].pos_3d;
+            const auto c = vertex_attrs[ci].pos_3d;
+            if (a == b || b == c || a == c) {
+                spdlog::warn("DEGENERATE CASE FOUND");
+                return true;
+            }
+        }
+    }
+    return false;
+}
 void ExtremeOpt::create_mesh(
     const Eigen::MatrixXd& V,
     const Eigen::MatrixXi& F,
@@ -27,7 +57,9 @@ void ExtremeOpt::create_mesh(
     std::vector<std::array<size_t, 3>> tri(F.rows());
 
     for (int i = 0; i < F.rows(); i++) {
-        for (int j = 0; j < 3; j++) tri[i][j] = (size_t)F(i, j);
+        for (int j = 0; j < 3; j++) {
+            tri[i][j] = (size_t)F(i, j);
+        }
     }
 
     // Initialize the trimesh class which handles connectivity
@@ -39,8 +71,8 @@ void ExtremeOpt::create_mesh(
     }
     // Save the vertex position in the vertex attributes
     for (unsigned i = 0; i < V.rows(); ++i) {
-        vertex_attrs[i].pos << uv.row(i)[0], uv.row(i)[1];
-        vertex_attrs[i].pos_3d << V.row(i)[0], V.row(i)[1], V.row(i)[2];
+        vertex_attrs[i].pos = uv.row(i).transpose();
+        vertex_attrs[i].pos_3d = V.row(i).transpose();
     }
     std::vector<std::vector<int>> bds;
     igl::boundary_loop(F, bds);
@@ -106,15 +138,17 @@ void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::Matr
     uv = Eigen::MatrixXd::Zero(vert_capacity(), 2);
     for (auto& t : get_vertices()) {
         auto i = t.vid(*this);
-        // auto mv = V.row(i) = vertex_attrs[i].pos_3d;
-        // auto muv = uv.row(i) = vertex_attrs[i].pos;
+        auto mv = V.row(i) = vertex_attrs[i].pos_3d;
+        auto muv = uv.row(i) = vertex_attrs[i].pos;
 
-        // if(!mv.array().isFinite().all()) {
-        //     spdlog::warn("mv {} is not finite: {}", i, fmt::join(mv,","));;
-        // }
-        // if(!muv.array().isFinite().all()){
-        //     spdlog::warn("muv {} is not finite: {}", i, fmt::join(muv,","));;
-        // }
+        if (!mv.array().isFinite().all()) {
+            spdlog::warn("mv {} is not finite: {}", i, fmt::join(mv, ","));
+            ;
+        }
+        if (!muv.array().isFinite().all()) {
+            spdlog::warn("muv {} is not finite: {}", i, fmt::join(muv, ","));
+            ;
+        }
     }
 
     F = Eigen::MatrixXi::Constant(tri_capacity(), 3, -1);

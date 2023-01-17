@@ -299,7 +299,10 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
 {
     Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
     Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
-    auto vid = t.switch_vertex(*this).vid(*this);
+    Tuple vert_tuple = t.switch_vertex(*this);
+    size_t vid = vert_tuple.vid(*this);
+
+
     // auto vid = t.vid(*this);
 
     // std::cout << uv << std::endl;
@@ -316,8 +319,13 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     // }
     v.pos = uv;
     v.pos_3d = V;
-    // for(int j = 0; j <
-    // auto t = oriented_tri_vertices(t);
+
+    for (size_t nbr_vid : get_one_ring_vids_for_vertex(vid)) {
+        if (vertex_attrs[nbr_vid].pos == v.pos) {
+            return false;
+        }
+    }
+
 
     return true;
 }
@@ -619,6 +627,7 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
     if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
     if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
     swap_cache.local() = std::make_pair(t1, t2);
+
     return true;
 }
 
@@ -633,6 +642,7 @@ std::vector<wmtk::TriMesh::Tuple> extremeopt::ExtremeOpt::new_edges_after(
         }
     }
     wmtk::unique_edge_tuples(*this, new_edges);
+
     return new_edges;
 }
 
@@ -1081,16 +1091,12 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
     std::map<Op, std::function<std::optional<std::vector<Tuple>>(ExtremeOpt&, const Tuple&)>>
         test_op = {
             {"test_op", [](ExtremeOpt& m, const Tuple& t) -> std::optional<std::vector<Tuple>> {
-                 std::vector<Tuple> ret;
-
-                 ExtremeOpt::CollapsePair ce_op;
-                 if (ce_op.before_check(t, m)) {
-                     if (auto [new_t, succ] = ce_op.execute(t, m, ret); succ) {
-                         return ret;
-                     }
+                 auto retdata = CollapsePair()(t, m);
+                 if (retdata.success) {
+                     return retdata.new_tris;
+                 } else {
+                     return {};
                  }
-
-                 return {};
              }}};
     auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>(test_op);
     setup_and_execute(executor_collapse);
@@ -1132,22 +1138,26 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
         return wmtk::compute_energy_from_jacobian(Ji, dblarea);
     };
+
     auto compute_energy_max = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
         auto EVec = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
 
-        // for(int j = 0; j < EVec.size(); ++j) {
-        //     if(!std::isfinite(EVec(j))) {
-        //         spdlog::info("triangle {} was not finite area {}", j, dblarea(j));
-        //         auto f = F.row(j);
-        //         for(int j = 0; j < 3; ++j) {
-        //             std::cout << aaa.row(f(j)) << "====";
-        //         }
-        //         std::cout << std::endl;
-
-        //    }
-        //}
+        for (int j = 0; j < EVec.size(); ++j) {
+            if (!std::isfinite(EVec(j))) {
+                auto f = F.row(j);
+                spdlog::info(
+                    "triangle {} was not finite area {} ({})",
+                    j,
+                    dblarea(j),
+                    fmt::join(f, ","));
+                for (int j = 0; j < 3; ++j) {
+                    std::cout << aaa.row(f(j)) << "====";
+                }
+                std::cout << std::endl;
+            }
+        }
         return EVec.maxCoeff();
     };
 
@@ -1169,6 +1179,11 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
                 .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After splitting, E = {}", E);
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+            spdlog::info("E is {} {} {}", std::isfinite(E), std::isnan(E), std::isinf(E));
+            if (!std::isfinite(E)) {
+                // std::cout << uv << std::endl;
+                break;
+            }
         }
 
         //         // do smoothing
