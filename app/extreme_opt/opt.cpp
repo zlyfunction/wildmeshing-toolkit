@@ -13,23 +13,21 @@
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TriQualityUtils.hpp>
 
+#include <igl/boundary_loop.h>
+#include <igl/predicates/predicates.h>
+#include <igl/upsample.h>
+#include <igl/writeOBJ.h>
 #include <limits>
 #include <optional>
 #include <wmtk/utils/TupleUtils.hpp>
 #include "SYMDIR.h"
-#include <igl/predicates/predicates.h>
-#include <igl/writeOBJ.h>
-#include <igl/boundary_loop.h>
-#include <igl/upsample.h>
-
 
 
 void buildAeq(
-    const Eigen::MatrixXi &EE,
-    const Eigen::MatrixXd &uv,
-    const Eigen::MatrixXi &F,
-    Eigen::SparseMatrix<double> &Aeq
-)
+    const Eigen::MatrixXi& EE,
+    const Eigen::MatrixXd& uv,
+    const Eigen::MatrixXi& F,
+    Eigen::SparseMatrix<double>& Aeq)
 {
     int N = uv.rows();
     int c = 0;
@@ -44,15 +42,14 @@ void buildAeq(
 
     Aeq.resize(2 * m + n_fix_dof, uv.rows() * 2);
     int A2, B2, C2, D2;
-    for (int i = 0; i < EE.rows(); i++)
-    {
+    for (int i = 0; i < EE.rows(); i++) {
         int A2 = EE(i, 0);
         int B2 = EE(i, 1);
         int C2 = EE(i, 2);
         int D2 = EE(i, 3);
         auto e0 = std::make_pair(A2, B2);
         auto e1 = std::make_pair(C2, D2);
-        if(added_e.find(e0) != added_e.end() || added_e.find(e1) != added_e.end()) continue;
+        if (added_e.find(e0) != added_e.end() || added_e.find(e1) != added_e.end()) continue;
         added_e.insert(e0);
         added_e.insert(e1);
 
@@ -90,11 +87,9 @@ void buildAeq(
     double min_u_diff = 1e10;
     int min_u_diff_id = 0;
     auto l = bds[0];
-    for (int i = 0; i < l.size(); i++)
-    {
+    for (int i = 0; i < l.size(); i++) {
         double u_diff = abs(uv(l[i], 0) - uv(l[(i + 1) % l.size()], 0));
-        if (u_diff < min_u_diff)
-        {
+        if (u_diff < min_u_diff) {
             min_u_diff = u_diff;
             min_u_diff_id = i;
         }
@@ -109,42 +104,46 @@ void buildAeq(
     c = c + 1;
 }
 
-void buildkkt(Eigen::SparseMatrix<double> &hessian, Eigen::SparseMatrix<double> &Aeq, Eigen::SparseMatrix<double> &AeqT, Eigen::SparseMatrix<double> &kkt)
+void buildkkt(
+    Eigen::SparseMatrix<double>& hessian,
+    Eigen::SparseMatrix<double>& Aeq,
+    Eigen::SparseMatrix<double>& AeqT,
+    Eigen::SparseMatrix<double>& kkt)
 {
     kkt.reserve(hessian.nonZeros() + Aeq.nonZeros() + AeqT.nonZeros());
-    for (Eigen::Index c = 0; c < kkt.cols(); ++c)
-    {
+    for (Eigen::Index c = 0; c < kkt.cols(); ++c) {
         kkt.startVec(c);
-        if (c < hessian.cols())
-        {
-            for (typename Eigen::SparseMatrix<double>::InnerIterator ithessian(hessian, c); ithessian; ++ithessian)
+        if (c < hessian.cols()) {
+            for (typename Eigen::SparseMatrix<double>::InnerIterator ithessian(hessian, c);
+                 ithessian;
+                 ++ithessian)
                 kkt.insertBack(ithessian.row(), c) = ithessian.value();
             for (typename Eigen::SparseMatrix<double>::InnerIterator itAeq(Aeq, c); itAeq; ++itAeq)
                 kkt.insertBack(itAeq.row() + hessian.rows(), c) = itAeq.value();
-        }
-        else
-        {
-            for (typename Eigen::SparseMatrix<double>::InnerIterator itAeqT(AeqT, c - hessian.cols()); itAeqT; ++itAeqT)
+        } else {
+            for (typename Eigen::SparseMatrix<double>::InnerIterator itAeqT(
+                     AeqT,
+                     c - hessian.cols());
+                 itAeqT;
+                 ++itAeqT)
                 kkt.insertBack(itAeqT.row(), c) = itAeqT.value();
         }
     }
     kkt.finalize();
 }
 
-int check_flip(const Eigen::MatrixXd &uv, const Eigen::MatrixXi &Fn)
+int check_flip(const Eigen::MatrixXd& uv, const Eigen::MatrixXi& Fn)
 {
-  int fl = 0;
-  for (int i = 0; i < Fn.rows(); i++)
-  {
-    Eigen::Matrix<double, 1, 2> a_db(uv(Fn(i, 0), 0), uv(Fn(i, 0), 1));
-    Eigen::Matrix<double, 1, 2> b_db(uv(Fn(i, 1), 0), uv(Fn(i, 1), 1));
-    Eigen::Matrix<double, 1, 2> c_db(uv(Fn(i, 2), 0), uv(Fn(i, 2), 1));
-    if (igl::predicates::orient2d(a_db, b_db, c_db) != igl::predicates::Orientation::POSITIVE)
-    {
-      fl++;
+    int fl = 0;
+    for (int i = 0; i < Fn.rows(); i++) {
+        Eigen::Matrix<double, 1, 2> a_db(uv(Fn(i, 0), 0), uv(Fn(i, 0), 1));
+        Eigen::Matrix<double, 1, 2> b_db(uv(Fn(i, 1), 0), uv(Fn(i, 1), 1));
+        Eigen::Matrix<double, 1, 2> c_db(uv(Fn(i, 2), 0), uv(Fn(i, 2), 1));
+        if (igl::predicates::orient2d(a_db, b_db, c_db) != igl::predicates::Orientation::POSITIVE) {
+            fl++;
+        }
     }
-  }
-  return fl;
+    return fl;
 }
 
 using namespace wmtk;
@@ -283,17 +282,14 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
     }
 
 
-    if (is_boundary_edge(t))
-    {
+    if (is_boundary_edge(t)) {
         return false;
-
     }
 
     position_cache.local().V1 = vertex_attrs[t.vid(*this)].pos_3d;
     position_cache.local().V2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos_3d;
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
-
 
 
     return true;
@@ -304,12 +300,24 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     Eigen::Vector3d V = (position_cache.local().V1 + position_cache.local().V2) / 2.0;
     Eigen::Vector2d uv = (position_cache.local().uv1 + position_cache.local().uv2) / 2.0;
     auto vid = t.switch_vertex(*this).vid(*this);
+    // auto vid = t.vid(*this);
 
     // std::cout << uv << std::endl;
     // std::cout << V << std::endl;
 
-    vertex_attrs[vid].pos = uv;
-    vertex_attrs[vid].pos_3d = V;
+    auto& v = vertex_attrs[vid];
+    // if((v.pos.array() != 0).all() ||
+    //(v.pos_3d.array() != 0).all()) {
+    //     spdlog::error("writing to a nontrivial vertex after a split, should be a new one! {} ::
+    //     {}",
+    //             fmt::join(v.pos,","),
+    //             fmt::join(v.pos_3d,",")
+    //             );
+    // }
+    v.pos = uv;
+    v.pos_3d = V;
+    // for(int j = 0; j <
+    // auto t = oriented_tri_vertices(t);
 
     return true;
 }
@@ -321,39 +329,36 @@ void extremeopt::ExtremeOpt::split_all_edges()
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
 
-    for (auto& loc : get_faces())
-    {
+    for (auto& loc : get_faces()) {
         auto t0 = loc;
         auto t1 = t0.switch_edge(*this);
         auto t2 = t0.switch_vertex(*this).switch_edge(*this);
-        double l0 = (vertex_attrs[t0.vid(*this)].pos - vertex_attrs[t0.switch_vertex(*this).vid(*this)].pos).norm();
-        double l1 = (vertex_attrs[t1.vid(*this)].pos - vertex_attrs[t1.switch_vertex(*this).vid(*this)].pos).norm();
-        double l2 = (vertex_attrs[t2.vid(*this)].pos - vertex_attrs[t2.switch_vertex(*this).vid(*this)].pos).norm();
+        double l0 =
+            (vertex_attrs[t0.vid(*this)].pos - vertex_attrs[t0.switch_vertex(*this).vid(*this)].pos)
+                .norm();
+        double l1 =
+            (vertex_attrs[t1.vid(*this)].pos - vertex_attrs[t1.switch_vertex(*this).vid(*this)].pos)
+                .norm();
+        double l2 =
+            (vertex_attrs[t2.vid(*this)].pos - vertex_attrs[t2.switch_vertex(*this).vid(*this)].pos)
+                .norm();
         if (is_boundary_edge(t0)) l0 = 0;
         if (is_boundary_edge(t1)) l1 = 0;
         if (is_boundary_edge(t2)) l2 = 0;
-    
-        if (l0 >= l1 && l0 >=l2)
-        {
+
+        if (l0 >= l1 && l0 >= l2) {
             collect_all_ops_split.emplace_back("edge_split", t0);
-        }
-        else if (l1 >= l2)
-        {
+        } else if (l1 >= l2) {
             collect_all_ops_split.emplace_back("edge_split", t1);
 
-        }
-        else
-        {
+        } else {
             collect_all_ops_split.emplace_back("edge_split", t2);
-            
         }
-
     }
 
     auto setup_and_execute = [&](auto& executor_split) {
-
         // vid_threshold = vert_capacity();
-        // executor_split.renew_neighbor_tuples = 
+        // executor_split.renew_neighbor_tuples =
         //     [&](auto& m, auto op, auto& tris) {
         //     auto edges = m.replace_edges_after_split(tris, vid_threshold);
         //     auto optup = std::vector<std::pair<std::string, TriMesh::Tuple>>();
@@ -761,9 +766,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     // E_old = wmtk::compute_energy_from_jacobian(Ji, dblarea_3d_old) * dblarea_3d_old.sum(); // compute E_sum
 
 
-
-    if (E >= E_old)
-    {
+    if (E >= E_old) {
         // std::cout << "energy increase after swapping" << std::endl;
         return false;
     }
@@ -961,7 +964,7 @@ void extremeopt::ExtremeOpt::smooth_global(int steps)
     buildAeq(EE, uv, F, Aeq);
     Eigen::SparseMatrix<double> AeqT = Aeq.transpose();
 
-    auto compute_energy = [G, area](Eigen::MatrixXd aaa){
+    auto compute_energy = [G, area](Eigen::MatrixXd aaa) {
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G, aaa, Ji);
         return wmtk::compute_energy_from_jacobian(Ji, area);
@@ -975,16 +978,16 @@ void extremeopt::ExtremeOpt::smooth_global(int steps)
     // build kkt system
     Eigen::SparseMatrix<double> kkt(hessian.rows() + Aeq.rows(), hessian.cols() + Aeq.rows());
     buildkkt(hessian, Aeq, AeqT, kkt);
-    Eigen::VectorXd rhs(kkt.rows()); rhs.setZero();
+    Eigen::VectorXd rhs(kkt.rows());
+    rhs.setZero();
     rhs.topRows(grad.rows()) << -grad;
 
-    // solve the system  
+    // solve the system
     Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
     solver.analyzePattern(kkt);
     solver.factorize(kkt);
     Eigen::VectorXd newton = solver.solve(rhs);
-    if (solver.info() != Eigen::Success)
-    {
+    if (solver.info() != Eigen::Success) {
         std::cout << "cannot solve newton system" << std::endl;
         hessian.setIdentity();
         buildkkt(hessian, Aeq, AeqT, kkt);
@@ -998,29 +1001,23 @@ void extremeopt::ExtremeOpt::smooth_global(int steps)
     auto new_x = uv;
     double ls_step_size = 1.0;
     bool ls_good = false;
-    for (int i = 0; i < m_params.ls_iters; i++)
-    {
+    for (int i = 0; i < m_params.ls_iters; i++) {
         new_x = uv + ls_step_size * search_dir;
         double new_E = compute_energy(new_x);
-        if (new_E < energy_0 && check_flip(new_x, F) == 0)
-        {
+        if (new_E < energy_0 && check_flip(new_x, F) == 0) {
             ls_good = true;
             break;
         }
         ls_step_size *= 0.8;
     }
 
-    if (ls_good)
-    {
+    if (ls_good) {
         // update vertex_attrs
         std::cout << "ls_step_size = " << ls_step_size << std::endl;
-        for (int i = 0; i < new_x.rows(); i++)
-        {
+        for (int i = 0; i < new_x.rows(); i++) {
             vertex_attrs[i].pos = new_x.row(i);
         }
-    }
-    else
-    {
+    } else {
         std::cout << "smooth failed" << std::endl;
     }
 }
@@ -1135,11 +1132,23 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
         return wmtk::compute_energy_from_jacobian(Ji, dblarea);
     };
-    auto compute_energy_max = [&G_global, &dblarea](Eigen::MatrixXd& aaa) {
+    auto compute_energy_max = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
-        return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3))
-            .maxCoeff();
+        auto EVec = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+
+        // for(int j = 0; j < EVec.size(); ++j) {
+        //     if(!std::isfinite(EVec(j))) {
+        //         spdlog::info("triangle {} was not finite area {}", j, dblarea(j));
+        //         auto f = F.row(j);
+        //         for(int j = 0; j < 3; ++j) {
+        //             std::cout << aaa.row(f(j)) << "====";
+        //         }
+        //         std::cout << std::endl;
+
+        //    }
+        //}
+        return EVec.maxCoeff();
     };
 
     double E = compute_energy(uv);
@@ -1150,8 +1159,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         double E_max;
         // split edge lagacy will not be used
 
-        if (true)
-        {
+        if (true) {
             split_all_edges();
             export_mesh(V, F, uv);
             get_grad_op(V, F, G_global);
@@ -1163,18 +1171,18 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
         }
 
-//         // do smoothing
-// timer.start();
-//         smooth_all_vertices();
-// time = timer.getElapsedTime();
-//         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
-//         export_mesh(V, F, uv);
-//         get_grad_op(V, F, G_global);
-//         igl::doublearea(V, F, dblarea);
-//         E = compute_energy(uv);
-//         E_max = compute_energy_max(uv);
-//         wmtk::logger().info("After smoothing {}, E = {}", i, E);
-//         wmtk::logger().info("E_max = {}", E_max);
+        //         // do smoothing
+        // timer.start();
+        //         smooth_all_vertices();
+        // time = timer.getElapsedTime();
+        //         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
+        //         export_mesh(V, F, uv);
+        //         get_grad_op(V, F, G_global);
+        //         igl::doublearea(V, F, dblarea);
+        //         E = compute_energy(uv);
+        //         E_max = compute_energy_max(uv);
+        //         wmtk::logger().info("After smoothing {}, E = {}", i, E);
+        //         wmtk::logger().info("E_max = {}", E_max);
 
         // do swaping
 
@@ -1214,9 +1222,9 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", E_max);
         }
 
-timer.start();
+        timer.start();
         smooth_global(1);
-time = timer.getElapsedTime();
+        time = timer.getElapsedTime();
         wmtk::logger().info("vertex smoothing operation time serial: {}s", time);
         export_mesh(V, F, uv);
         get_grad_op(V, F, G_global);
@@ -1225,8 +1233,9 @@ time = timer.getElapsedTime();
         E_max = compute_energy_max(uv);
         wmtk::logger().info("After smoothing {}, E = {}", i, E);
         wmtk::logger().info("E_max = {}", E_max);
-       
-        opt_log["opt_log"].push_back({{"F_size", F.rows()},{"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
+
+        opt_log["opt_log"].push_back(
+            {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         // terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(

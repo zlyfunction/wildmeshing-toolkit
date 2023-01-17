@@ -13,8 +13,8 @@ namespace extremeopt {
 class VertexAttributes
 {
 public:
-    Eigen::Vector2d pos;
-    Eigen::Vector3d pos_3d;
+    Eigen::Vector2d pos = Eigen::Vector2d::Zero();
+    Eigen::Vector3d pos_3d = Eigen::Vector3d::Zero();
 
     size_t partition_id = 0; // TODO this should not be here
 
@@ -292,7 +292,7 @@ const double MAX_ENERGY = 1e50;
         {
             return before_check(t, dynamic_cast<ExtremeOpt&>(m));
         }
-        std::string name() const { return "edge_split"; }
+        std::string name() const { return "test_op"; }
         CollapsePair(){};
         virtual ~CollapsePair(){};
     };
