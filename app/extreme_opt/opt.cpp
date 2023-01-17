@@ -12,7 +12,8 @@
 #include <array>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TriQualityUtils.hpp>
-
+#include <fastenvelope/FastEnvelope.h>
+#include <sec/envelope/SampleEnvelope.hpp>
 #include <igl/boundary_loop.h>
 #include <igl/predicates/predicates.h>
 #include <igl/upsample.h>
