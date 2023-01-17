@@ -489,9 +489,17 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     double E_max_after_collapse;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    E_max_after_collapse =
-        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
-
+    auto E_max_after_collapses =
+        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    
+    for (int i = 0; i < E_max_after_collapses.size(); i++)
+    {
+        if (!std::isfinite(E_max_after_collapses(i)))
+        {
+            return false;
+        }
+    }
+    E_max_after_collapse = E_max_after_collapses.maxCoeff();
     if (E_max_after_collapse > position_cache.local().E_max_before_collpase) {
         // E_max does not go down
         return false;
@@ -597,7 +605,15 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     get_grad_op(V_local, F_local, G_local);
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    E_max = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+    auto Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    for (int i = 0; i < Es.size(); i++)
+    {
+        if (!std::isfinite(Es(i)))
+        {
+            return false;
+        }
+    }
+    E_max = Es.maxCoeff();
 
     // update constraints
     auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
