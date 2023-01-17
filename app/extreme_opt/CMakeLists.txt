@@ -7,6 +7,7 @@ include(gmp)
 include(fenvelope)
 
 add_library(wmtk_extreme_opt
+	rref.cpp
 	opt.cpp
 	ExtremeOpt.cpp
 	ExtremeOpt.h
