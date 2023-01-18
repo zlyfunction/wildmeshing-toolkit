@@ -22,7 +22,7 @@
 #include <optional>
 #include <wmtk/utils/TupleUtils.hpp>
 #include "SYMDIR.h"
-
+#include "rref.h"
 
 void buildAeq(
     const Eigen::MatrixXi& EE,
@@ -1037,35 +1037,58 @@ void extremeopt::ExtremeOpt::smooth_global(int steps)
         wmtk::jacobian_from_uv(G, aaa, Ji);
         return wmtk::compute_energy_from_jacobian(Ji, area);
     };
-
+    Eigen::VectorXd newton;
     // get grad and hessian
     Eigen::SparseMatrix<double> hessian;
     Eigen::VectorXd grad;
     double energy_0 = wmtk::get_grad_and_hessian(G, area, uv, grad, hessian, m_params.do_newton);
-
-    // build kkt system
-    Eigen::SparseMatrix<double> kkt(hessian.rows() + Aeq.rows(), hessian.cols() + Aeq.rows());
-    buildkkt(hessian, Aeq, AeqT, kkt);
-    Eigen::VectorXd rhs(kkt.rows());
-    rhs.setZero();
-    rhs.topRows(grad.rows()) << -grad;
-
-    // solve the system
-    Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
-    solver.analyzePattern(kkt);
-    solver.factorize(kkt);
-    Eigen::VectorXd newton = solver.solve(rhs);
-    if (solver.info() != Eigen::Success) {
-        std::cout << "cannot solve newton system" << std::endl;
-        hessian.setIdentity();
+    
+    bool use_rref = true;
+    if (!use_rref)
+    {
+        // build kkt system
+        Eigen::SparseMatrix<double> kkt(hessian.rows() + Aeq.rows(), hessian.cols() + Aeq.rows());
         buildkkt(hessian, Aeq, AeqT, kkt);
+        Eigen::VectorXd rhs(kkt.rows());
+        rhs.setZero();
+        rhs.topRows(grad.rows()) << -grad;
+        // solve the system
+        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
         solver.analyzePattern(kkt);
         solver.factorize(kkt);
         newton = solver.solve(rhs);
+        if (solver.info() != Eigen::Success) {
+            std::cout << "cannot solve newton system" << std::endl;
+            hessian.setIdentity();
+            buildkkt(hessian, Aeq, AeqT, kkt);
+            solver.analyzePattern(kkt);
+            solver.factorize(kkt);
+            newton = solver.solve(rhs);
+        }
+    }
+    else
+    {
+        Eigen::SparseMatrix<double> Q2(Aeq.cols(), Aeq.cols() - Aeq.rows()), Q2T;
+        elim_constr(Aeq, Q2);
+        Q2.makeCompressed();
+        Q2T = Q2.transpose();
+        std::cout << "test q2:" << (Aeq * Q2 * Eigen::VectorXd::Random(Q2.cols())).norm() << std::endl;
+        hessian = Q2T * hessian * Q2;
+        grad = Q2T * grad;
+
+        Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver;
+        solver.analyzePattern(hessian);
+        solver.factorize(hessian);
+        newton = solver.solve(-grad);
+        if (solver.info() != Eigen::Success) {
+            std::cout << "cannot solve newton system" << std::endl;
+            newton = -grad;
+        }
+        newton = Q2 * newton;
     }
 
+    // do lineserach
     Eigen::MatrixXd search_dir = Eigen::Map<Eigen::MatrixXd>(newton.data(), V.rows(), 2);
-
     auto new_x = uv;
     double ls_step_size = 1.0;
     bool ls_good = false;

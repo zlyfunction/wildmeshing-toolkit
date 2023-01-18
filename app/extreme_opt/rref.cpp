@@ -120,8 +120,8 @@ auto tm_pv0 = timer.getElapsedTime();
         // int k = find_pivot(R_rm, i, j, p);
 auto tm_pv1 = timer.getElapsedTime();
 
-        std::cout << "k = " << k+1 << " p = " << p << std::endl;
-std::cout << "find_pivot time: " << tm_pv1 - tm_pv0;
+        // std::cout << "k = " << k+1 << " p = " << p << std::endl;
+// std::cout << "find_pivot time: " << tm_pv1 - tm_pv0;
         if (p <= tol)
         {
             // the column is negligible, zero it out
@@ -142,7 +142,7 @@ auto tm_swap0 = timer.getElapsedTime();
             R_rm.row(i) = tmp_k;
             R_rm.row(k) = tmp_i;
 auto tm_swap1 = timer.getElapsedTime();        
-std::cout << "\tswap time: " << tm_swap1 - tm_swap0;
+// std::cout << "\tswap time: " << tm_swap1 - tm_swap0;
 auto tm_subtract0 = timer.getElapsedTime();        
             // divide the pivot row by the pivot element
             Eigen::SparseMatrix<double, Eigen::RowMajor> Ai = R_rm.row(i) / R_rm.coeff(i, j);
@@ -158,12 +158,12 @@ auto tm_subtract2 = timer.getElapsedTime();
             R_rm = R_rm.pruned();
 
 auto tm_subtract3 = timer.getElapsedTime();        
-std::cout << "\tsubtract time: " << tm_subtract1 - tm_subtract0 << ", " << tm_subtract2 - tm_subtract1 << ", " << tm_subtract3 - tm_subtract2;
+// std::cout << "\tsubtract time: " << tm_subtract1 - tm_subtract0 << ", " << tm_subtract2 - tm_subtract1 << ", " << tm_subtract3 - tm_subtract2;
             i++;
             j++;
         }
 auto tm_end = timer.getElapsedTime();        
-std::cout << "\ttotal time:" << tm_end - tm_pv0 << std::endl;    
+// std::cout << "\ttotal time:" << tm_end - tm_pv0 << std::endl;    
     }
     R = mat(R_rm);
 }
@@ -190,7 +190,7 @@ void elim_constr(
             k++;
         }
     }
-    std::cout << nvars << " dep: " << dep_list.size() << " indep: " << indep_list.size() << std::endl;
+    // std::cout << nvars << " dep: " << dep_list.size() << " indep: " << indep_list.size() << std::endl;
     Eigen::VectorXi dep, indep;
     igl::list_to_matrix(dep_list, dep);
     igl::list_to_matrix(indep_list, indep);
@@ -227,7 +227,7 @@ void elim_constr(
     {
         dep_indep_rev[dep_indep[i]] = i;
     }
-    std::cout << "start slicing:" << std::endl;
+    // std::cout << "start slicing:" << std::endl;
     T_out.resize(T.rows(), T.cols());
     igl::slice(T, dep_indep_rev, 1, T_out);
     // slice_into_sparse(T_out, dep_indep, all_cols_T, T);
@@ -288,7 +288,7 @@ void elim_constr(
             k++;
         }
     }
-    std::cout << nvars << " dep: " << dep_list.size() << " indep: " << indep_list.size() << std::endl;
+    // std::cout << nvars << " dep: " << dep_list.size() << " indep: " << indep_list.size() << std::endl;
     Eigen::VectorXi dep, indep;
     igl::list_to_matrix(dep_list, dep);
     igl::list_to_matrix(indep_list, indep);
@@ -327,7 +327,7 @@ void elim_constr(
     {
         dep_indep_rev[dep_indep[i]] = i;
     }
-    std::cout << "start slicing:" << std::endl;
+    // std::cout << "start slicing:" << std::endl;
     T_out.resize(T.rows(), T.cols());
     igl::slice(T, dep_indep_rev, 1, T_out);
     igl::slice(rb, dep_indep_rev, 1, b);
