@@ -355,14 +355,13 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     return true;
 }
 
-void extremeopt::ExtremeOpt::split_all_edges()
+void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
 {
     Eigen::MatrixXi EE;
     export_EE(EE);
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
 
-    // int f_cnt = 0;
     for (auto& loc : get_faces())
     {
         auto t0 = loc;
@@ -391,15 +390,12 @@ void extremeopt::ExtremeOpt::split_all_edges()
         }
     }
     
+    
     auto setup_and_execute = [&](auto& executor_split) {
-        // vid_threshold = vert_capacity();
-        // executor_split.renew_neighbor_tuples =
-        //     [&](auto& m, auto op, auto& tris) {
-        //     auto edges = m.replace_edges_after_split(tris, vid_threshold);
-        //     auto optup = std::vector<std::pair<std::string, TriMesh::Tuple>>();
-        //     for (auto& e : edges) optup.emplace_back(op, e);
-        //     return optup;
-        // };
+        executor_split.priority = [&](auto& m, auto _, auto& e) {
+            if (e.fid(*this) >= Es.size()) return 1e50;
+            else return Es(e.fid(*this));
+        };
         executor_split.stopping_criterion_checking_frequency = 300;
         executor_split.stopping_criterion = [](const TriMesh&) {
             return true; // non-stop, process everything
@@ -1072,7 +1068,7 @@ void extremeopt::ExtremeOpt::smooth_global(int steps)
         elim_constr(Aeq, Q2);
         Q2.makeCompressed();
         Q2T = Q2.transpose();
-        std::cout << "test q2:" << (Aeq * Q2 * Eigen::VectorXd::Random(Q2.cols())).norm() << std::endl;
+        // std::cout << "test q2:" << (Aeq * Q2 * Eigen::VectorXd::Random(Q2.cols())).norm() << std::endl;
         hessian = Q2T * hessian * Q2;
         grad = Q2T * grad;
 
@@ -1235,6 +1231,11 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         }
         return EVec.maxCoeff();
     };
+    auto compute_energy_all = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {
+        Eigen::MatrixXd Ji;
+        wmtk::jacobian_from_uv(G_global, aaa, Ji);
+        return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    };
 
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
@@ -1245,7 +1246,9 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         double E_max;
 
         if (this->m_params.do_split) {
-            split_all_edges();
+            auto Es = compute_energy_all(uv);
+            split_all_edges(Es);
+
             export_mesh(V, F, uv);
             get_grad_op(V, F, G_global);
             igl::doublearea(V, F, dblarea);

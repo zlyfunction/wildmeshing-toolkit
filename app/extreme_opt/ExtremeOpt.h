@@ -378,7 +378,7 @@ public:
     // Edge Splitting
     bool split_edge_before(const Tuple& t) override;
     bool split_edge_after(const Tuple& t) override;
-    void split_all_edges();
+    void split_all_edges(const Eigen::VectorXd &Es);
 };
 
 } // namespace extremeopt
