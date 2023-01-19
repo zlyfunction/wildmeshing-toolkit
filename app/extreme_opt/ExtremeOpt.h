@@ -6,6 +6,8 @@
 #include <wmtk/TriMeshOperation.h>
 #include "Parameters.h"
 #include "json.hpp"
+#include <fastenvelope/FastEnvelope.h>
+#include <sec/envelope/SampleEnvelope.hpp>
 using json = nlohmann::json;
 
 namespace extremeopt {
@@ -38,6 +40,7 @@ public:
 class ExtremeOpt : public wmtk::TriMesh
 {
 public:
+    sample_envelope::SampleEnvelope m_envelope;
     Parameters m_params;
     // Energy Assigned to undefined energy
     // TODO: why not the max double?
@@ -359,6 +362,8 @@ public:
         const std::vector<wmtk::TriMesh::Tuple>& tris,
         const size_t vid_threshold) const;
 
+    bool invariants(const std::vector<Tuple>& new_tris) override;
+    
     bool swap_edge_before(const Tuple& t) override;
     bool swap_edge_after(const Tuple& t) override;
     void swap_all_edges();

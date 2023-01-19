@@ -250,7 +250,8 @@ int main(int argc, char** argv)
     // do global/local smooth (local smooth does not optimize boundary vertices)
     param.local_smooth = config["local_smooth"];
     param.global_smooth = config["global_smooth"];
-
+    param.use_envelope = config["use_envelope"];
+    
     json opt_log;
     opt_log["model_name"] = model;
     opt_log["args"] = config;

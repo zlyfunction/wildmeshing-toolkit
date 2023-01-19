@@ -12,8 +12,7 @@
 #include <array>
 #include <wmtk/utils/Logger.hpp>
 #include <wmtk/utils/TriQualityUtils.hpp>
-#include <fastenvelope/FastEnvelope.h>
-#include <sec/envelope/SampleEnvelope.hpp>
+
 #include <igl/boundary_loop.h>
 #include <igl/predicates/predicates.h>
 #include <igl/upsample.h>
@@ -612,6 +611,10 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     }
     E_max = Es.maxCoeff();
 
+    if (!invariants(get_one_ring_tris_for_vertex(t)))
+    {
+        return false;
+    }
     // update constraints
     auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
     Tuple e_new_l, e_new_r;

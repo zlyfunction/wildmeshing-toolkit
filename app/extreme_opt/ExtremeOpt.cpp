@@ -45,6 +45,7 @@ void ExtremeOpt::create_mesh(
     const Eigen::MatrixXi& F,
     const Eigen::MatrixXd& uv)
 {
+    
     // Register attributes
     p_vertex_attrs = &vertex_attrs;
     p_face_attrs = &face_attrs;
@@ -74,13 +75,26 @@ void ExtremeOpt::create_mesh(
         vertex_attrs[i].pos = uv.row(i).transpose();
         vertex_attrs[i].pos_3d = V.row(i).transpose();
     }
-    std::vector<std::vector<int>> bds;
-    igl::boundary_loop(F, bds);
-    for (auto bd : bds) {
-        for (int vec : bd) {
-            vertex_attrs[vec].fixed = true;
-        }
+    std::vector<Eigen::Vector3d> V_in(V.rows());
+    std::vector<Eigen::Vector3i> F_in(F.rows());
+    for (auto i = 0; i < V.rows(); i++) {
+        V_in[i] = vertex_attrs[i].pos_3d;
     }
+    for (int i = 0; i < F_in.size(); ++i) F_in[i] = F.row(i); 
+    
+    double diag = std::sqrt(std::pow(V.col(0).maxCoeff() - V.col(0).minCoeff(), 2)+std::pow(V.col(1).maxCoeff() - V.col(1).minCoeff(), 2)+std::pow(V.col(2).maxCoeff() - V.col(2).minCoeff(), 2));
+    if (this->m_params.use_envelope)
+    {
+        m_envelope.use_exact = false;
+        m_envelope.init(V_in, F_in, 0.01 * diag);
+    }
+    // std::vector<std::vector<int>> bds;
+    // igl::boundary_loop(F, bds);
+    // for (auto bd : bds) {
+    //     for (int vec : bd) {
+    //         vertex_attrs[vec].fixed = true;
+    //     }
+    // }
 }
 
 void ExtremeOpt::init_constraints(const std::vector<std::vector<int>>& EE_e)
@@ -341,6 +355,22 @@ void ExtremeOpt::consolidate_mesh_cons()
             }
         }
     }
+}
+bool ExtremeOpt::invariants(const std::vector<Tuple>& new_tris)
+{
+    if (m_params.use_envelope)
+    {
+        for (auto& t : new_tris) {
+            std::array<Eigen::Vector3d, 3> tris;
+            auto vs = oriented_tri_vertices(t);
+            for (auto j = 0; j < 3; j++) tris[j] = vertex_attrs[vs[j].vid(*this)].pos_3d;
+            if (m_envelope.is_outside(tris)) {
+                return false;
+            }
+        }
+    } 
+    
+    return true;
 }
 
 bool ExtremeOpt::check_constraints(double eps)

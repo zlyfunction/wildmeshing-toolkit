@@ -10,6 +10,7 @@ namespace extremeopt{
         bool do_split = false;
         bool local_smooth = false;
         bool global_smooth = true;
+        bool use_envelope = false;
         int global_upsample = 0;
         int ls_iters = 200;
         double E_target = 10.0;
