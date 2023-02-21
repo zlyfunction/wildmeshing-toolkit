@@ -666,13 +666,50 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) return false;
     if (!TriMesh::swap_edge_before(t)) return false;
-    // if (vertex_attrs[t.vid(*this)].fixed &&
-    // vertex_attrs[t.switch_vertex(*this).vid(*this)].fixed) return false;
+
     Tuple t1 = t.switch_vertex(*this).switch_edge(*this);
     Tuple t2 = t.switch_face(*this).value().switch_edge(*this);
     if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
     if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
-    swap_cache.local() = std::make_pair(t1, t2);
+    swap_cache.local().t1 = t1;
+    swap_cache.local().t2 = t2;
+
+    // compute old local energy
+    auto tri1 = oriented_tri_vids(t);
+    auto t_opp = t.switch_face(*this);
+    auto tri2 = oriented_tri_vids(t_opp.value());
+    
+    std::vector<int> v_ids;
+    std::vector<int> v_map(vertex_attrs.size());
+    Eigen::MatrixXi F_local(2, 3);
+    Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
+    for (int i = 0; i < 3; i++)
+    {
+        v_ids.push_back((int)tri1[i]);
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        if (std::find(v_ids.begin(), v_ids.end(), (int)tri2[i]) == v_ids.end())
+        {
+            v_ids.push_back((int)tri2[i]);
+        }
+    }
+    std::sort(v_ids.begin(), v_ids.end());
+    for (int i = 0; i < v_ids.size(); i++)
+    {
+        v_map[v_ids[i]] = i;
+    }
+    F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
+    F_local.row(1) << v_map[tri2[0]], v_map[tri2[1]], v_map[tri2[2]];
+    for (int i = 0; i < 4; i++) {
+        V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
+        uv_local.row(i) = vertex_attrs[v_ids[i]].pos;
+    }
+    Eigen::SparseMatrix<double> G_local;
+    get_grad_op(V_local, F_local, G_local);
+    Eigen::MatrixXd Ji;
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    swap_cache.local().E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
 
     return true;
 }
@@ -722,11 +759,12 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     // std::cout << std::endl;
 
     std::vector<int> v_ids;
+    std::vector<int> v_map(vertex_attrs.size());
     Eigen::MatrixXi F_local(2, 3);
     Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
     for (int i = 0; i < 3; i++) {
         v_ids.push_back(tri1[i]);
-        F_local(0, i) = i;
+        // F_local(0, i) = i;
     }
     for (int i = 0; i < 3; i++) {
         int j = 0;
@@ -734,9 +772,17 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
             j++;
         }
         if (j == 3) v_ids.push_back((int)tri2[i]);
-        F_local(1, i) = j;
+        // F_local(1, i) = j;
     }
+    std::sort(v_ids.begin(), v_ids.end());
     assert(v_ids.size() == 4);
+    for (int i = 0; i < v_ids.size(); i++)
+    {
+        v_map[v_ids[i]] = i;
+    }
+
+    F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
+    F_local.row(1) << v_map[tri2[0]], v_map[tri2[1]], v_map[tri2[2]];
 
     for (int i = 0; i < 4; i++) {
         V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
@@ -749,86 +795,31 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 
 
     if (dblarea_3d.minCoeff() <= 0) {
-        // std::cout << "zero 3d area: " << dblarea_3d.minCoeff() << std::endl;
         return false;
     }
     if (dblarea.minCoeff() <= 0) {
-        // std::cout << "zero/negative 2d area: " << dblarea.minCoeff() << std::endl;
         return false;
     }
 
-
-    // TODO: compute and compare local energy
-    // get the F_local_before swapping
-    // get dblareas, then compute the energy
-    Eigen::MatrixXi F_local_old(2, 3);
-    int v_to_change = 0;
-    while (F_local(1, 0) != v_to_change && F_local(1, 1) != v_to_change &&
-           F_local(1, 2) != v_to_change) {
-        v_to_change++;
-    }
-    // std::cout << "change: " << v_to_change << "->3" << std::endl;
-    // std::cout << "change: " << (v_to_change + 1) % 3 << "<->" << (v_to_change + 2) % 3 <<
-    // std::endl;
-
-    for (int i = 0; i < 3; i++) {
-        if (F_local(0, i) == v_to_change) {
-            F_local_old(0, i) = 3;
-        } else {
-            F_local_old(0, i) = F_local(0, i);
-        }
-    }
-
-    for (int i = 0; i < 3; i++) {
-        if (F_local(1, i) == (v_to_change + 1) % 3) {
-            F_local_old(1, i) = (v_to_change + 2) % 3;
-        } else if (F_local(1, i) == (v_to_change + 2) % 3) {
-            F_local_old(1, i) = (v_to_change + 1) % 3;
-        } else {
-            F_local_old(1, i) = F_local(1, i);
-        }
-    }
-
-    // std::cout << "F_local after swap:\n" << F_local << std::endl;
-    // std::cout << "F_local before swap:\n" << F_local_old << std::endl;
-
-    Eigen::VectorXd dblarea_3d_old;
-    igl::doublearea(V_local, F_local_old, dblarea_3d_old);
-
-    Eigen::SparseMatrix<double> G_local, G_local_old;
+    Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
-    get_grad_op(V_local, F_local_old, G_local_old);
 
     double E, E_old;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    Eigen::MatrixXd Es =
+    Eigen::VectorXd Es =
         wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    // std::cout << "Es = " << Es(0) << ", " << Es(1) << std::endl;
     
     E = Es.maxCoeff(); // compute E_max
-    if (std::isnan(Es(0)) || std::isnan(Es(1))) {
+    if (!std::isfinite(Es(0)) || !std::isfinite(Es(1))) {
         // std::cout << "nan fail" << std::endl;
         return false;
     }
     if (Es.minCoeff() <= 0) {
-        // std::cout << "<=0 fail" << std::endl;
         return false;
     }
 
-    Eigen::MatrixXd Ji_old;
-    wmtk::jacobian_from_uv(G_local_old, uv_local, Ji);
-
-
-    auto E_olds = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    E_old = E_olds.maxCoeff();    
-    // std::cout << "E_olds = " << E_olds(0) << ", " << E_olds(1) << std::endl;
-
-    if ((E_olds.maxCoeff() - E_olds.minCoeff()) / E_olds.maxCoeff() < 1e-10)
-    {
-        return false;
-    }
-    if (E >= E_old)
+    if (E >= swap_cache.local().E_old)
     {
         return false;
     }
@@ -841,8 +832,8 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     // update constraints after swap
     Tuple t1 = t.switch_edge(*this);
     Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
-    Tuple t1_old = swap_cache.local().first;
-    Tuple t2_old = swap_cache.local().second;
+    Tuple t1_old = swap_cache.local().t1;
+    Tuple t2_old = swap_cache.local().t2;
     if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
     if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
     bool flag = true;
@@ -883,7 +874,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
             edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
         }
     }
-
+    
     return true;
 }
 
@@ -1213,7 +1204,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         return wmtk::compute_energy_from_jacobian(Ji, dblarea);
     };
 
-    auto compute_energy_max = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {
+    auto compute_energy_max = [&G_global, &dblarea, &F, &V](Eigen::MatrixXd& aaa) {
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
         auto EVec = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
@@ -1226,12 +1217,9 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
                     j,
                     dblarea(j),
                     fmt::join(f, ","));
-                for (int j = 0; j < 3; ++j) {
-                    std::cout << aaa.row(f(j)) << "====";
-                }
-                std::cout << std::endl;
             }
         }
+       
         return EVec.maxCoeff();
     };
     auto compute_energy_all = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {

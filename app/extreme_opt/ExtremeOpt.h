@@ -6,7 +6,7 @@
 #include <wmtk/TriMeshOperation.h>
 #include "Parameters.h"
 #include "json.hpp"
-#include <fastenvelope/FastEnvelope.h>
+// #include <fastenvelope/FastEnvelope.h>
 #include <sec/envelope/SampleEnvelope.hpp>
 using json = nlohmann::json;
 
@@ -312,7 +312,13 @@ public:
     };
     tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
-    tbb::enumerable_thread_specific<std::pair<Tuple, Tuple>> swap_cache;
+    struct SwapInfoCache
+    {
+        Tuple t1;
+        Tuple t2;
+        double E_old;
+    };
+    tbb::enumerable_thread_specific<SwapInfoCache> swap_cache;
     // Initializes the mesh
     void create_mesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F, const Eigen::MatrixXd& uv);
 

@@ -80,7 +80,7 @@ void ExtremeOpt::create_mesh(
     for (auto i = 0; i < V.rows(); i++) {
         V_in[i] = vertex_attrs[i].pos_3d;
     }
-    for (int i = 0; i < F_in.size(); ++i) F_in[i] = F.row(i); 
+    for (int i = 0; i < F_in.size(); ++i) F_in[i] << F(i,0), F(i,1), F(i,2); 
     
     double diag = std::sqrt(std::pow(V.col(0).maxCoeff() - V.col(0).minCoeff(), 2)+std::pow(V.col(1).maxCoeff() - V.col(1).minCoeff(), 2)+std::pow(V.col(2).maxCoeff() - V.col(2).minCoeff(), 2));
     if (this->m_params.use_envelope)

@@ -273,8 +273,8 @@ int main(int argc, char** argv)
 
     extremeopt::ExtremeOpt extremeopt;
     // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
-    extremeopt.create_mesh(V, F, uv);
     extremeopt.m_params = param;
+    extremeopt.create_mesh(V, F, uv);
     std::vector<std::vector<int>> EE_e;
     transform_EE(F, EE, EE_e);
     extremeopt.init_constraints(EE_e);

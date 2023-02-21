@@ -671,7 +671,7 @@ std::vector<size_t> TriMesh::get_one_ring_vids_for_vertex(const size_t& vid) con
                 one_ring.push_back(j);
         }
     }
-
+    std::sort(one_ring.begin(), one_ring.end());
     return one_ring;
 }
 
