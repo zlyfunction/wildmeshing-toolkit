@@ -448,6 +448,18 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 
     // get local F,V,uv
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
+
+    // check edgelen
+    for (int vid_tmp : vid_onering)
+    {
+        auto V_tmp = vertex_attrs[vid_tmp].pos_3d;
+        auto uv_tmp = vertex_attrs[vid_tmp].pos;
+        double elen_3d = (V_tmp - V).norm();
+        double elen = (uv_tmp - uv).norm();
+        if (elen > elen_threshold) return false;
+        if (elen_3d > elen_threshold_3d) return false;
+    }
+
     auto locs = get_one_ring_tris_for_vertex(t);
     Eigen::MatrixXd V_local(vid_onering.size(), 3);
     Eigen::MatrixXd uv_local(vid_onering.size(), 2);
@@ -1194,6 +1206,24 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     std::cout << "before export" << std::endl;
     export_mesh(V, F, uv);
 
+
+    // get edge length thresholds for collapsing operation
+    elen_threshold = 0;
+    elen_threshold_3d = 0;
+    for (int i = 0; i < F.rows(); i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            int v1 = F(i, j);
+            int v2 = F(i, (j+1)%3);
+            double elen = (uv.row(v1) - uv.row(v2)).norm();
+            double elen_3d = (V.row(v1) - V.row(v2)).norm();
+            if (elen > elen_threshold) elen_threshold = elen;
+            if (elen_3d > elen_threshold_3d) elen_threshold_3d = elen_3d;
+        }
+    }
+    elen_threshold *= m_params.elen_alpha;
+    elen_threshold_3d *= m_params.elen_alpha;
     get_grad_op(V, F, G_global);
     Eigen::VectorXd dblarea;
     igl::doublearea(V, F, dblarea);

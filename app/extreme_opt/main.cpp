@@ -251,6 +251,7 @@ int main(int argc, char** argv)
     param.local_smooth = config["local_smooth"];
     param.global_smooth = config["global_smooth"];
     param.use_envelope = config["use_envelope"];
+    param.elen_alpha = config["elen_alpha"];
     
     json opt_log;
     opt_log["model_name"] = model;
