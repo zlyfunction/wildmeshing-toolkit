@@ -45,6 +45,10 @@ void ExtremeOpt::create_mesh(
     const Eigen::MatrixXi& F,
     const Eigen::MatrixXd& uv)
 {
+    // init aabb tree
+    tree.init(V, F);
+    input_V = V;
+    input_F = F;
     
     // Register attributes
     p_vertex_attrs = &vertex_attrs;

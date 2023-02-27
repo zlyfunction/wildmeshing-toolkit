@@ -291,7 +291,41 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
 
+    auto tri1 = oriented_tri_vids(t);
+    auto t_opp = t.switch_face(*this);
+    auto tri2 = oriented_tri_vids(t_opp.value());
 
+    std::vector<int> v_ids;
+    std::vector<int> v_map(vertex_attrs.size());
+    Eigen::MatrixXi F_local(2, 3);
+    Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
+    for (int i = 0; i < 3; i++)
+    {
+        v_ids.push_back((int)tri1[i]);
+    }
+    for (int i = 0; i < 3; i++)
+    {
+        if (std::find(v_ids.begin(), v_ids.end(), (int)tri2[i]) == v_ids.end())
+        {
+            v_ids.push_back((int)tri2[i]);
+        }
+    }
+    std::sort(v_ids.begin(), v_ids.end());
+    for (int i = 0; i < v_ids.size(); i++)
+    {
+        v_map[v_ids[i]] = i;
+    }
+    F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
+    F_local.row(1) << v_map[tri2[0]], v_map[tri2[1]], v_map[tri2[2]];
+    for (int i = 0; i < 4; i++) {
+        V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
+        uv_local.row(i) = vertex_attrs[v_ids[i]].pos;
+    }
+    Eigen::SparseMatrix<double> G_local;
+    get_grad_op(V_local, F_local, G_local);
+    Eigen::MatrixXd Ji;
+    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
+    position_cache.local().E_max_before_collpase = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
     return true;
 }
 
@@ -302,7 +336,13 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     Tuple vert_tuple = t.switch_vertex(*this);
     size_t vid = vert_tuple.vid(*this);
 
-
+    Eigen::VectorXd sqrD;
+    int fid;
+    Eigen::RowVector3d C;
+    tree.squared_distance(input_V, input_F, Eigen::RowVector3d(V), fid, C);
+    V = C;
+    // std::cout << "closest point of \n" << V << "\non mesh is \n" << C << std::endl;
+    // std::cout << "fid is " << fid << std::endl;
     // auto vid = t.vid(*this);
 
     // std::cout << uv << std::endl;
@@ -344,6 +384,12 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
         }
     }
 
+    // if use projection, we need to check E_max
+    if (Es.maxCoeff() > position_cache.local().E_max_before_collpase)
+    {
+        return false;
+    }
+    
     for (size_t nbr_vid : get_one_ring_vids_for_vertex(vid)) {
         if (nbr_vid != vid && vertex_attrs[nbr_vid].pos == v.pos) {
             return false;

@@ -8,6 +8,7 @@
 #include "json.hpp"
 // #include <fastenvelope/FastEnvelope.h>
 #include <sec/envelope/SampleEnvelope.hpp>
+#include <igl/AABB.h>
 using json = nlohmann::json;
 
 namespace extremeopt {
@@ -46,7 +47,10 @@ public:
     // TODO: why not the max double?
     const double MAX_ENERGY = 1e50;
 
-
+    igl::AABB<Eigen::MatrixXd, 3> tree; // for closest point queries
+    Eigen::MatrixXd input_V;
+    Eigen::MatrixXi input_F;
+    
     double elen_threshold;
     double elen_threshold_3d;
 
