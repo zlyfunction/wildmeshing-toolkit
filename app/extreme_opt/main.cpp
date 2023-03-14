@@ -252,7 +252,9 @@ int main(int argc, char** argv)
     param.global_smooth = config["global_smooth"];
     param.use_envelope = config["use_envelope"];
     param.elen_alpha = config["elen_alpha"];
-    
+    param.do_projection = config["do_projection"];
+    param.with_cons = config["with_cons"];
+
     json opt_log;
     opt_log["model_name"] = model;
     opt_log["args"] = config;
@@ -288,15 +290,19 @@ int main(int argc, char** argv)
     }
 
     extremeopt.do_optimization(opt_log);
-
-    std::cout << "check constraints inside wmtk" << std::endl;
-    if (extremeopt.check_constraints()) {
-        std::cout << "constraints satisfied" << std::endl;
-    } else {
-        std::cout << "fails" << std::endl;
+    if (extremeopt.m_params.with_cons)
+    {
+        std::cout << "check constraints inside wmtk" << std::endl;
+        if (extremeopt.check_constraints()) {
+            std::cout << "constraints satisfied" << std::endl;
+        } else {
+            std::cout << "fails" << std::endl;
+        }
     }
+    
     extremeopt.export_mesh(V, F, uv);
-    extremeopt.export_EE(EE);
+
+    if (extremeopt.m_params.with_cons) extremeopt.export_EE(EE);
 
     for (int i = 0; i < param.global_upsample; i++)
     {
@@ -330,6 +336,14 @@ int main(int argc, char** argv)
         extremeopt1.export_EE(EE);
     }
     igl::writeOBJ(output_dir + "/" + model + "_out.obj", V, F, V, F, uv, F);
+    
+    if (extremeopt.m_params.with_cons)
+    {
+        std::ofstream EE_out(output_dir + "/EE/" + model + "_EE.txt");
+        EE_out << EE << std::endl;
+    }
+    
+
     js_out << std::setw(4) << opt_log << std::endl;
     return 0;
 }

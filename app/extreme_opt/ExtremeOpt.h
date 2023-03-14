@@ -346,7 +346,7 @@ public:
     Eigen::VectorXd get_quality_all_triangles();
 
     // compute the max_E of a one ring
-    void get_mesh_onering(
+    int get_mesh_onering(
         const Tuple& t,
         Eigen::MatrixXd& V_local,
         Eigen::MatrixXd& uv_local,

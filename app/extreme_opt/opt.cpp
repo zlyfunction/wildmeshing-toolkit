@@ -158,11 +158,19 @@ auto renew_collapse = [](auto& m, auto op, auto& tris) {
     auto edges = m.new_edges_after(tris);
     auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
     for (auto& e : edges) {
-        if (m.is_boundary_edge(e)) {
-            optup.emplace_back("test_op", e);
-        } else {
+        if (m.m_params.with_cons)
+        {
+            if (m.is_boundary_edge(e)) {
+                optup.emplace_back("test_op", e);
+            } else {
+                optup.emplace_back("edge_collapse", e);
+            }
+        }
+        else
+        {
             optup.emplace_back("edge_collapse", e);
         }
+        
     }
     return optup;
 };
@@ -336,17 +344,14 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     Tuple vert_tuple = t.switch_vertex(*this);
     size_t vid = vert_tuple.vid(*this);
 
-    Eigen::VectorXd sqrD;
-    int fid;
-    Eigen::RowVector3d C;
-    tree.squared_distance(input_V, input_F, Eigen::RowVector3d(V), fid, C);
-    V = C;
-    // std::cout << "closest point of \n" << V << "\non mesh is \n" << C << std::endl;
-    // std::cout << "fid is " << fid << std::endl;
-    // auto vid = t.vid(*this);
-
-    // std::cout << uv << std::endl;
-    // std::cout << V << std::endl;
+    if (m_params.do_projection)
+    {
+        Eigen::VectorXd sqrD;
+        int fid;
+        Eigen::RowVector3d C;
+        tree.squared_distance(input_V, input_F, Eigen::RowVector3d(V), fid, C);
+        V = C;
+    }
 
     auto& v = vertex_attrs[vid];
     // if((v.pos.array() != 0).all() ||
@@ -385,11 +390,14 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     }
 
     // if use projection, we need to check E_max
-    if (Es.maxCoeff() > position_cache.local().E_max_before_collpase)
+    if (m_params.do_projection)
     {
-        return false;
+        if (Es.maxCoeff() > position_cache.local().E_max_before_collpase)
+        {
+            return false;
+        }
     }
-    
+        
     for (size_t nbr_vid : get_one_ring_vids_for_vertex(vid)) {
         if (nbr_vid != vid && vertex_attrs[nbr_vid].pos == v.pos) {
             return false;
@@ -403,7 +411,10 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
 void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
 {
     Eigen::MatrixXi EE;
-    export_EE(EE);
+    if (m_params.with_cons)
+    {
+        export_EE(EE);
+    }
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
 
@@ -450,8 +461,11 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
     };
     auto executor_split = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_split);
-
-    update_constraints_EE_v(EE);
+    
+    if (m_params.with_cons)
+    {
+        update_constraints_EE_v(EE);
+    }
 }
 
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
@@ -464,9 +478,12 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
     }
 
     // avoid boundary edges here
-    if (is_boundary_vertex(t) && is_boundary_vertex(t.switch_vertex(*this))) {
+    if (m_params.with_cons && is_boundary_edge(t))
+    {
+        std::cout << "Error: Wrong function call when collapsing a boudnary edge" << std::endl;
         return false;
     }
+
     cache_edge_positions(t);
     return true;
 }
@@ -559,73 +576,72 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         return false;
     }
 
-    // std::cout << "collapse succeed" << std::endl;
+    if (m_params.with_cons)
+    {
+        // update constraints
+        if (this->is_boundary_vertex(t)) {
+            // std::cout << "update constraints around vertex " << t.vid(*this) << std::endl;
 
-    // update constraints
-    if (this->is_boundary_vertex(t)) {
-        // std::cout << "update constraints around vertex " << t.vid(*this) << std::endl;
-
-        auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
-        std::vector<Tuple> two_bd_e;
-        Tuple e_old_l, e_old_r;
-        Tuple e_new_l, e_new_r;
-        for (auto e : one_ring_edges) {
-            if (this->is_boundary_edge(e)) {
-                Tuple candidate_e = e;
-                if (!candidate_e.is_ccw(*this)) {
-                    candidate_e = candidate_e.switch_vertex(*this);
-                }
-                if (candidate_e.vid(*this) == t.vid(*this)) {
-                    e_new_r = candidate_e;
-                } else {
-                    e_new_l = candidate_e;
+            auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
+            std::vector<Tuple> two_bd_e;
+            Tuple e_old_l, e_old_r;
+            Tuple e_new_l, e_new_r;
+            for (auto e : one_ring_edges) {
+                if (this->is_boundary_edge(e)) {
+                    Tuple candidate_e = e;
+                    if (!candidate_e.is_ccw(*this)) {
+                        candidate_e = candidate_e.switch_vertex(*this);
+                    }
+                    if (candidate_e.vid(*this) == t.vid(*this)) {
+                        e_new_r = candidate_e;
+                    } else {
+                        e_new_l = candidate_e;
+                    }
                 }
             }
+            if (position_cache.local().bd_e1.vid(*this) == position_cache.local().vid1 ||
+                position_cache.local().bd_e1.vid(*this) == position_cache.local().vid2) {
+                e_old_r = position_cache.local().bd_e1;
+                e_old_l = position_cache.local().bd_e2;
+            } else {
+                e_old_r = position_cache.local().bd_e2;
+                e_old_l = position_cache.local().bd_e1;
+            }
+
+            auto e_old_r_pair = edge_attrs[e_old_r.eid_unsafe(*this)].pair;
+            auto e_old_l_pair = edge_attrs[e_old_l.eid_unsafe(*this)].pair;
+
+            if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) ==
+                e_old_l.eid_unsafe(*this)) {
+                // std::cout << "in this case the two new bd edges is a pair" << std::endl;
+                edge_attrs[e_new_r.eid(*this)].pair = e_new_l;
+                edge_attrs[e_new_l.eid(*this)].pair = e_new_r;
+            } else {
+                edge_attrs[e_old_r_pair.eid_unsafe(*this)].pair = e_new_r;
+                edge_attrs[e_old_l_pair.eid_unsafe(*this)].pair = e_new_l;
+                edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
+                edge_attrs[e_new_l.eid(*this)].pair = e_old_l_pair;
+            }
         }
-        if (position_cache.local().bd_e1.vid(*this) == position_cache.local().vid1 ||
-            position_cache.local().bd_e1.vid(*this) == position_cache.local().vid2) {
-            e_old_r = position_cache.local().bd_e1;
-            e_old_l = position_cache.local().bd_e2;
-        } else {
-            e_old_r = position_cache.local().bd_e2;
-            e_old_l = position_cache.local().bd_e1;
-        }
+        auto one_ring_tris = get_one_ring_tris_for_vertex(t);
 
-        auto e_old_r_pair = edge_attrs[e_old_r.eid_unsafe(*this)].pair;
-        auto e_old_l_pair = edge_attrs[e_old_l.eid_unsafe(*this)].pair;
+        for (auto t_tmp : one_ring_tris) {
+            Tuple t0 = t_tmp;
+            Tuple t1 = t0.switch_edge(*this);
+            Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
+            if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
+            if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+            if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
 
-        if (edge_attrs[e_old_r.eid_unsafe(*this)].pair.eid_unsafe(*this) ==
-            e_old_l.eid_unsafe(*this)) {
-            // std::cout << "in this case the two new bd edges is a pair" << std::endl;
-            edge_attrs[e_new_r.eid(*this)].pair = e_new_l;
-            edge_attrs[e_new_l.eid(*this)].pair = e_new_r;
-        } else {
-            edge_attrs[e_old_r_pair.eid_unsafe(*this)].pair = e_new_r;
-            edge_attrs[e_old_l_pair.eid_unsafe(*this)].pair = e_new_l;
-            edge_attrs[e_new_r.eid(*this)].pair = e_old_r_pair;
-            edge_attrs[e_new_l.eid(*this)].pair = e_old_l_pair;
-        }
-    }
-
-
-    auto one_ring_tris = get_one_ring_tris_for_vertex(t);
-
-    for (auto t_tmp : one_ring_tris) {
-        Tuple t0 = t_tmp;
-        Tuple t1 = t0.switch_edge(*this);
-        Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
-        if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
-        if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
-        if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
-
-        if (is_boundary_edge(t0)) {
-            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
-        }
-        if (is_boundary_edge(t1)) {
-            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
-        }
-        if (is_boundary_edge(t2)) {
-            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
+            if (is_boundary_edge(t0)) {
+                edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
+            }
+            if (is_boundary_edge(t1)) {
+                edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
+            }
+            if (is_boundary_edge(t2)) {
+                edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
+            }
         }
     }
 
@@ -810,19 +826,12 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     auto t_opp = t.switch_face(*this);
     auto tri2 = oriented_tri_vids(t_opp.value());
 
-    // std::cout << "trinagle 1 : ";
-    // for (auto i : tri1) std::cout << i << " ";
-    // std::cout << std::endl << "triangle 2 : ";
-    // for (auto i : tri2) std::cout << i << " ";
-    // std::cout << std::endl;
-
     std::vector<int> v_ids;
     std::vector<int> v_map(vertex_attrs.size());
     Eigen::MatrixXi F_local(2, 3);
     Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
     for (int i = 0; i < 3; i++) {
         v_ids.push_back(tri1[i]);
-        // F_local(0, i) = i;
     }
     for (int i = 0; i < 3; i++) {
         int j = 0;
@@ -830,7 +839,6 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
             j++;
         }
         if (j == 3) v_ids.push_back((int)tri2[i]);
-        // F_local(1, i) = j;
     }
     std::sort(v_ids.begin(), v_ids.end());
     assert(v_ids.size() == 4);
@@ -881,57 +889,56 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     {
         return false;
     }
-
-    // std::cout << "fids are" << t.fid(*this) << "," << t.switch_face(*this).value().fid(*this) << std::endl;
-    // std::cout << "areas: " << dblarea << std::endl << dblarea_3d << std::endl;
-    // std::cout << "Es: " << Es.maxCoeff() << ", " << Es.minCoeff() << std::endl;
-    // std::cout << "Eolds: " << E_olds.maxCoeff() << ", " << E_olds.minCoeff() << std::endl << std::endl;
     
-    // update constraints after swap
-    Tuple t1 = t.switch_edge(*this);
-    Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
-    Tuple t1_old = swap_cache.local().t1;
-    Tuple t2_old = swap_cache.local().t2;
-    if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
-    if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
-    bool flag = true;
-    if (is_boundary_edge(t1)) {
-        auto t1_old_pair = edge_attrs[t1_old.eid_unsafe(*this)].pair;
-        if (t1_old_pair.eid_unsafe(*this) == t2_old.eid_unsafe(*this)) {
-            flag = false;
-            edge_attrs[t1.eid(*this)].pair = t2;
-            edge_attrs[t2.eid(*this)].pair = t1;
-        } else {
-            edge_attrs[t1_old_pair.eid_unsafe(*this)].pair = t1;
-            edge_attrs[t1.eid(*this)].pair = t1_old_pair;
-        }
-    }
-    if (flag && is_boundary_edge(t2)) {
-        auto t2_old_pair = edge_attrs[t2_old.eid_unsafe(*this)].pair;
-        edge_attrs[t2_old_pair.eid_unsafe(*this)].pair = t2;
-        edge_attrs[t2.eid(*this)].pair = t2_old_pair;
-    }
-
-    auto one_ring_tris = get_one_ring_tris_for_vertex(t);
-
-    for (auto t_tmp : one_ring_tris) {
-        Tuple t0 = t_tmp;
-        Tuple t1 = t0.switch_edge(*this);
-        Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
-        if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
+    if (m_params.with_cons)
+    {
+        // update constraints after swap
+        Tuple t1 = t.switch_edge(*this);
+        Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
+        Tuple t1_old = swap_cache.local().t1;
+        Tuple t2_old = swap_cache.local().t2;
         if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
         if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
-
-        if (is_boundary_edge(t0)) {
-            edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
-        }
+        bool flag = true;
         if (is_boundary_edge(t1)) {
-            edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
+            auto t1_old_pair = edge_attrs[t1_old.eid_unsafe(*this)].pair;
+            if (t1_old_pair.eid_unsafe(*this) == t2_old.eid_unsafe(*this)) {
+                flag = false;
+                edge_attrs[t1.eid(*this)].pair = t2;
+                edge_attrs[t2.eid(*this)].pair = t1;
+            } else {
+                edge_attrs[t1_old_pair.eid_unsafe(*this)].pair = t1;
+                edge_attrs[t1.eid(*this)].pair = t1_old_pair;
+            }
         }
-        if (is_boundary_edge(t2)) {
-            edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
+        if (flag && is_boundary_edge(t2)) {
+            auto t2_old_pair = edge_attrs[t2_old.eid_unsafe(*this)].pair;
+            edge_attrs[t2_old_pair.eid_unsafe(*this)].pair = t2;
+            edge_attrs[t2.eid(*this)].pair = t2_old_pair;
+        }
+
+        auto one_ring_tris = get_one_ring_tris_for_vertex(t);
+
+        for (auto t_tmp : one_ring_tris) {
+            Tuple t0 = t_tmp;
+            Tuple t1 = t0.switch_edge(*this);
+            Tuple t2 = t1.switch_vertex(*this).switch_edge(*this);
+            if (!t0.is_ccw(*this)) t0 = t0.switch_vertex(*this);
+            if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
+            if (!t2.is_ccw(*this)) t2 = t2.switch_vertex(*this);
+
+            if (is_boundary_edge(t0)) {
+                edge_attrs[edge_attrs[t0.eid(*this)].pair.eid_unsafe(*this)].pair = t0;
+            }
+            if (is_boundary_edge(t1)) {
+                edge_attrs[edge_attrs[t1.eid(*this)].pair.eid_unsafe(*this)].pair = t1;
+            }
+            if (is_boundary_edge(t2)) {
+                edge_attrs[edge_attrs[t2.eid(*this)].pair.eid_unsafe(*this)].pair = t2;
+            }
         }
     }
+    
     
     return true;
 }
@@ -943,9 +950,9 @@ bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
         return false;
     }
 
-    if (is_boundary_vertex(t)) {
-        return false;
-    }
+    // if (is_boundary_vertex(t)) {
+    //     return false;
+    // }
     // // it's okay to move the boundary(for now)
     // if (vertex_attrs[t.vid(*this)].fixed)
     //     return false;
@@ -961,106 +968,245 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
 
     wmtk::logger().trace("smooth vertex {}", vid);
     // std::cout << "vertex " << vid << std::endl;
-
-    auto vid_onering = get_one_ring_vids_for_vertex(vid);
-    auto locs = get_one_ring_tris_for_vertex(t);
-    assert(locs.size() > 0);
-
-    // get local (V, F)
-    Eigen::MatrixXd V_local(vid_onering.size(), 3);
-    Eigen::MatrixXd uv_local(vid_onering.size(), 2);
-    for (size_t i = 0; i < vid_onering.size(); i++) {
-        V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
-        uv_local.row(i) = vertex_attrs[vid_onering[i]].pos;
-    }
-    std::vector<int> v_map(vertex_attrs.size(), -1);
-    for (size_t i = 0; i < vid_onering.size(); i++) {
-        v_map[vid_onering[i]] = i;
-    }
-    Eigen::MatrixXi F_local(locs.size(), 3);
-    Eigen::VectorXd area_local(locs.size());
-    for (size_t i = 0; i < locs.size(); i++) {
-        int t_id = locs[i].fid(*this);
-        auto local_tuples = oriented_tri_vertices(locs[i]);
-        for (size_t j = 0; j < 3; j++) {
-            F_local(i, j) = v_map[local_tuples[j].vid(*this)];
-        }
-        // area_local(i) = face_attrs[t_id].area_3d;
-    }
-    igl::doublearea(V_local, F_local, area_local);
-    Eigen::SparseMatrix<double> G_local;
-    get_grad_op(V_local, F_local, G_local);
-    // std::cout << "G_local: \n" << G_local << std::endl;
-
-    auto compute_energy = [&G_local, &area_local](Eigen::MatrixXd& aaa) {
-        Eigen::MatrixXd Ji;
-        wmtk::jacobian_from_uv(G_local, aaa, Ji);
-        return wmtk::compute_energy_from_jacobian(Ji, area_local);
-    };
-
-
-    Eigen::SparseMatrix<double> hessian_local;
-    Eigen::VectorXd grad_local;
-
-    double local_energy_0 = wmtk::get_grad_and_hessian(
-        G_local,
-        area_local,
-        uv_local,
-        grad_local,
-        hessian_local,
-        m_params.do_newton);
-    Eigen::MatrixXd search_dir(1, 2);
-    if (!m_params.do_newton) {
-        search_dir =
-            -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uv_local.rows(), 2).row(v_map[vid]);
-    } else {
-        // local hessian for only one node
-        Eigen::Matrix2d hessian_at_v;
-        hessian_at_v << hessian_local.coeff(v_map[vid], v_map[vid]),
-            hessian_local.coeff(v_map[vid], v_map[vid] + vid_onering.size()),
-            hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid]),
-            hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid] + vid_onering.size());
-        Eigen::Vector2d grad_at_v;
-        grad_at_v << grad_local(v_map[vid]), grad_local(v_map[vid] + vid_onering.size());
-        Eigen::Vector2d newton_at_v = hessian_at_v.ldlt().solve(-grad_at_v);
-        search_dir << newton_at_v(0), newton_at_v(1);
-    }
-    // std::cout << "search_dir" << search_dir << std::endl;
-    // do linesearch
-    // std::cout << "local E0 = " << local_energy_0 << std::endl;
-    auto pos_copy = vertex_attrs[vid].pos;
-    double step = 1.0;
-    double new_energy;
-    auto new_x = uv_local;
     bool ls_good = false;
-    for (int i = 0; i < m_params.ls_iters; i++) {
-        new_x.row(v_map[vid]) = uv_local.row(v_map[vid]) + step * search_dir;
-        vertex_attrs[vid].pos << new_x(v_map[vid], 0), new_x(v_map[vid], 1);
-        new_energy = compute_energy(new_x);
-        // std::cout << "new E " << new_energy << std::endl;
 
-        bool has_flip = false;
-        for (auto loc : locs) {
-            if (is_inverted(loc)) {
-                has_flip = true;
+    if (!is_boundary_vertex(t))
+    { 
+        return false; // TODO: comment out this
+        auto vid_onering = get_one_ring_vids_for_vertex(vid);
+        auto locs = get_one_ring_tris_for_vertex(t);
+        assert(locs.size() > 0);
+
+        // get local (V, F)
+        Eigen::MatrixXd V_local(vid_onering.size(), 3);
+        Eigen::MatrixXd uv_local(vid_onering.size(), 2);
+        for (size_t i = 0; i < vid_onering.size(); i++) {
+            V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
+            uv_local.row(i) = vertex_attrs[vid_onering[i]].pos;
+        }
+        std::vector<int> v_map(vertex_attrs.size(), -1);
+        for (size_t i = 0; i < vid_onering.size(); i++) {
+            v_map[vid_onering[i]] = i;
+        }
+        Eigen::MatrixXi F_local(locs.size(), 3);
+        Eigen::VectorXd area_local(locs.size());
+        for (size_t i = 0; i < locs.size(); i++) {
+            int t_id = locs[i].fid(*this);
+            auto local_tuples = oriented_tri_vertices(locs[i]);
+            for (size_t j = 0; j < 3; j++) {
+                F_local(i, j) = v_map[local_tuples[j].vid(*this)];
+            }
+            // area_local(i) = face_attrs[t_id].area_3d;
+        }
+        igl::doublearea(V_local, F_local, area_local);
+        Eigen::SparseMatrix<double> G_local;
+        get_grad_op(V_local, F_local, G_local);
+        // std::cout << "G_local: \n" << G_local << std::endl;
+
+        auto compute_energy = [&G_local, &area_local](Eigen::MatrixXd& aaa) {
+            Eigen::MatrixXd Ji;
+            wmtk::jacobian_from_uv(G_local, aaa, Ji);
+            return wmtk::compute_energy_from_jacobian(Ji, area_local);
+        };
+
+
+        Eigen::SparseMatrix<double> hessian_local;
+        Eigen::VectorXd grad_local;
+
+        double local_energy_0 = wmtk::get_grad_and_hessian(
+            G_local,
+            area_local,
+            uv_local,
+            grad_local,
+            hessian_local,
+            m_params.do_newton);
+        Eigen::MatrixXd search_dir(1, 2);
+        if (!m_params.do_newton) {
+            search_dir =
+                -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uv_local.rows(), 2).row(v_map[vid]);
+        } else {
+            // local hessian for only one node
+            Eigen::Matrix2d hessian_at_v;
+            hessian_at_v << hessian_local.coeff(v_map[vid], v_map[vid]),
+                hessian_local.coeff(v_map[vid], v_map[vid] + vid_onering.size()),
+                hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid]),
+                hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid] + vid_onering.size());
+            Eigen::Vector2d grad_at_v;
+            grad_at_v << grad_local(v_map[vid]), grad_local(v_map[vid] + vid_onering.size());
+            Eigen::Vector2d newton_at_v = hessian_at_v.ldlt().solve(-grad_at_v);
+            search_dir << newton_at_v(0), newton_at_v(1);
+        }
+        // std::cout << "search_dir" << search_dir << std::endl;
+        // do linesearch
+        // std::cout << "local E0 = " << local_energy_0 << std::endl;
+        auto pos_copy = vertex_attrs[vid].pos;
+        double step = 1.0;
+        double new_energy;
+        auto new_x = uv_local;
+        for (int i = 0; i < m_params.ls_iters; i++) {
+            new_x.row(v_map[vid]) = uv_local.row(v_map[vid]) + step * search_dir;
+            vertex_attrs[vid].pos << new_x(v_map[vid], 0), new_x(v_map[vid], 1);
+            new_energy = compute_energy(new_x);
+            // std::cout << "new E " << new_energy << std::endl;
+
+            bool has_flip = false;
+            for (auto loc : locs) {
+                if (is_inverted(loc)) {
+                    has_flip = true;
+                    break;
+                }
+            }
+            if (new_energy < local_energy_0 && !has_flip) {
+                ls_good = true;
                 break;
             }
+            step = step * 0.8;
         }
-        if (new_energy < local_energy_0 && !has_flip) {
-            ls_good = true;
-            break;
+        if (ls_good) {
+            wmtk::logger()
+                .trace("ls good, step = {}, energy {} -> {}", step, local_energy_0, new_energy);
+        } else {
+            wmtk::logger().trace("ls failed");
+            vertex_attrs[vid].pos = pos_copy;
         }
-        step = step * 0.8;
     }
-    if (ls_good) {
-        wmtk::logger()
-            .trace("ls good, step = {}, energy {} -> {}", step, local_energy_0, new_energy);
-    } else {
-        wmtk::logger().trace("ls failed");
-        vertex_attrs[vid].pos = pos_copy;
+    else // boudnary vertex
+    {
+        std::vector<Tuple> ts;
+        std::vector<Eigen::MatrixXd> Vs, uvs;
+        std::vector<Eigen::MatrixXi> Fs;
+        std::vector<Eigen::Matrix2d> rots;
+        std::vector<Eigen::VectorXd> areas;
+        std::vector<Eigen::SparseMatrix<double>> Gs;
+        std::vector<Eigen::Matrix<double, 2, 2>> r_mat(4);
+        r_mat[0] << -1, 0, 0, -1;
+        r_mat[1] << 0, 1, -1, 0;
+        r_mat[2] << 1, 0, 0, 1;
+        r_mat[3] << 0, -1, 1, 0;
+        std::vector<int> local_vids;
+        bool flag = true, is_first = true;
+        auto t_cur = t;
+        while (flag)
+        {
+            // std::cout << "t_cur_now" << std::endl;
+            // t_cur.print_infos();
+
+            ts.push_back(t_cur);
+            Eigen::MatrixXd V_local, uv_local;
+            Eigen::MatrixXi F_local;
+            local_vids.push_back(get_mesh_onering(t_cur, V_local, uv_local, F_local));
+            Vs.push_back(V_local); uvs.push_back(uv_local); Fs.push_back(F_local);
+            Eigen::SparseMatrix<double> G_local;
+            get_grad_op(V_local, F_local, G_local);
+            Gs.push_back(G_local);
+            Eigen::VectorXd area_local;
+            igl::doublearea(V_local, F_local, area_local);
+            areas.push_back(area_local);
+            auto ve = get_one_ring_edges_for_vertex(t_cur);
+            Tuple local_bd;
+            for (auto e : ve)
+            {
+                if (is_boundary_edge(e) && (is_first || e.eid(*this) != t_cur.eid(*this))) local_bd = e;
+            }
+            // std::cout << "local_bd_0" << std::endl;
+            // local_bd.print_info();
+            is_first = false;
+            bool do_switch = false;
+            if (!local_bd.is_ccw(*this)) 
+            {
+                local_bd = local_bd.switch_vertex(*this);
+                do_switch = true;
+            }
+            // std::cout << "local_bd_1" << std::endl;
+            // local_bd.print_info();
+            t_cur = edge_attrs[local_bd.eid(*this)].pair;
+            // std::cout << "computed t_cur" << std::endl;
+            // t_cur.print_info();
+        
+
+            if (t_cur.vid(*this) == t.vid(*this) || t_cur.switch_vertex(*this).vid(*this) == t.vid(*this))
+            {
+                flag = false;
+            }
+            if (flag)
+            {
+                Eigen::Vector2d e_ab = vertex_attrs[t_cur.switch_vertex(*this).vid(*this)].pos - vertex_attrs[t_cur.vid(*this)].pos;
+                Eigen::Vector2d e_dc = vertex_attrs[local_bd.vid(*this)].pos - vertex_attrs[local_bd.switch_vertex(*this).vid(*this)].pos;
+
+                Eigen::Vector2d e_ab_perp;
+                e_ab_perp(0) = -e_ab(1);
+                e_ab_perp(1) = e_ab(0);
+                double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
+                int r = (int)(round(2 * angle / igl::PI) + 2) % 4;
+
+                rots.push_back(r_mat[r]);
+
+                // std::cout << "check rotation" << std::endl;
+                // std::cout << "R*ab:\n" << r_mat[r] * e_ab << std::endl;
+                // std::cout << "cd:" << -e_dc << std::endl; 
+            }
+            if (do_switch) t_cur = t_cur.switch_vertex(*this);
+        } // end of while loop
+        double total_area = 0.0;
+        for (int i = 0; i < areas.size(); i++)
+        {
+            total_area += areas[i].sum();
+        }
+        std::vector<Eigen::Matrix<double, 1, 2>> grads(Vs.size());
+        std::vector<double> E0s;
+        for (int i = 0; i < Vs.size(); i++)
+        {
+            Eigen::SparseMatrix<double> hessian_local;
+            Eigen::VectorXd grad_local;
+            double local_energy_0 = wmtk::get_grad_and_hessian(
+                Gs[i],
+                areas[i],
+                uvs[i],
+                grad_local,
+                hessian_local,
+                false);
+            grads[i] = -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uvs[i].rows(), 2).row(local_vids[i]);
+        }
+        
+        std::vector<Eigen::Matrix<double, 1, 2>> dirs(Vs.size());
+        Eigen::Matrix<double, 1, 2> dir = areas[0].sum() * grads[0];
+        for (int i = 0; i < Vs.size() - 1; i++)
+        {
+            Eigen::Matrix<double, 1, 2> local_dir = grads[i + 1];
+            for (int j = i; j >= 0; j--)
+            {
+                local_dir = (rots[j].transpose() * dir.transpose()).transpose();
+            }
+            dir += areas[i].sum() * local_dir;
+        }
+        dirs[0] = dir / total_area;
+        for (int i = 0; i < Vs.size() - 1; i++)
+        {
+            dirs[i + 1] = (rots[i] * dirs[i].transpose()).transpose();
+        }
+
+        
+        // std::cout << "information for smoothing vertex: " << t.vid(*this) << std::endl;
+        // std::cout << "copies " << ts.size() << std::endl;
+        // for (int i = 0; i < ts.size(); i++)
+        // {
+        //     std::cout << ts[i].vid(*this) << " ";
+        // }
+        // std::cout << std::endl;
+        // std::cout << "check their 3d position" << std::endl;
+        // for (int i = 0; i < ts.size(); i++)
+        // {
+        //     std::cout << vertex_attrs[ts[i].vid(*this)].pos_3d << std::endl;
+        // }
+        // std::cout << "dirs" << std::endl;
+        // for (int i = 0; i < dirs.size(); i++)
+        // {
+        //     std::cout << dirs[i] << std::endl;
+        // }
+        // std::cout << std::endl;
     }
 
-
+    
     return ls_good;
 }
 
@@ -1198,9 +1344,16 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
 {
     auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
     for (auto& loc : get_edges()) {
-        if (is_boundary_edge(loc)) {
-            collect_all_ops_collapse.emplace_back("test_op", loc);
-        } else {
+        if (m_params.with_cons)
+        {
+            if (is_boundary_edge(loc)) {
+                collect_all_ops_collapse.emplace_back("test_op", loc);
+            } else {
+                collect_all_ops_collapse.emplace_back("edge_collapse", loc);
+            }
+        }
+        else
+        {
             collect_all_ops_collapse.emplace_back("edge_collapse", loc);
         }
         // collect_all_ops_collapse.emplace_back("test_op", loc);
@@ -1325,11 +1478,8 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("After splitting, E = {}", E);
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
-            if (!std::isfinite(E)) {
-                // std::cout << uv << std::endl;
-                // break;
-            }
         }
+        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_split.obj", V, F, V, F, uv, F);
 
         if (this->m_params.local_smooth) {
             smooth_all_vertices();
@@ -1351,17 +1501,12 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
             get_grad_op(V, F, G_global);
             igl::doublearea(V, F, dblarea);
-            // Eigen::VectorXd dblarea2d;
-            // igl::doublearea(uv, F, dblarea2d);
-
-            // std::cout << "min area 3d: " << dblarea.minCoeff() << std::endl;
-            // std::cout << "min area 2d: " << dblarea2d.minCoeff() << std::endl;
-
             E = compute_energy(uv);
             E_max = compute_energy_max(uv);
             wmtk::logger().info("After swapping, E = {}", E);
             wmtk::logger().info("E_max = {}", E_max);
         }
+        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_swap.obj", V, F, V, F, uv, F);
 
         if (this->m_params.do_collapse) {
             collapse_all_edges();
@@ -1375,6 +1520,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
+        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_collapse.obj", V, F, V, F, uv, F);
 
         if (this->m_params.global_smooth) {
             timer.start();
@@ -1392,6 +1538,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             opt_log["opt_log"].push_back(
                 {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         }
+        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_smooth.obj", V, F, V, F, uv, F);
 
         // terminate criteria
         // if (E < m_params.E_target) {

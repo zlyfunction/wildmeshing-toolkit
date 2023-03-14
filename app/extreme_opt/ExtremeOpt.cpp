@@ -238,7 +238,7 @@ Eigen::VectorXd ExtremeOpt::get_quality_all_triangles()
     return ret;
 }
 
-void ExtremeOpt::get_mesh_onering(
+int ExtremeOpt::get_mesh_onering(
     const Tuple& t,
     Eigen::MatrixXd& V_local,
     Eigen::MatrixXd& uv_local,
@@ -265,6 +265,7 @@ void ExtremeOpt::get_mesh_onering(
             F_local(i, j) = v_map[local_tuples[j].vid(*this)];
         }
     }
+    return v_map[vid];
 }
 
 bool ExtremeOpt::is_inverted(const Tuple& loc) const
@@ -346,16 +347,18 @@ void ExtremeOpt::consolidate_mesh_cons()
     if (p_edge_attrs) p_edge_attrs->resize(tri_capacity() * 3);
     if (p_face_attrs) p_face_attrs->resize(tri_capacity());
 
-
-    // update constraints(edge tuple pairs)
-    for (int i = 0; i < tri_capacity(); i++) {
-        for (int j = 0; j < 3; j++) {
-            auto cur_t = tuple_from_edge(i, j);
-            if (is_boundary_edge(cur_t)) {
-                auto pair_t = edge_attrs[3 * i + j].pair;
-                edge_attrs[3 * i + j].pair = tuple_from_edge(
-                    map_t_ids[pair_t.eid_unsafe(*this) / 3],
-                    pair_t.eid_unsafe(*this) % 3);
+    if (m_params.with_cons)
+    {
+        // update constraints(edge tuple pairs)
+        for (int i = 0; i < tri_capacity(); i++) {
+            for (int j = 0; j < 3; j++) {
+                auto cur_t = tuple_from_edge(i, j);
+                if (is_boundary_edge(cur_t)) {
+                    auto pair_t = edge_attrs[3 * i + j].pair;
+                    edge_attrs[3 * i + j].pair = tuple_from_edge(
+                        map_t_ids[pair_t.eid_unsafe(*this) / 3],
+                        pair_t.eid_unsafe(*this) % 3);
+                }
             }
         }
     }
