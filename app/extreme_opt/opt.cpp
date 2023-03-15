@@ -1506,18 +1506,6 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
-        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_split.obj", V, F, V, F, uv, F);
-
-        if (this->m_params.local_smooth) {
-            smooth_all_vertices();
-            export_mesh(V, F, uv);
-            get_grad_op(V, F, G_global);
-            igl::doublearea(V, F, dblarea);
-            E = compute_energy(uv);
-            E_max = compute_energy_max(uv);
-            wmtk::logger().info("After LOCAL smoothing {}, E = {}", i, E);
-            wmtk::logger().info("E_max = {}", E_max);
-        }
 
         if (this->m_params.do_swap) {
             timer.start();
@@ -1533,7 +1521,6 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("After swapping, E = {}", E);
             wmtk::logger().info("E_max = {}", E_max);
         }
-        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_swap.obj", V, F, V, F, uv, F);
 
         if (this->m_params.do_collapse) {
             collapse_all_edges();
@@ -1547,8 +1534,22 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
-        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_collapse.obj", V, F, V, F, uv, F);
 
+        if (this->m_params.local_smooth) {
+            timer.start();
+            smooth_all_vertices();
+            time = timer.getElapsedTime();
+            wmtk::logger().info("LOCAL smoothing operation time serial: {}s", time);
+            export_mesh(V, F, uv);
+            get_grad_op(V, F, G_global);
+            igl::doublearea(V, F, dblarea);
+            E = compute_energy(uv);
+            E_max = compute_energy_max(uv);
+            wmtk::logger().info("After LOCAL smoothing {}, E = {}", i, E);
+            wmtk::logger().info("E_max = {}", E_max);
+            opt_log["opt_log"].push_back(
+                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
+        }
         if (this->m_params.global_smooth) {
             timer.start();
             smooth_global(1);
