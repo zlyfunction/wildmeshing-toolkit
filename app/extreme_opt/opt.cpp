@@ -972,7 +972,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
 
     if (!is_boundary_vertex(t))
     { 
-        return false; // TODO: comment out this
+        // return false;
         auto vid_onering = get_one_ring_vids_for_vertex(vid);
         auto locs = get_one_ring_tris_for_vertex(t);
         assert(locs.size() > 0);
@@ -1088,9 +1088,6 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         auto t_cur = t;
         while (flag)
         {
-            // std::cout << "t_cur_now" << std::endl;
-            // t_cur.print_infos();
-
             ts.push_back(t_cur);
             Eigen::MatrixXd V_local, uv_local;
             Eigen::MatrixXi F_local;
@@ -1140,20 +1137,21 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
                 int r = (int)(round(2 * angle / igl::PI) + 2) % 4;
 
                 rots.push_back(r_mat[r]);
-
-                // std::cout << "check rotation" << std::endl;
-                // std::cout << "R*ab:\n" << r_mat[r] * e_ab << std::endl;
-                // std::cout << "cd:" << -e_dc << std::endl; 
             }
             if (do_switch) t_cur = t_cur.switch_vertex(*this);
         } // end of while loop
+
+        if (ts.size() == 1)
+        {
+            return false;
+        }
         double total_area = 0.0;
         for (int i = 0; i < areas.size(); i++)
         {
             total_area += areas[i].sum();
         }
         std::vector<Eigen::Matrix<double, 1, 2>> grads(Vs.size());
-        std::vector<double> E0s;
+        double total_energy0 = 0.0;
         for (int i = 0; i < Vs.size(); i++)
         {
             Eigen::SparseMatrix<double> hessian_local;
@@ -1165,6 +1163,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
                 grad_local,
                 hessian_local,
                 false);
+            total_energy0 += areas[i].sum() * local_energy_0;
             grads[i] = -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uvs[i].rows(), 2).row(local_vids[i]);
         }
         
@@ -1185,25 +1184,53 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             dirs[i + 1] = (rots[i] * dirs[i].transpose()).transpose();
         }
 
-        
-        // std::cout << "information for smoothing vertex: " << t.vid(*this) << std::endl;
-        // std::cout << "copies " << ts.size() << std::endl;
-        // for (int i = 0; i < ts.size(); i++)
-        // {
-        //     std::cout << ts[i].vid(*this) << " ";
-        // }
-        // std::cout << std::endl;
-        // std::cout << "check their 3d position" << std::endl;
-        // for (int i = 0; i < ts.size(); i++)
-        // {
-        //     std::cout << vertex_attrs[ts[i].vid(*this)].pos_3d << std::endl;
-        // }
-        // std::cout << "dirs" << std::endl;
-        // for (int i = 0; i < dirs.size(); i++)
-        // {
-        //     std::cout << dirs[i] << std::endl;
-        // }
-        // std::cout << std::endl;
+        auto pos_copy = vertex_attrs[vid].pos;
+        double step = 1.0;
+        double new_energy = 0.0;
+        std::vector<Eigen::MatrixXd> new_xs = uvs;
+        for (int k = 0; k < m_params.ls_iters; k++)
+        {
+            new_energy = 0.0;
+            bool has_flip = false;
+            for (int i = 0; i < ts.size(); i++)
+            {
+                new_xs[i].row(local_vids[i]) = uvs[i].row(local_vids[i]) + step * dirs[i];
+                vertex_attrs[ts[i].vid(*this)].pos << new_xs[i](local_vids[i], 0), new_xs[i](local_vids[i], 1);
+                Eigen::MatrixXd Ji;
+                wmtk::jacobian_from_uv(Gs[i], new_xs[i], Ji);
+                new_energy += areas[i].sum() * wmtk::compute_energy_from_jacobian(Ji, areas[i]);
+            }
+            for (int i = 0; i < ts.size(); i++)
+            {
+                auto locs = get_one_ring_tris_for_vertex(ts[i]);
+                for (auto loc : locs)
+                {
+                    if (is_inverted(loc))
+                    {
+                        has_flip = true;
+                        break;
+                    }
+                }
+                // check flip here
+
+                if (has_flip)
+                {
+                    break;
+                }
+            }
+            if (!has_flip && new_energy < total_energy0)
+            {
+                ls_good = true;
+                break;
+            }
+            step = step * 0.8;
+        }
+        if (ls_good) {
+            wmtk::logger()
+                .info("boundary vertex {}, copies {} ls good, step = {}, energy {} -> {}", t.vid(*this), ts.size(), step, total_energy0 / total_area, new_energy / total_area);
+        } else {
+            wmtk::logger().info("boundary vertex {} ls failed", t.vid(*this));
+        }
     }
 
     

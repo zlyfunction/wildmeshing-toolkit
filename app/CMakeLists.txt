@@ -15,6 +15,10 @@ if(WMTK_APP_INTERIOR_TET_OPT)
 add_subdirectory(interior_tet_opt)
 endif()
 
+if(WMKT_APP_EXTREME_OPT)
+add_subdirectory(extreme_opt)
+endif()
+
 if(WMTK_APP_TETWILD)
     add_subdirectory(tetwild)
 endif()
