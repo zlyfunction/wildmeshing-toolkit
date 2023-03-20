@@ -1070,6 +1070,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             vertex_attrs[vid].pos = pos_copy;
         }
     }
+    // TODO: detect cones
     else // boudnary vertex
     {
         std::vector<Tuple> ts;
@@ -1125,7 +1126,8 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             {
                 flag = false;
             }
-            if (flag)
+            // if (flag)
+            if (true)
             {
                 Eigen::Vector2d e_ab = vertex_attrs[t_cur.switch_vertex(*this).vid(*this)].pos - vertex_attrs[t_cur.vid(*this)].pos;
                 Eigen::Vector2d e_dc = vertex_attrs[local_bd.vid(*this)].pos - vertex_attrs[local_bd.switch_vertex(*this).vid(*this)].pos;
@@ -1143,6 +1145,18 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
 
         if (ts.size() == 1)
         {
+            wmtk::logger().info("boundary vertex {} is singularity", t.vid(*this));
+            return false;
+        }
+        Eigen::Matrix2d tmp;
+        tmp.setIdentity();
+        for (int i = 0; i < rots.size(); i++)
+        {
+            tmp = tmp * rots[i];
+        }
+        if (!tmp.isIdentity(1e-10))
+        {
+            wmtk::logger().info("boundary vertex {} is singularity", t.vid(*this));
             return false;
         }
         double total_area = 0.0;
@@ -1506,6 +1520,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
+        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_splitted.obj", V, F, V, F, uv, F);
 
         if (this->m_params.do_swap) {
             timer.start();
@@ -1521,6 +1536,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("After swapping, E = {}", E);
             wmtk::logger().info("E_max = {}", E_max);
         }
+        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_swapped.obj", V, F, V, F, uv, F);
 
         if (this->m_params.do_collapse) {
             collapse_all_edges();
@@ -1534,6 +1550,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
+        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_collapsed.obj", V, F, V, F, uv, F);
 
         if (this->m_params.local_smooth) {
             timer.start();
@@ -1566,7 +1583,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             opt_log["opt_log"].push_back(
                 {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         }
-        // igl::writeOBJ("new_tests/step_" + std::to_string(i) + "_smooth.obj", V, F, V, F, uv, F);
+        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj", V, F, V, F, uv, F);
 
         // terminate criteria
         // if (E < m_params.E_target) {

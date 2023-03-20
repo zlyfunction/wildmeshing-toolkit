@@ -1,8 +1,9 @@
 #pragma once
-
+#include <string>
 namespace extremeopt{
     struct Parameters
     {
+        std::string model_name;
         int max_iters = 500;
         bool do_newton = false;
         bool do_swap = false;
