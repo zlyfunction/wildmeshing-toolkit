@@ -1009,6 +1009,12 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             return wmtk::compute_energy_from_jacobian(Ji, area_local);
         };
 
+        auto compute_energy_max = [&G_local, &area_local](Eigen::MatrixXd& aaa) {
+            Eigen::MatrixXd Ji;
+            wmtk::jacobian_from_uv(G_local, aaa, Ji);
+            return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+        };
+
 
         Eigen::SparseMatrix<double> hessian_local;
         Eigen::VectorXd grad_local;
@@ -1064,9 +1070,9 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         }
         if (ls_good) {
             wmtk::logger()
-                .trace("ls good, step = {}, energy {} -> {}", step, local_energy_0, new_energy);
+                .info("vertex {} onering_size {} ls good, step = {}, energy {} -> {}, E_max {} -> {}", vid, locs.size(), step, local_energy_0, new_energy, compute_energy_max(uv_local), compute_energy_max(new_x));
         } else {
-            wmtk::logger().trace("ls failed");
+            wmtk::logger().info("vertex {} ls failed", vid);
             vertex_attrs[vid].pos = pos_copy;
         }
     }
@@ -1166,6 +1172,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         }
         std::vector<Eigen::Matrix<double, 1, 2>> grads(Vs.size());
         double total_energy0 = 0.0;
+        double max_energy0 = 0.0;
         for (int i = 0; i < Vs.size(); i++)
         {
             Eigen::SparseMatrix<double> hessian_local;
@@ -1178,6 +1185,12 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
                 hessian_local,
                 false);
             total_energy0 += areas[i].sum() * local_energy_0;
+            
+            // duplicate code to get local E_max here
+            Eigen::MatrixXd Ji;
+            wmtk::jacobian_from_uv(Gs[i], uvs[i], Ji);
+            double local_E_max = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+            max_energy0 = std::max(max_energy0, local_E_max);
             grads[i] = -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uvs[i].rows(), 2).row(local_vids[i]);
         }
         
@@ -1201,10 +1214,12 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         auto pos_copy = vertex_attrs[vid].pos;
         double step = 1.0;
         double new_energy = 0.0;
+        double new_E_max = 0.0;
         std::vector<Eigen::MatrixXd> new_xs = uvs;
         for (int k = 0; k < m_params.ls_iters; k++)
         {
             new_energy = 0.0;
+            new_E_max = 0.0;
             bool has_flip = false;
             for (int i = 0; i < ts.size(); i++)
             {
@@ -1212,6 +1227,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
                 vertex_attrs[ts[i].vid(*this)].pos << new_xs[i](local_vids[i], 0), new_xs[i](local_vids[i], 1);
                 Eigen::MatrixXd Ji;
                 wmtk::jacobian_from_uv(Gs[i], new_xs[i], Ji);
+                new_E_max = std::max(new_E_max, wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff());
                 new_energy += areas[i].sum() * wmtk::compute_energy_from_jacobian(Ji, areas[i]);
             }
             for (int i = 0; i < ts.size(); i++)
@@ -1240,8 +1256,13 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             step = step * 0.8;
         }
         if (ls_good) {
+            int onering_size = 0;
+            for (int i = 0; i < Fs.size(); i++)
+            {
+                onering_size += Fs[i].rows();
+            }
             wmtk::logger()
-                .info("boundary vertex {}, copies {} ls good, step = {}, energy {} -> {}", t.vid(*this), ts.size(), step, total_energy0 / total_area, new_energy / total_area);
+                .info("boundary vertex {}, copies {}, onering_size {}, ls good, step = {}, energy {} -> {}, E_max {} -> {}", t.vid(*this), ts.size(), onering_size, step, total_energy0 / total_area, new_energy / total_area, max_energy0, new_E_max);
         } else {
             wmtk::logger().info("boundary vertex {} ls failed", t.vid(*this));
         }
@@ -1520,7 +1541,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
-        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_splitted.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_splitted.obj", V, F, V, F, uv, F);
 
         if (this->m_params.do_swap) {
             timer.start();
@@ -1536,7 +1557,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("After swapping, E = {}", E);
             wmtk::logger().info("E_max = {}", E_max);
         }
-        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_swapped.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_swapped.obj", V, F, V, F, uv, F);
 
         if (this->m_params.do_collapse) {
             collapse_all_edges();
@@ -1550,7 +1571,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
-        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_collapsed.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_collapsed.obj", V, F, V, F, uv, F);
 
         if (this->m_params.local_smooth) {
             timer.start();
@@ -1583,7 +1604,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             opt_log["opt_log"].push_back(
                 {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         }
-        igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj", V, F, V, F, uv, F);
 
         // terminate criteria
         // if (E < m_params.E_target) {

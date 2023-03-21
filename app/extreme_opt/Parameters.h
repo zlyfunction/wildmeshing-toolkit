@@ -4,6 +4,8 @@ namespace extremeopt{
     struct Parameters
     {
         std::string model_name;
+        bool save_meshes = false;
+
         int max_iters = 500;
         bool do_newton = false;
         bool do_swap = false;

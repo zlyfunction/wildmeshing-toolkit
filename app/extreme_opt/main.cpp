@@ -254,6 +254,8 @@ int main(int argc, char** argv)
     param.elen_alpha = config["elen_alpha"];
     param.do_projection = config["do_projection"];
     param.with_cons = config["with_cons"];
+
+    param.save_meshes = config["save_meshes"];
     param.model_name = model;
     json opt_log;
     opt_log["model_name"] = model;
