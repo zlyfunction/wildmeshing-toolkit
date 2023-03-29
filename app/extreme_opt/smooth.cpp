@@ -134,16 +134,8 @@ bool extremeopt::ExtremeOpt::smooth_before(const Tuple& t)
         std::cout << "tuple not valid" << std::endl;
         return false;
     }
-
-    // if (is_boundary_vertex(t)) {
-    //     return false;
-    // }
-    // // it's okay to move the boundary(for now)
-    // if (vertex_attrs[t.vid(*this)].fixed)
-    //     return false;
     return true;
 }
-
 
 bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
 {
@@ -225,31 +217,24 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
                 hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid] + vid_onering.size());
             Eigen::Vector2d grad_at_v;
             grad_at_v << grad_local(v_map[vid]), grad_local(v_map[vid] + vid_onering.size());
-            std::cout << "Grad = \n" << grad_at_v << std::endl;
-            std::cout << "Hessian = \n" << hessian_at_v << std::endl;
-            // std::cout << "grad.norm() = " << grad_at_v.norm() << std::endl;
             Eigen::Vector2d newton_at_v = hessian_at_v.ldlt().solve(-grad_at_v);
             search_dir << newton_at_v(0), newton_at_v(1);
         }
-        std::cout << "search_dir" << search_dir << std::endl;
         // std::cout << "search_dir" << search_dir << std::endl;
-        // do linesearch
-        // std::cout << "local E0 = " << local_energy_0 << std::endl;
         auto pos_copy = vertex_attrs[vid].pos;
         double step = 1.0;
         double new_energy;
         auto new_x = uv_local;
         for (int i = 0; i < m_params.ls_iters; i++) {
-            std::cout << i << "  step_size " << step << std::endl;
+            // std::cout << i << "  step_size " << step << std::endl;
             new_x.row(v_map[vid]) = uv_local.row(v_map[vid]) + step * search_dir;
             vertex_attrs[vid].pos << new_x(v_map[vid], 0), new_x(v_map[vid], 1);
             new_energy = compute_energy(new_x);
-            // std::cout << "new E " << new_energy << std::endl;
 
             bool has_flip = false;
             for (auto loc : locs) {
                 if (is_inverted(loc)) {
-                    std::cout << "flip" << std::endl;
+                    // std::cout << "flip" << std::endl;
                     has_flip = true;
                     break;
                 }
@@ -260,7 +245,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             }
             else
             {
-                std::cout << "new energy: " << new_energy << ">=" << local_energy_0 << std::endl;
+                // std::cout << "new energy: " << new_energy << ">=" << local_energy_0 << std::endl;
             }
             step = step * 0.8;
         }
@@ -270,14 +255,6 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         } else {
             wmtk::logger().info("vertex {} ls failed", vid);
             vertex_attrs[vid].pos = pos_copy;
-        }
-
-        // DEBUG
-        if (vid == 3924)
-        {
-            igl::writeOBJ("new_tests/" + m_params.model_name + "_v3924_before.obj", V_local, F_local, V_local, F_local, uv_local, F_local);
-            igl::writeOBJ("new_tests/" + m_params.model_name + "_v3924_after.obj", V_local, F_local, V_local, F_local, new_x, F_local);
-
         }
     }
     else if (m_params.with_cons)// boudnary vertex
@@ -322,8 +299,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             {
                 if (is_boundary_edge(e) && (is_first || e.eid(*this) != t_cur.eid(*this))) local_bd = e;
             }
-            // std::cout << "local_bd_0" << std::endl;
-            // local_bd.print_info();
+
             is_first = false;
             bool do_switch = false;
             if (!local_bd.is_ccw(*this)) 
@@ -331,31 +307,22 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
                 local_bd = local_bd.switch_vertex(*this);
                 do_switch = true;
             }
-            // std::cout << "local_bd_1" << std::endl;
-            // local_bd.print_info();
             t_cur = edge_attrs[local_bd.eid(*this)].pair;
-            // std::cout << "computed t_cur" << std::endl;
-            // t_cur.print_info();
-        
-
             if (t_cur.vid(*this) == t.vid(*this) || t_cur.switch_vertex(*this).vid(*this) == t.vid(*this))
             {
                 flag = false;
             }
-            // if (flag)
-            if (true)
-            {
-                Eigen::Vector2d e_ab = vertex_attrs[t_cur.switch_vertex(*this).vid(*this)].pos - vertex_attrs[t_cur.vid(*this)].pos;
-                Eigen::Vector2d e_dc = vertex_attrs[local_bd.vid(*this)].pos - vertex_attrs[local_bd.switch_vertex(*this).vid(*this)].pos;
 
-                Eigen::Vector2d e_ab_perp;
-                e_ab_perp(0) = -e_ab(1);
-                e_ab_perp(1) = e_ab(0);
-                double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
-                int r = (int)(round(2 * angle / igl::PI) + 2) % 4;
+            // compute rotation matrix
+            Eigen::Vector2d e_ab = vertex_attrs[t_cur.switch_vertex(*this).vid(*this)].pos - vertex_attrs[t_cur.vid(*this)].pos;
+            Eigen::Vector2d e_dc = vertex_attrs[local_bd.vid(*this)].pos - vertex_attrs[local_bd.switch_vertex(*this).vid(*this)].pos;
+            Eigen::Vector2d e_ab_perp;
+            e_ab_perp(0) = -e_ab(1);
+            e_ab_perp(1) = e_ab(0);
+            double angle = atan2(-e_ab_perp.dot(e_dc), e_ab.dot(e_dc));
+            int r = (int)(round(2 * angle / igl::PI) + 2) % 4;
+            rots.push_back(r_mat[r]);
 
-                rots.push_back(r_mat[r]);
-            }
             if (do_switch) t_cur = t_cur.switch_vertex(*this);
         } // end of while loop
 
