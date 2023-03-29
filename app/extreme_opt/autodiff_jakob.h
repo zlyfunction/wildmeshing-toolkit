@@ -804,6 +804,7 @@ public:
 	inline bool operator>(const Scalar& s) const { return value > s; }
 	inline bool operator>=(const Scalar& s) const { return value >= s; }
 	inline bool operator==(const Scalar& s) const { return value == s; }
+	inline bool operator==(const DScalar2& s) const{ return (value == s.value && grad == s.grad && hess == s.hess);} // For Matrix Multiplication ------ Blame Leyi
 	inline bool operator!=(const Scalar& s) const { return value != s; }
 
 	/// @}

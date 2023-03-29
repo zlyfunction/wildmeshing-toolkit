@@ -9,9 +9,15 @@
 // #include <fastenvelope/FastEnvelope.h>
 #include <sec/envelope/SampleEnvelope.hpp>
 #include <igl/AABB.h>
+#include <Eigen/Sparse>
+
 using json = nlohmann::json;
 
+
+
 namespace extremeopt {
+
+void get_grad_op(Eigen::MatrixXd& V, const Eigen::MatrixXi& F, Eigen::SparseMatrix<double>& grad_op);
 
 class VertexAttributes
 {

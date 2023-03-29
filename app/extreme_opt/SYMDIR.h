@@ -6,14 +6,20 @@
 #include <Eigen/Cholesky>
 #include <iostream>
 
+// #define SOFT_MAX
 
+#define NORM_P 6 
 namespace wmtk{
     template <typename T>
     T symmetric_dirichlet_energy_t(T a, T b, T c, T d)
     {
         auto det = a * d - b * c;
         auto frob2 = a * a + b * b + c * c + d * d;
+#ifndef SOFT_MAX
         return frob2 * (1 + 1 / (det * det)); // sym_dir
+#else
+        return pow(frob2 * (1 + 1 / (det * det)), NORM_P);
+#endif
         // return frob2 / det; // amips
     }
 
@@ -23,7 +29,11 @@ namespace wmtk{
     {
     auto det = a.array() * d.array() - b.array() * c.array();
     auto frob2 = a.array().abs2() + b.array().abs2() + c.array().abs2() + d.array().abs2();
+#ifndef SOFT_MAX
     return (frob2 * (1 + (det).abs2().inverse())).matrix(); // sym_dir
+#else 
+    return (frob2 * (1 + (det).abs2().inverse())).pow(NORM_P).matrix();
+#endif
     // return (frob2 * det.inverse()).matrix(); // amips
     }
 

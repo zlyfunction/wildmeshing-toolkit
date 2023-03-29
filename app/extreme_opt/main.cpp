@@ -280,17 +280,19 @@ int main(int argc, char** argv)
     // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     extremeopt.m_params = param;
     extremeopt.create_mesh(V, F, uv);
-    std::vector<std::vector<int>> EE_e;
-    transform_EE(F, EE, EE_e);
-    extremeopt.init_constraints(EE_e);
-    assert(extremeopt.check_mesh_connectivity_validity());
-    std::cout << "check constraints inside wmtk" << std::endl;
-    if (extremeopt.check_constraints()) {
-        std::cout << "initial constraints satisfied" << std::endl;
-    } else {
-        std::cout << "fails" << std::endl;
+    if (extremeopt.m_params.with_cons)
+    {
+        std::vector<std::vector<int>> EE_e;
+        transform_EE(F, EE, EE_e);
+        extremeopt.init_constraints(EE_e);
+        assert(extremeopt.check_mesh_connectivity_validity());
+        std::cout << "check constraints inside wmtk" << std::endl;
+        if (extremeopt.check_constraints()) {
+            std::cout << "initial constraints satisfied" << std::endl;
+        } else {
+            std::cout << "fails" << std::endl;
+        }
     }
-
     extremeopt.do_optimization(opt_log);
     if (extremeopt.m_params.with_cons)
     {
