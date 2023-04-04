@@ -1,6 +1,226 @@
 #include "ExtremeOpt.h"
 #include "SYMDIR.h"
 
+
+#include <wmtk/TriMeshOperation.h>
+
+namespace extremeopt {
+    class 
+class CollapsePairOperation
+    : public wmtk::TriMeshOperationShim<ExtremeOpt, CollapsePair, wmtk::TriMeshOperation>
+{
+public:
+    bool before(ExtremeOpt& m, const TriMesh::Tuple& t) { return m.collapse_edge_before(t); }
+
+    bool after(ExtremeOpt& m, const ExecuteReturnData& retdata)
+    {
+        const TriMesh::Tuple& t = retdata.tuple;
+        ret_data.success |= m.collapse_after_check(t);
+    }
+
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    {
+        ExecuteReturnData ret_data;
+        std::vector<Tuple>& new_tris = ret_data.new_tris;
+        Tuple& new_t = ret_data.tuple;
+        // TODO: Relocate this code in before check
+        if (!m.is_boundary_edge(t)) {
+            // std::cout << "not boundary edge" << std::endl;
+            return ret_data;
+        }
+        if (!t.is_valid(m)) {
+            std::cout << "not valid" << std::endl;
+            return ret_data;
+        }
+        if (!m.wmtk::TriMesh::collapse_edge_before(t)) {
+            // std::cout << "link condition error" << std::endl;
+            return ret_data;
+        }
+        Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
+        if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input)) {
+            // std::cout << "link condition error" << std::endl;
+            return ret_data;
+        }
+        // Skip cases that paired edges are in the same triangle
+        if (t_pair_input.fid(m) == t.fid(m)) {
+            return ret_data;
+        }
+        if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m)) {
+            return ret_data;
+        }
+        if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m)) {
+            return ret_data;
+        }
+        // Get E_max before collapse
+        double E_max_t_input =
+            std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
+        double E_max_t_pair_input = std::max(
+            m.get_e_max_onering(t_pair_input),
+            m.get_e_max_onering(t_pair_input.switch_vertex(m)));
+        double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
+        // std::cout << "trying to collapse a boudnary edge" << std::endl;
+        // t.print_info();
+        // t_pair_input.print_info();
+        // std::cout << "E_max before collapsing is " << E_max_input << std::endl;
+
+        // get neighbor edges
+        auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
+        auto onering_t_r = m.get_one_ring_edges_for_vertex(t.switch_vertex(m));
+        Tuple bd_t_l, bd_t_r;
+        for (auto t_tmp : onering_t_l) {
+            if (m.is_boundary_edge(t_tmp)) {
+                if (t_tmp.eid(m) != t.eid(m)) {
+                    bd_t_l = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        for (auto t_tmp : onering_t_r) {
+            if (m.is_boundary_edge(t_tmp)) {
+                if (t_tmp.eid(m) != t.eid(m)) {
+                    bd_t_r = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
+                }
+            }
+        }
+
+        Tuple bd_t_l_pair = m.edge_attrs[bd_t_l.eid(m)].pair;
+        Tuple bd_t_r_pair = m.edge_attrs[bd_t_r.eid(m)].pair;
+        bool keep_t = false, keep_t_opp = false;
+        if (bd_t_r_pair.switch_vertex(m).vid(m) == t_pair_input.vid(m)) {
+            auto len1 =
+                (m.vertex_attrs[t.vid(m)].pos - m.vertex_attrs[bd_t_r.switch_vertex(m).vid(m)].pos)
+                    .norm();
+            auto len2 = (m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos -
+                         m.vertex_attrs[bd_t_r_pair.vid(m)].pos)
+                            .norm();
+            if (std::abs(len1 - len2) < 1e-7) {
+                // std::cout << "keep t.vid" << std::endl;
+                keep_t = true;
+            } else {
+                // std::cout << "len diff, cannot keep t.vid" << std::endl;
+            }
+        } else {
+            // std::cout << "cannot keep t.vid" << std::endl;
+        }
+
+        if (bd_t_l_pair.vid(m) == t_pair_input.switch_vertex(m).vid(m)) {
+            auto len1 =
+                (m.vertex_attrs[t.switch_vertex(m).vid(m)].pos - m.vertex_attrs[bd_t_l.vid(m)].pos)
+                    .norm();
+            auto len2 = (m.vertex_attrs[t_pair_input.vid(m)].pos -
+                         m.vertex_attrs[bd_t_l_pair.switch_vertex(m).vid(m)].pos)
+                            .norm();
+            if (std::abs(len1 - len2) < 1e-7) {
+                // std::cout << "keep t.switch_vertex.vid" << std::endl;
+                keep_t_opp = true;
+            } else {
+                // std::cout << "len diff, cannot keep t.switch_vertex.vid" << std::endl;
+            }
+        } else {
+            // std::cout << "cannot keep t.switch_vertex.vid" << std::endl;
+        }
+        if (!keep_t && !keep_t_opp) {
+            // std::cout << "this boudnary edge cannot collapse" << std::endl;
+            return ret_data;
+        }
+        Eigen::Vector3d V_keep_t, V_keep_t_pair;
+        Eigen::Vector2d uv_keep_t, uv_keep_t_pair;
+        if (keep_t) {
+            V_keep_t = m.vertex_attrs[t.vid(m)].pos_3d;
+            uv_keep_t = m.vertex_attrs[t.vid(m)].pos;
+            V_keep_t_pair = m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos_3d;
+            uv_keep_t_pair = m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos;
+        } else {
+            V_keep_t = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos_3d;
+            uv_keep_t = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos;
+            V_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos_3d;
+            uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
+        }
+
+        m.start_protected_connectivity();
+        m.start_protected_attributes();
+        ret_data.merge(m_edge_collapser.execute(t));
+        // new_t = m.collapse_edge_new(t, new_tris);
+
+
+        double E_max_t, E_max_t_pair;
+        if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_max_t)) {
+            // std::cout << "collapse t fail" << std::endl;
+            return ret_data;
+        } else {
+            // std::cout << "collapse t ok" << std::endl;
+        }
+
+        Tuple t_pair =
+            m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
+        auto onering_t_pair_l = m.get_one_ring_edges_for_vertex(t_pair);
+        auto onering_t_pair_r = m.get_one_ring_edges_for_vertex(t_pair.switch_vertex(m));
+        Tuple bd_t_pair_l, bd_t_pair_r;
+        for (auto t_tmp : onering_t_pair_l) {
+            if (m.is_boundary_edge(t_tmp)) {
+                if (t_tmp.eid(m) != t_pair.eid(m)) {
+                    bd_t_pair_l = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        for (auto t_tmp : onering_t_pair_r) {
+            if (m.is_boundary_edge(t_tmp)) {
+                if (t_tmp.eid(m) != t_pair.eid(m)) {
+                    bd_t_pair_r = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        ret_data.merge(t_pair.execute(t));
+        // new_t = m.collapse_edge_new(t_pair, new_tris);
+        if (!m.collapse_bd_edge_after(
+                new_t,
+                V_keep_t_pair,
+                uv_keep_t_pair,
+                bd_t_pair_l,
+                bd_t_pair_r,
+                E_max_t_pair)) {
+            // std::cout << "collapse t pair fail" << std::endl;
+            return ret_data;
+        } else {
+            // std::cout << "collapse t pair ok" << std::endl;
+        }
+        if (E_max_input < std::max(E_max_t, E_max_t_pair)) {
+            return ret_data;
+        }
+
+
+        ret_data.success = true;
+        return ret_data;
+    }
+
+    bool before_check(const Tuple& t, ExtremeOpt& m) { return m.collapse_edge_before(t); }
+
+    bool after_check(const Tuple& t, ExtremeOpt& m) { return m.collapse_edge_after(t); }
+
+    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override
+    {
+        ExecuteReturnData ret_data;
+        std::vector<TriMesh::Tuple> new_tris;
+        if (std::tie(ret_data.tuple, ret_data.success) =
+                execute(t, dynamic_cast<ExtremeOpt&>(m), ret_data.new_tris);
+            ret_data.success) {
+            return ret_data;
+        } else {
+            return {};
+        }
+    }
+    bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override
+    {
+        return after_check(ret_data.tuple, dynamic_cast<ExtremeOpt&>(m));
+    }
+    bool before_check(const Tuple& t, TriMesh& m) override
+    {
+        return before_check(t, dynamic_cast<ExtremeOpt&>(m));
+    }
+    std::string name() const { return "collapse_pair"; }
+    CollapsePairOperation(){};
+    virtual ~CollapsePairOperation(){};
+};
+} // namespace extremeopt
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) {
@@ -267,4 +487,40 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
 
 
     return true;
+}
+
+void extremeopt::ExtremeOpt::collapse_all_edges()
+{
+    auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
+    for (auto& loc : get_edges()) {
+        if (m_params.with_cons)
+        {
+            if (is_boundary_edge(loc)) {
+                collect_all_ops_collapse.emplace_back("collapse_pair", loc);
+            } else {
+                collect_all_ops_collapse.emplace_back(TriMeshEdgeCollapseOperation{}.name(), loc);
+            }
+        }
+        else
+        {
+            collect_all_ops_collapse.emplace_back("edge_collapse", loc);
+        }
+        // collect_all_ops_collapse.emplace_back("collapse_pair", loc);
+    }
+    auto setup_and_execute = [&](auto& executor_collapse) {
+
+        addCustomOps(executor);
+        executor_collapse.renew_neighbor_tuples = renew_collapse;
+        // add term with energy
+        executor_collapse.priority = [&](auto& m, auto _, auto& e) {
+            return (vertex_attrs[e.vid(*this)].pos -
+                    vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+                .norm();
+        };
+        executor_collapse.num_threads = NUM_THREADS;
+        executor_collapse(*this, collect_all_ops_collapse);
+        // TODO: priority queue (edge length)
+    };
+    auto executor_collapse = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    setup_and_execute(executor_collapse);
 }

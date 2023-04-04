@@ -178,3 +178,23 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     return true;
 }
 
+void extremeopt::ExtremeOpt::swap_all_edges()
+{
+    auto collect_all_ops_swap = std::vector<std::pair<std::string, Tuple>>();
+    for (auto& loc : get_edges()) {
+        collect_all_ops_swap.emplace_back("edge_swap", loc);
+    }
+
+    auto setup_and_execute = [&](auto& executor_swap) {
+        executor_swap.renew_neighbor_tuples = renew;
+        executor_swap.priority = [&](auto& m, auto _, auto& e) {
+            return -(vertex_attrs[e.vid(*this)].pos -
+                     vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+                        .norm();
+        };
+        executor_swap.num_threads = NUM_THREADS;
+        executor_swap(*this, collect_all_ops_swap);
+    };
+    auto executor_swap = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    setup_and_execute(executor_swap);
+}

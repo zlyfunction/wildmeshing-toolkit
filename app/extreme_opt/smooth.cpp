@@ -5,6 +5,51 @@
 #include <igl/boundary_loop.h>
 #include <igl/writeOBJ.h>
 
+
+namespace {
+
+using namespace extremeopt;
+using namespace wmtk;
+
+class ExtremeOptSmoothVertexOperation : public wmtk::TriMeshOperationShim<
+                                                  ExtremeOpt,
+                                                  ExtremeOptSmoothVertexOperation,
+                                                  wmtk::TriMeshSmoothVertexOperation>
+{
+public:
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    {
+        return wmtk::TriMeshSmoothVertexOperation::execute(m, t);
+    }
+    bool before(ExtremeOpt& m, const Tuple& t)
+    {
+        if (wmtk::TriMeshSmoothVertexOperation::before(m, t)) {
+            return  m.smooth_before(t);
+        }
+        return false;
+    }
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSmoothVertexOperation::after(m, ret_data)) {
+            ret_data.success |= m.smooth_after(ret_data.tuple);
+        }
+        return ret_data;
+    }
+    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSmoothVertexOperation::invariants(m, ret_data)) {
+            ret_data.success |= m.invariants(ret_data.new_tris);
+        }
+        return ret_data;
+    }
+};
+
+    template <typename Executor>
+    void addCustomOps(Executor& e) {
+
+        e.add_operation(std::make_shared<ExtremeOptSmoothVertexOperation>());
+    }
+}
 void buildAeq(
     const Eigen::MatrixXi& EE,
     const Eigen::MatrixXd& uv,
@@ -545,4 +590,15 @@ void extremeopt::ExtremeOpt::smooth_global(int steps)
     } else {
         std::cout << "smooth failed" << std::endl;
     }
+}
+void extremeopt::ExtremeOpt::smooth_all_vertices()
+{
+    auto collect_all_ops = std::vector<std::pair<std::string, Tuple>>();
+    for (auto& loc : get_vertices()) {
+        collect_all_ops.emplace_back("vertex_smooth", loc);
+    }
+
+    auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    addCusttomOps(executor);
+    executor(*this, collect_all_ops);
 }

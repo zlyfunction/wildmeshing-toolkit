@@ -1,7 +1,7 @@
 #include <wmtk/TriMeshOperation.h>
-#include <wmtk/utils/TriMeshOperationLogger.h>
 #include <wmtk/utils/VectorUtils.h>
 using namespace wmtk;
+
 
 auto TriMeshOperation::vertex_connectivity(TriMesh& m)
     -> wmtk::AttributeCollection<VertexConnectivity>&
@@ -10,6 +10,16 @@ auto TriMeshOperation::vertex_connectivity(TriMesh& m)
 }
 auto TriMeshOperation::tri_connectivity(TriMesh& m)
     -> wmtk::AttributeCollection<TriangleConnectivity>&
+{
+    return m.m_tri_connectivity;
+}
+auto TriMeshOperation::vertex_connectivity(const TriMesh& m)
+    -> const wmtk::AttributeCollection<VertexConnectivity>&
+{
+    return m.m_vertex_connectivity;
+}
+auto TriMeshOperation::tri_connectivity(const TriMesh& m)
+    -> const wmtk::AttributeCollection<TriangleConnectivity>&
 {
     return m.m_tri_connectivity;
 }
@@ -23,94 +33,56 @@ size_t TriMeshOperation::get_next_empty_slot_v(TriMesh& m)
 }
 
 
-auto TriMeshOperation::operator()(const Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshOperation::operator()(TriMesh& m, const Tuple& t) -> ExecuteReturnData
 {
     ExecuteReturnData retdata;
     retdata.success = false;
 
-    if (before_check(t, m)) {
-        m.start_protected_connectivity();
-        {
-#if defined(USE_OPERATION_LOGGER)
-            std::shared_ptr<TriMeshOperationRecorder> recorder;
+    m.start_protected_connectivity();
+    m.start_protected_attributes();
+    if (before(m, t)) {
+        retdata = execute(m, t);
 
-            // If the operation logger exists then log
-            if (m.p_operation_logger) {
-                auto& wp_op_rec = m.p_operation_recorder.local();
-                recorder = m.p_operation_logger->start_ptr(m, name(), t);
-                wp_op_rec = recorder;
-            }
-#endif
-            retdata = execute(t, m);
-            if (retdata.success) {
-#if defined(USE_OPERATION_LOGGER)
-                if (recorder != nullptr) {
-                    recorder->set_output_tuple(retdata.tuple);
-                }
-#endif
-                m.start_protected_attributes();
-
-                if (!(after_check(retdata, m) && invariants(retdata, m))) {
-                    retdata.success = false;
-#if defined(USE_OPERATION_LOGGER)
-                    if (recorder != nullptr) {
-                        recorder->cancel();
-                    }
-#endif
-
-                    m.rollback_protected_connectivity();
-                    m.rollback_protected_attributes();
-                }
-            } else {
+        if (retdata.success) {
+            if (!(after(m, retdata) && invariants(m, retdata))) {
+                retdata.success = false;
             }
         }
-        m.release_protected_connectivity();
-        m.release_protected_attributes();
-    } else {
     }
 
-    if (retdata.success) {
-        for (const Tuple& new_tri : retdata.new_tris) {
-            auto vids = m.oriented_tri_vids(new_tri);
-            const auto [ai, bi, ci] = vids;
-            assert(ai != bi);
-            assert(bi != ci);
-            assert(ai != ci);
-        }
+    if (retdata.success == false) {
+        m.rollback_protected_connectivity();
+        m.rollback_protected_attributes();
     }
+    m.release_protected_connectivity();
+    m.release_protected_attributes();
 
     return retdata;
 }
 
-#if defined(USE_OPERATION_LOGGER)
-std::weak_ptr<OperationRecorder> TriMeshOperation::recorder(TriMesh& m) const
-{
-    return m.p_operation_recorder.local();
-}
-#endif
-bool TriMeshOperation::invariants(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshOperation::invariants(TriMesh& m, ExecuteReturnData& ret_data)
 {
     return m.invariants(ret_data.new_tris);
 }
 
-void TriMeshOperation::set_vertex_size(size_t v_cnt, TriMesh& m)
+void TriMeshOperation::set_vertex_size(TriMesh& m, size_t v_cnt)
 {
     m.current_vert_size = v_cnt;
     auto& vertex_con = vertex_connectivity(m);
-    vertex_con.m_attributes.resize(v_cnt);
+    vertex_con.m_attributes.grow_to_at_least(v_cnt);
     vertex_con.shrink_to_fit();
     m.resize_mutex(m.vert_capacity());
 }
-void TriMeshOperation::set_tri_size(size_t t_cnt, TriMesh& m)
+void TriMeshOperation::set_tri_size(TriMesh& m, size_t t_cnt)
 {
     m.current_tri_size = t_cnt;
 
     auto& tri_con = tri_connectivity(m);
-    tri_con.m_attributes.resize(t_cnt);
+    tri_con.m_attributes.grow_to_at_least(t_cnt);
     tri_con.shrink_to_fit();
 }
 
-auto TriMeshSplitEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshSplitEdgeOperation::execute(TriMesh& m, const Tuple& t) -> ExecuteReturnData
 {
     ExecuteReturnData ret_data;
     std::vector<Tuple>& new_tris = ret_data.new_tris;
@@ -345,21 +317,52 @@ auto TriMeshSplitEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteRe
     ret_data.success = true;
     return ret_data;
 }
-bool TriMeshSplitEdgeOperation::before_check(const Tuple& t, TriMesh& m)
+bool TriMeshSplitEdgeOperation::before(TriMesh& m, const Tuple& t)
 {
-    return m.split_edge_before(t);
+    return true;
 }
-bool TriMeshSplitEdgeOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSplitEdgeOperation::after(TriMesh& m, ExecuteReturnData& ret_data)
 {
-    return m.split_edge_after(ret_data.tuple);
+    return true;
 }
 std::string TriMeshSplitEdgeOperation::name() const
 {
     return "edge_split";
 }
 
+auto TriMeshSplitEdgeOperation::new_vertex(TriMesh& m, const Tuple& t) const -> Tuple
+{
+    return t.switch_vertex(m);
+}
 
-auto TriMeshSwapEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshSplitEdgeOperation::original_endpoints(TriMesh& m, const Tuple& t) const
+    -> std::array<Tuple, 2>
+{
+    // diamond below encodes vertices with lower alpha
+    // edges with num
+    // faces with upper alpha
+    // (only encodes simplices adjacent to vertex c
+    //   a
+    //  A1B
+    // b2c3d
+    //  C4D
+    //   e
+    //
+    // initially e4D
+    // switch_vertex -> c4D
+    // switch_edge -> c3D
+    // switch_face -> c3B
+    // switch_edge -> c1B
+    // switch_vertex -> a1B
+    auto face_opt = t.switch_vertex(m).switch_edge(m).switch_face(m);
+
+    assert(face_opt);
+
+    return {{t, face_opt->switch_edge(m).switch_vertex(m)}};
+}
+
+
+auto TriMeshSwapEdgeOperation::execute(TriMesh& m, const Tuple& t) -> ExecuteReturnData
 {
     ExecuteReturnData ret_data;
     std::vector<Tuple>& new_tris = ret_data.new_tris;
@@ -373,7 +376,9 @@ auto TriMeshSwapEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteRet
     size_t vid2 = t.switch_vertex(m).vid(m);
 
     auto tmp_tuple_opt = m.switch_face(t);
-    assert(tmp_tuple_opt.has_value());
+    if (!tmp_tuple_opt.has_value()) {
+        return ret_data;
+    }
     Tuple tmp_tuple = tmp_tuple_opt.value();
     assert(tmp_tuple.is_valid(m));
 
@@ -382,7 +387,6 @@ auto TriMeshSwapEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteRet
     const Tuple tmp_tuple2 = t.switch_edge(m);
     assert(tmp_tuple2.is_valid(m));
     size_t vid4 = tmp_tuple2.switch_vertex(m).vid(m);
-
     // check if the triangles intersection is the one adjcent to the edge
     size_t test_fid1 = t.fid(m);
     auto other_face_opt = m.switch_face(t);
@@ -415,19 +419,35 @@ auto TriMeshSwapEdgeOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteRet
     assert(return_tuple.switch_vertex(m).vid(m) != vid1);
     assert(return_tuple.switch_vertex(m).vid(m) != vid2);
     assert(return_tuple.is_valid(m));
-    new_tris = {return_tuple, return_tuple.switch_face(m).value()};
+    auto new_other_face_opt = return_tuple.switch_face(m);
+    if (new_other_face_opt) {
+        new_tris = {return_tuple, new_other_face_opt.value()};
+    } else {
+        return ret_data;
+    }
 
     ret_data.success = true;
     return ret_data;
 }
-bool TriMeshSwapEdgeOperation::before_check(const Tuple& t, TriMesh& m)
+bool TriMeshSwapEdgeOperation::before(TriMesh& mesh, const Tuple& t)
 {
-    return m.swap_edge_before(t);
+    auto other_face_opt = t.switch_face(mesh);
+    if (!other_face_opt) {
+        return false;
+    }
+    size_t v4 = ((other_face_opt.value()).switch_edge(mesh)).switch_vertex(mesh).vid(mesh);
+    size_t v3 = ((t.switch_edge(mesh)).switch_vertex(mesh)).vid(mesh);
+    if (!set_intersection(
+             vertex_connectivity(mesh)[v4].m_conn_tris,
+             vertex_connectivity(mesh)[v3].m_conn_tris)
+             .empty()) {
+        return false;
+    }
+    return true;
 }
-bool TriMeshSwapEdgeOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSwapEdgeOperation::after(TriMesh& mesh, ExecuteReturnData& ret_data)
 {
-    return m.swap_edge_after(ret_data.tuple);
-    ;
+    return true;
 }
 std::string TriMeshSwapEdgeOperation::name() const
 {
@@ -435,33 +455,34 @@ std::string TriMeshSwapEdgeOperation::name() const
 }
 
 
-auto TriMeshSmoothVertexOperation::execute(const Tuple& t, TriMesh&) -> ExecuteReturnData
+auto TriMeshSmoothVertexOperation::execute(TriMesh& m, const Tuple& t) -> ExecuteReturnData
 {
     // always succeed and return the Tuple for the (vertex) that we pointed at
     return {t, {}, true};
 }
-bool TriMeshSmoothVertexOperation::before_check(const Tuple& t, TriMesh& m)
+bool TriMeshSmoothVertexOperation::before(TriMesh& m, const Tuple& t)
 {
-    return m.smooth_before(t);
+    return true;
 }
-bool TriMeshSmoothVertexOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSmoothVertexOperation::after(TriMesh& m, ExecuteReturnData& ret_data)
 {
-    // if we see a tri, the
-    return m.smooth_after(ret_data.tuple);
+    return true;
 }
 std::string TriMeshSmoothVertexOperation::name() const
 {
     return "vertex_smooth";
 }
 
-bool TriMeshSmoothVertexOperation::invariants(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshSmoothVertexOperation::invariants(TriMesh& m, ExecuteReturnData& ret_data)
 {
-    // our execute should have tuple set to the input tuple (vertex)
+    // todo: mtao: figure out how to incorporate this properly
+    //  our execute should have tuple set to the input tuple (vertex)
+    // return TriMesh::invariants(m.get_one_ring_tris_for_vertex(ret_data.tuple));
     return m.invariants(m.get_one_ring_tris_for_vertex(ret_data.tuple));
 }
 
 
-auto TriMeshEdgeCollapseOperation::execute(const Tuple& loc0, TriMesh& m) -> ExecuteReturnData
+auto TriMeshEdgeCollapseOperation::execute(TriMesh& m, const Tuple& loc0) -> ExecuteReturnData
 {
     ExecuteReturnData ret_data;
     std::vector<Tuple>& new_tris = ret_data.new_tris;
@@ -473,9 +494,16 @@ auto TriMeshEdgeCollapseOperation::execute(const Tuple& loc0, TriMesh& m) -> Exe
     // take the face that shares the same vertex the loc0 tuple is pointing to
     // or if that face doesn't exit
     // take the face that shares the same vertex of loc0
-    auto new_fid = loc0.switch_vertex(m).switch_edge(m).switch_face(m).has_value()
-                       ? (loc0.switch_vertex(m).switch_edge(m).switch_face(m).value()).fid(m)
-                       : (loc0.switch_edge(m).switch_face(m).value()).fid(m);
+    size_t new_fid;
+    {
+        std::optional<Tuple> new_tup_opt;
+        new_tup_opt = loc0.switch_vertex(m).switch_edge(m).switch_face(m);
+        if (!new_tup_opt.has_value()) {
+            new_tup_opt = loc0.switch_edge(m).switch_face(m);
+            assert(new_tup_opt.has_value());
+        }
+        new_fid = new_tup_opt.value().fid(m);
+    }
 
     // get the vids
     size_t vid1 = loc0.vid(m);
@@ -586,13 +614,100 @@ auto TriMeshEdgeCollapseOperation::execute(const Tuple& loc0, TriMesh& m) -> Exe
     ret_data.success = true;
     return ret_data;
 }
-bool TriMeshEdgeCollapseOperation::before_check(const Tuple& t, TriMesh& m)
+
+bool TriMeshEdgeCollapseOperation::check_link_condition(const TriMesh& mesh, const Tuple& edge)
 {
-    return m.collapse_edge_before(t);
+    assert(edge.is_valid(mesh));
+    size_t vid1 = edge.vid(mesh);
+    size_t vid2 = mesh.switch_vertex(edge).vid(mesh);
+    auto vid1_ring = mesh.get_one_ring_edges_for_vertex(edge);
+    auto vid2_ring = mesh.get_one_ring_edges_for_vertex(mesh.switch_vertex(edge));
+
+
+    size_t dummy = std::numeric_limits<size_t>::max();
+
+    std::vector<size_t> lk_vid1;
+    std::vector<size_t> lk_vid2;
+
+
+    std::vector<std::pair<size_t, size_t>> lk_e_vid1;
+    std::vector<std::pair<size_t, size_t>> lk_e_vid2;
+
+    for (auto e_vid : vid1_ring) {
+        if (!e_vid.switch_face(mesh).has_value()) {
+            lk_vid1.push_back(dummy);
+            lk_e_vid1.emplace_back(e_vid.vid(mesh), dummy);
+        }
+        lk_vid1.push_back(e_vid.vid(mesh));
+    }
+    std::vector<Tuple> vid1_tris = mesh.get_one_ring_tris_for_vertex(edge);
+    for (auto v1_tri_t : vid1_tris) {
+        auto indices = tri_connectivity(mesh)[v1_tri_t.fid(mesh)].m_indices;
+        auto l = tri_connectivity(mesh)[v1_tri_t.fid(mesh)].find(vid1);
+        assert(l != -1);
+        auto i0 = indices[(l + 1) % 3], i1 = indices[(l + 2) % 3];
+        lk_e_vid1.emplace_back(std::min(i0, i1), std::max(i0, i1));
+    }
+    vector_unique(lk_vid1);
+
+    for (auto e_vid : vid2_ring) {
+        if (!e_vid.switch_face(mesh).has_value()) {
+            lk_vid2.push_back(dummy);
+            lk_e_vid2.emplace_back(e_vid.vid(mesh), dummy);
+        }
+        lk_vid2.push_back(e_vid.vid(mesh));
+    }
+    std::vector<Tuple> vid2_tris = mesh.get_one_ring_tris_for_vertex(mesh.switch_vertex(edge));
+    for (auto v2_tri_t : vid2_tris) {
+        auto indices = tri_connectivity(mesh)[v2_tri_t.fid(mesh)].m_indices;
+        auto l = tri_connectivity(mesh)[v2_tri_t.fid(mesh)].find(vid2);
+        assert(l != -1);
+        auto i0 = indices[(l + 1) % 3], i1 = indices[(l + 2) % 3];
+        lk_e_vid2.emplace_back(std::min(i0, i1), std::max(i0, i1));
+    }
+    vector_unique(lk_vid2);
+    auto lk_vid12 = set_intersection(lk_vid1, lk_vid2);
+    std::vector<size_t> lk_edge;
+    lk_edge.push_back((edge.switch_edge(mesh)).switch_vertex(mesh).vid(mesh));
+    if (!edge.switch_face(mesh).has_value())
+        lk_edge.push_back(dummy);
+    else
+        lk_edge.push_back(
+            ((edge.switch_face(mesh).value()).switch_edge(mesh)).switch_vertex(mesh).vid(mesh));
+    vector_sort(lk_edge);
+    bool v_link =
+        (lk_vid12.size() == lk_edge.size() &&
+         std::equal(lk_vid12.begin(), lk_vid12.end(), lk_edge.begin()));
+
+    // check edge link condition
+    // in 2d edge link for an edge is always empty
+
+    bool e_link = true;
+    std::vector<std::pair<size_t, size_t>> res;
+    std::sort(lk_e_vid1.begin(), lk_e_vid1.end());
+    std::sort(lk_e_vid2.begin(), lk_e_vid2.end());
+    std::set_intersection(
+        lk_e_vid1.begin(),
+        lk_e_vid1.end(),
+        lk_e_vid2.begin(),
+        lk_e_vid2.end(),
+        std::back_inserter(res));
+    if (res.size() > 0) {
+        return false;
+    }
+    return v_link;
 }
-bool TriMeshEdgeCollapseOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+
+
+bool TriMeshEdgeCollapseOperation::before(TriMesh& m, const Tuple& t)
 {
-    return m.collapse_edge_after(ret_data.tuple);
+    return check_link_condition(m, t);
+}
+
+bool TriMeshEdgeCollapseOperation::after(TriMesh& m, ExecuteReturnData& ret_data)
+{
+    ret_data.success &= true;
+    return ret_data;
 }
 
 std::string TriMeshEdgeCollapseOperation::name() const
@@ -600,7 +715,7 @@ std::string TriMeshEdgeCollapseOperation::name() const
     return "edge_collapse";
 }
 
-auto TriMeshConsolidateOperation::execute(const Tuple& t, TriMesh& m) -> ExecuteReturnData
+auto TriMeshConsolidateOperation::execute(TriMesh& m, const Tuple& t) -> ExecuteReturnData
 {
     auto& vertex_con = vertex_connectivity(m);
     auto& tri_con = tri_connectivity(m);
@@ -656,13 +771,13 @@ auto TriMeshConsolidateOperation::execute(const Tuple& t, TriMesh& m) -> Execute
         t_cnt++;
     }
 
-    set_vertex_size(v_cnt, m);
-    set_tri_size(t_cnt, m);
+    set_vertex_size(m, v_cnt);
+    set_tri_size(m, t_cnt);
 
     // Resize user class attributes
-    if (m.p_vertex_attrs) m.p_vertex_attrs->resize(m.vert_capacity());
-    if (m.p_edge_attrs) m.p_edge_attrs->resize(m.tri_capacity() * 3);
-    if (m.p_face_attrs) m.p_face_attrs->resize(m.tri_capacity());
+    if (m.p_vertex_attrs) m.p_vertex_attrs->grow_to_at_least(m.vert_capacity());
+    if (m.p_edge_attrs) m.p_edge_attrs->grow_to_at_least(m.tri_capacity() * 3);
+    if (m.p_face_attrs) m.p_face_attrs->grow_to_at_least(m.tri_capacity());
 
     assert(m.check_edge_manifold());
     assert(m.check_mesh_connectivity_validity());
@@ -670,13 +785,14 @@ auto TriMeshConsolidateOperation::execute(const Tuple& t, TriMesh& m) -> Execute
     ret.success = true;
     return ret;
 }
-bool TriMeshConsolidateOperation::before_check(const Tuple& t, TriMesh& m)
+bool TriMeshConsolidateOperation::before(TriMesh& m, const Tuple& t)
 {
     return true;
 }
-bool TriMeshConsolidateOperation::after_check(const ExecuteReturnData& ret_data, TriMesh& m)
+bool TriMeshConsolidateOperation::after(TriMesh& m, ExecuteReturnData& ret_data)
 {
-    return true;
+    ret_data.success &= true;
+    return ret_data;
 }
 std::string TriMeshConsolidateOperation::name() const
 {
