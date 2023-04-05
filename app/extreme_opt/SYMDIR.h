@@ -6,9 +6,9 @@
 #include <Eigen/Cholesky>
 #include <iostream>
 
-// #define SOFT_MAX
+#define SOFT_MAX
 
-#define NORM_P 6 
+#define NORM_P 1
 namespace wmtk{
     template <typename T>
     T symmetric_dirichlet_energy_t(T a, T b, T c, T d)
@@ -38,7 +38,7 @@ namespace wmtk{
     }
 
     template <typename Scalar>
-    Scalar compute_energy_from_jacobian(const Eigen::Matrix<Scalar, -1, -1> &J, const Eigen::Matrix<Scalar, -1, 1> &area);
+    Scalar compute_energy_from_jacobian(const Eigen::Matrix<Scalar, -1, -1> &J, const Eigen::Matrix<Scalar, -1, 1> &areas, bool uniform = false);
 
     template <typename Scalar>
     Scalar get_grad_and_hessian(const Eigen::SparseMatrix<Scalar> &G,

@@ -89,25 +89,16 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 
     Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
-
-    double E_max_after_collapse;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    auto E_max_after_collapses =
-        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    
-    for (int i = 0; i < E_max_after_collapses.size(); i++)
-    {
-        if (!std::isfinite(E_max_after_collapses(i)))
-        {
-            return false;
-        }
-    }
-    E_max_after_collapse = E_max_after_collapses.maxCoeff();
-    if (E_max_after_collapse > position_cache.local().E_max_before_collpase) {
-        // E_max does not go down
+    double E_after_collapse = wmtk::compute_energy_from_jacobian(Ji, area_local_3d) * area_local_3d.sum();
+
+    std::cout << "E_after collapse: " << E_after_collapse  << " area: " << area_local_3d.sum() << std::endl;
+    if (E_after_collapse > position_cache.local().E_before_collapse) {
+        // E_sum does not go down
         return false;
     }
+    std::cout << "collapse good" << std::endl;
 
     if (m_params.with_cons)
     {
@@ -187,7 +178,7 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     const Eigen::Vector2d& uv_keep,
     Tuple& t_l_old,
     Tuple& t_r_old,
-    double& E_max)
+    double& E)
 {
     // update vertex position
     auto vid = t.vid(*this);
@@ -216,8 +207,11 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
             return false;
         }
     }
-    E_max = Es.maxCoeff();
 
+    // compute energy here
+    E = Es.dot(area_local_3d);
+
+    // check envelope
     if (!invariants(get_one_ring_tris_for_vertex(t)))
     {
         return false;

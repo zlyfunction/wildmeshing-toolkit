@@ -36,9 +36,16 @@ namespace wmtk{
     }
     
     template <typename Scalar>
-    Scalar compute_energy_from_jacobian(const Eigen::Matrix<Scalar, -1, -1> &J, const Eigen::Matrix<Scalar, -1, 1> &area)
+    Scalar compute_energy_from_jacobian(const Eigen::Matrix<Scalar, -1, -1> &J, const Eigen::Matrix<Scalar, -1, 1> &area, bool uniform)
     {
-        return symmetric_dirichlet_energy(J.col(0), J.col(1), J.col(2), J.col(3)).dot(area) / area.sum();
+        if (!uniform)
+        {
+            return symmetric_dirichlet_energy(J.col(0), J.col(1), J.col(2), J.col(3)).dot(area) / area.sum();
+        }
+        else
+        {
+            return symmetric_dirichlet_energy(J.col(0), J.col(1), J.col(2), J.col(3)).sum() / Scalar(J.rows());
+        }
     }
     
     template <typename Scalar>
@@ -125,6 +132,6 @@ namespace wmtk{
                                              Eigen::Matrix<double, -1, 1> &,
                                              Eigen::SparseMatrix<double> &,
                                              bool);
-    template double compute_energy_from_jacobian<double>(const Eigen::Matrix<double, -1, -1> &, const Eigen::Matrix<double, -1, 1> &);
+    template double compute_energy_from_jacobian<double>(const Eigen::Matrix<double, -1, -1> &, const Eigen::Matrix<double, -1, 1> &, bool);
     
 } // namespace wmtk

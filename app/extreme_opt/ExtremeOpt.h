@@ -13,7 +13,7 @@
 
 using json = nlohmann::json;
 
-
+// #define OPT_MAX
 
 namespace extremeopt {
 
@@ -116,13 +116,19 @@ public:
             if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m)) {
                 return {{}, false};
             }
+
+            // Compute Energy before collapse
+            double E_t_input = m.get_e_onering_edge(t);
+            double E_t_pair_input = m.get_e_max_onering(t_pair_input);
+            double E_input = E_t_input + E_t_pair_input;
+            
             // Get E_max before collapse
-            double E_max_t_input =
-                std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
-            double E_max_t_pair_input = std::max(
-                m.get_e_max_onering(t_pair_input),
-                m.get_e_max_onering(t_pair_input.switch_vertex(m)));
-            double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
+            // double E_max_t_input =
+            //     std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
+            // double E_max_t_pair_input = std::max(
+            //     m.get_e_max_onering(t_pair_input),
+            //     m.get_e_max_onering(t_pair_input.switch_vertex(m)));
+            // double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
             // std::cout << "trying to collapse a boudnary edge" << std::endl;
             // t.print_info();
             // t_pair_input.print_info();
@@ -206,8 +212,8 @@ public:
             auto new_t = m.collapse_edge_new(t, new_tris);
 
 
-            double E_max_t, E_max_t_pair;
-            if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_max_t)) {
+            double E_t, E_t_pair;
+            if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) {
                 // std::cout << "collapse t fail" << std::endl;
                 m.rollback_protected_connectivity();
                 m.rollback_protected_attributes();
@@ -242,7 +248,7 @@ public:
                     uv_keep_t_pair,
                     bd_t_pair_l,
                     bd_t_pair_r,
-                    E_max_t_pair)) {
+                    E_t_pair)) {
                 // std::cout << "collapse t pair fail" << std::endl;
                 m.rollback_protected_connectivity();
                 m.rollback_protected_attributes();
@@ -250,7 +256,7 @@ public:
             } else {
                 // std::cout << "collapse t pair ok" << std::endl;
             }
-            if (E_max_input < std::max(E_max_t, E_max_t_pair)) {
+            if (E_input < E_t + E_t_pair) {
                 m.rollback_protected_connectivity();
                 m.rollback_protected_attributes();
                 return {{}, false};
@@ -318,7 +324,7 @@ public:
         bool is_v2_bd;
         Tuple bd_e1;
         Tuple bd_e2;
-        double E_max_before_collpase;
+        double E_before_collapse;
     };
     tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
@@ -358,7 +364,13 @@ public:
         Eigen::MatrixXd& uv_local,
         Eigen::MatrixXi& F_local);
     double get_e_max_onering(const Tuple& t);
-
+    double get_e_onering_edge(const Tuple& t);
+    void get_mesh_onering_edge(
+        const Tuple& t,
+        Eigen::MatrixXd& V_local,
+        Eigen::MatrixXd& uv_local,
+        Eigen::MatrixXi& F_local
+    );
     // Check if a triangle is inverted
     bool is_inverted(const Tuple& loc) const;
 
@@ -395,7 +407,7 @@ public:
         const Eigen::Vector2d& uv_keep,
         Tuple& t_l_old,
         Tuple& t_r_old,
-        double& E_max);
+        double& E);
     // Edge Splitting
     bool split_edge_before(const Tuple& t) override;
     bool split_edge_after(const Tuple& t) override;

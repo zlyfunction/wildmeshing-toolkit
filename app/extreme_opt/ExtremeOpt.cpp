@@ -70,10 +70,12 @@ void ExtremeOpt::create_mesh(
     // Initialize the trimesh class which handles connectivity
     wmtk::TriMesh::create_mesh(V.rows(), tri);
 
+    // TODO: this is possibly not needed
     // Save the face area in the face attributes
     for (int i = 0; i < F.rows(); i++) {
         face_attrs[i].area_3d = dblarea[i];
     }
+
     // Save the vertex position in the vertex attributes
     for (unsigned i = 0; i < V.rows(); ++i) {
         vertex_attrs[i].pos = uv.row(i).transpose();
@@ -267,6 +269,89 @@ int ExtremeOpt::get_mesh_onering(
     }
     return v_map[vid];
 }
+
+void ExtremeOpt::get_mesh_onering_edge(
+    const Tuple& t,
+    Eigen::MatrixXd& V_local,
+    Eigen::MatrixXd& uv_local,
+    Eigen::MatrixXi& F_local)
+{
+
+    auto vid1 = t.vid(*this);
+    auto vid_onering1 = get_one_ring_vids_for_vertex(vid1);
+    auto locs1 = get_one_ring_tris_for_vertex(t);
+
+    auto vid2 = t.switch_vertex(*this).vid(*this);
+    auto vid_onering2 = get_one_ring_vids_for_vertex(vid2);
+    auto locs2 = get_one_ring_tris_for_vertex(t.switch_vertex(*this));
+
+    int V_size = vid_onering1.size() + vid_onering2.size() - 2;
+    int F_size = locs1.size() + locs2.size(); 
+    if (is_boundary_edge(t))
+    {
+        V_size -= 1;
+        F_size -= 1;
+    }
+    else
+    {
+        V_size -= 2;
+        F_size -= 2;
+    }
+
+    V_local.resize(V_size, 3);
+    uv_local.resize(V_size, 2);
+
+    std::vector<int> v_map(vertex_attrs.size(), -1);
+    for(int i = 0; i < vid_onering1.size(); i++)
+    {
+        v_map[vid_onering1[i]] = i;
+        V_local.row(i) = vertex_attrs[vid_onering1[i]].pos_3d;
+        uv_local.row(i) = vertex_attrs[vid_onering1[i]].pos;
+    }
+    int cnt = vid_onering1.size();
+    for (int i = 0; i < vid_onering2.size(); i++)
+    {
+        if (v_map[vid_onering2[i]] == -1)
+        {
+            v_map[vid_onering2[i]] = cnt;
+            V_local.row(cnt) = vertex_attrs[vid_onering2[i]].pos_3d;
+            uv_local.row(cnt) = vertex_attrs[vid_onering2[i]].pos;
+            cnt++;
+        }
+    }
+    
+    if (cnt != V_size)
+    {
+        std::cout << "V_size Error in get_mesh_one_ring_edge" << std::endl;
+    }
+
+    F_local.resize(F_size, 3);
+    std::vector<bool> is_f_used(m_tri_connectivity.size(), false);
+    for (int i = 0; i < locs1.size(); i++) {
+        int t_id = locs1[i].fid(*this);
+        is_f_used[t_id] = true;
+        auto local_tuples = oriented_tri_vertices(locs1[i]);
+        for (int j = 0; j < 3; j++) {
+            F_local(i, j) = v_map[local_tuples[j].vid(*this)];
+        }
+    }
+    int f_cnt = locs1.size();
+    for (int i = 0; i < locs2.size(); i++){
+        int t_id = locs2[i].fid(*this);
+        if (!is_f_used[t_id])
+        {
+            is_f_used[t_id] = true;
+            auto local_tuples = oriented_tri_vertices(locs2[i]);
+            for (int j = 0; j < 3; j++)
+            {
+                F_local(f_cnt, j) = v_map[local_tuples[j].vid(*this)];
+            }
+            f_cnt++;
+        }
+    }
+
+}
+
 
 bool ExtremeOpt::is_inverted(const Tuple& loc) const
 {
