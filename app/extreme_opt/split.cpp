@@ -96,7 +96,7 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
     get_grad_op(V_local, F_local, G_local);
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    position_cache.local().E_max_before_collpase = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+    position_cache.local().E_before_collapse = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
     return true;
 }
 
@@ -147,7 +147,7 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     // if use projection, we need to check E_max
     if (m_params.do_projection)
     {
-        if (Es.maxCoeff() > position_cache.local().E_max_before_collpase)
+        if (Es.maxCoeff() > position_cache.local().E_before_collapse)
         {
             return false;
         }

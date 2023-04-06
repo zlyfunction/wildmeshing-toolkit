@@ -49,13 +49,19 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     }
     elen_threshold *= m_params.elen_alpha;
     elen_threshold_3d *= m_params.elen_alpha;
+    
     get_grad_op(V, F, G_global);
     Eigen::VectorXd dblarea;
     igl::doublearea(V, F, dblarea);
     auto compute_energy = [&G_global, &dblarea](Eigen::MatrixXd& aaa) {
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
+        return wmtk::compute_energy_from_jacobian(Ji, dblarea) * dblarea.sum();
+    };
 
+    auto compute_energy_avg = [&G_global, &dblarea](Eigen::MatrixXd& aaa) {
+        Eigen::MatrixXd Ji;
+        wmtk::jacobian_from_uv(G_global, aaa, Ji);
         return wmtk::compute_energy_from_jacobian(Ji, dblarea);
     };
 
@@ -63,7 +69,6 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         Eigen::MatrixXd Ji;
         wmtk::jacobian_from_uv(G_global, aaa, Ji);
         auto EVec = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-
         for (int j = 0; j < EVec.size(); ++j) {
             if (!std::isfinite(EVec(j))) {
                 auto f = F.row(j);
@@ -85,11 +90,9 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
+    wmtk::logger().info("Start E_max = {}", compute_energy_max(uv));
     opt_log["opt_log"].push_back(
-        {{"F_size", F.rows()},
-         {"V_size", V.rows()},
-         {"E_max", compute_energy_max(uv)},
-         {"E_avg", E}});
+                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", compute_energy_max(uv)}, {"E", E},{"E_avg", E / dblarea.sum()}});
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
@@ -105,6 +108,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger()
                 .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After splitting, E = {}", E);
+            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
@@ -130,6 +134,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E = compute_energy(uv);
             E_max = compute_energy_max(uv);
             wmtk::logger().info("After swapping, E = {}", E);
+            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             wmtk::logger().info("E_max = {}", E_max);
         }
         if (m_params.save_meshes)
@@ -151,6 +156,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger()
                 .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
             wmtk::logger().info("After collapsing, E = {}", E);
+            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
@@ -176,9 +182,8 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E = compute_energy(uv);
             E_max = compute_energy_max(uv);
             wmtk::logger().info("After LOCAL smoothing {}, E = {}", i, E);
+            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             wmtk::logger().info("E_max = {}", E_max);
-            opt_log["opt_log"].push_back(
-                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         }
         if (this->m_params.global_smooth) {
             timer.start();
@@ -191,21 +196,12 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E = compute_energy(uv);
             E_max = compute_energy_max(uv);
             wmtk::logger().info("After GLOBAL smoothing {}, E = {}", i, E);
+            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             wmtk::logger().info("E_max = {}", E_max);
-
-            opt_log["opt_log"].push_back(
-                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         }
-        if (m_params.save_meshes)
-            igl::writeOBJ(
-                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj",
-                V,
-                F,
-                V,
-                F,
-                uv,
-                F);
-
+        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj", V, F, V, F, uv, F);
+        opt_log["opt_log"].push_back(
+                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E", E}, {"E_avg", E / dblarea.sum()}});
         // terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(

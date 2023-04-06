@@ -13,6 +13,7 @@
 
 using json = nlohmann::json;
 
+// #define OPT_MAX
 
 namespace extremeopt {
 
@@ -89,7 +90,7 @@ public:
         bool is_v2_bd;
         Tuple bd_e1;
         Tuple bd_e2;
-        double E_max_before_collpase;
+        double E_before_collapse;
     };
     tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
@@ -129,7 +130,13 @@ public:
         Eigen::MatrixXd& uv_local,
         Eigen::MatrixXi& F_local);
     double get_e_max_onering(const Tuple& t);
-
+    double get_e_onering_edge(const Tuple& t);
+    void get_mesh_onering_edge(
+        const Tuple& t,
+        Eigen::MatrixXd& V_local,
+        Eigen::MatrixXd& uv_local,
+        Eigen::MatrixXi& F_local
+    );
     // Check if a triangle is inverted
     bool is_inverted(const Tuple& loc) const;
 
@@ -166,7 +173,7 @@ public:
         const Eigen::Vector2d& uv_keep,
         Tuple& t_l_old,
         Tuple& t_r_old,
-        double& E_max);
+        double& E);
     // Edge Splitting
     bool split_edge_before(const Tuple& t);
     bool split_edge_after(const Tuple& t);

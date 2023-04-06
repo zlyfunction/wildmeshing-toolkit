@@ -59,15 +59,22 @@ public:
             return false;
         }
 
-        // Get E_max before collapse
-        double E_max_t_input =
-            std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
-        double E_max_t_pair_input = std::max(
-            m.get_e_max_onering(t_pair_input),
-            m.get_e_max_onering(t_pair_input.switch_vertex(m)));
-        double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
-        initial_energy_per_thread.local() = E_max_input;
-        ;
+        if (m.m_params.use_max_energy) {
+            // Get E before collapse
+            double E_t_input =
+                std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
+            double E_t_pair_input = std::max(
+                m.get_e_max_onering(t_pair_input),
+                m.get_e_max_onering(t_pair_input.switch_vertex(m)));
+            double E_input = std::max(E_t_input, E_t_pair_input);
+            initial_energy_per_thread.local() = E_input;
+        } else {
+            // Compute Energy before collapse
+            double E_t_input = m.get_e_onering_edge(t);
+            double E_t_pair_input = m.get_e_max_onering(t_pair_input);
+            double E_input = E_t_input + E_t_pair_input;
+            initial_energy_per_thread.local() = E_t_input;
+        }
         return true;
     }
 
@@ -79,7 +86,7 @@ public:
         // std::cout << "trying to collapse a boudnary edge" << std::endl;
         // t.print_info();
         // t_pair_input.print_info();
-        // std::cout << "E_max before collapsing is " << E_max_input << std::endl;
+        // std::cout << "E before collapsing is " << E_input << std::endl;
 
         // get neighbor edges
         auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
@@ -158,8 +165,8 @@ public:
         // new_t = m.collapse_edge_new(t, new_tris);
 
 
-        double E_max_t, E_max_t_pair;
-        if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_max_t)) {
+        double E_t, E_t_pair;
+        if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) {
             // std::cout << "collapse t fail" << std::endl;
             ret_data.success = false;
             ;
@@ -194,7 +201,7 @@ public:
                 uv_keep_t_pair,
                 bd_t_pair_l,
                 bd_t_pair_r,
-                E_max_t_pair)) {
+                E_t_pair)) {
             // std::cout << "collapse t pair fail" << std::endl;
             ret_data.success = false;
             ;
@@ -202,8 +209,15 @@ public:
         } else {
             // std::cout << "collapse t pair ok" << std::endl;
         }
-        double current_max_energy = std::max(E_max_t, E_max_t_pair);
-        if (initial_energy_per_thread.local() < current_max_energy) {
+        double current_energy;
+
+        if (m.m_params.use_max_energy) {
+            current_energy = std::max(E_t, E_t_pair);
+        } else {
+            current_energy = E_t + E_t_pair;
+            ;
+        }
+        if (initial_energy_per_thread.local() < current_energy) {
             ret_data.success = false;
         }
         return ret_data;
@@ -219,8 +233,8 @@ public:
         Tuple t_pair =
             m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
 
-        ret_data.combine(m_edge_collapser.execute(m,t));
-        ret_data.combine(m_edge_collapser.execute(m,t_pair));
+        ret_data.combine(m_edge_collapser.execute(m, t));
+        ret_data.combine(m_edge_collapser.execute(m, t_pair));
         return ret_data;
     }
 
@@ -357,23 +371,18 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 
     Eigen::SparseMatrix<double> G_local;
     get_grad_op(V_local, F_local, G_local);
-
-    double E_max_after_collapse;
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    auto E_max_after_collapses =
-        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
+    double E_after_collapse =
+        wmtk::compute_energy_from_jacobian(Ji, area_local_3d) * area_local_3d.sum();
 
-    for (int i = 0; i < E_max_after_collapses.size(); i++) {
-        if (!std::isfinite(E_max_after_collapses(i))) {
-            return false;
-        }
-    }
-    E_max_after_collapse = E_max_after_collapses.maxCoeff();
-    if (E_max_after_collapse > position_cache.local().E_max_before_collpase) {
-        // E_max does not go down
+    std::cout << "E_after collapse: " << E_after_collapse << " area: " << area_local_3d.sum()
+              << std::endl;
+    if (E_after_collapse > position_cache.local().E_before_collapse) {
+        // E_sum does not go down
         return false;
     }
+    std::cout << "collapse good" << std::endl;
 
     if (m_params.with_cons) {
         // update constraints
@@ -452,14 +461,14 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     const Eigen::Vector2d& uv_keep,
     Tuple& t_l_old,
     Tuple& t_r_old,
-    double& E_max)
+    double& E)
 {
     // update vertex position
     auto vid = t.vid(*this);
     vertex_attrs[vid].pos_3d = V_keep;
     vertex_attrs[vid].pos = uv_keep;
 
-    // get local mesh and check area/E_max
+    // get local mesh and check area/E
     Eigen::MatrixXd V_local, uv_local;
     Eigen::MatrixXi F_local;
     get_mesh_onering(t, V_local, uv_local, F_local);
@@ -479,8 +488,11 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
             return false;
         }
     }
-    E_max = Es.maxCoeff();
 
+    // compute energy here
+    E = Es.dot(area_local_3d);
+
+    // check envelope
     if (!invariants(get_one_ring_tris_for_vertex(t))) {
         return false;
     }

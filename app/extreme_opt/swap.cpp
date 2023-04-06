@@ -55,6 +55,8 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) return false;
 
+    // std::cout << "trying to swap edge " << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << std::endl;
+
     Tuple t1 = t.switch_vertex(*this).switch_edge(*this);
     Tuple t2 = t.switch_face(*this).value().switch_edge(*this);
     if (!t1.is_ccw(*this)) t1 = t1.switch_vertex(*this);
@@ -93,16 +95,24 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
     get_grad_op(V_local, F_local, G_local);
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    swap_cache.local().E_old =
-        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+    
+#ifdef OPT_MAX
+    swap_cache.local().E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+#else
+    Eigen::VectorXd area;
+    igl::doublearea(V_local, F_local, area);
+    swap_cache.local().E_old = wmtk::compute_energy_from_jacobian(Ji, area) * area.sum();
+#endif
 
+    // std::cout << "energy before swap is " << swap_cache.local().E_old << std::endl;
     return true;
 }
 
 
 bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 {
-    // std::cout << "connectivity test:" << std::endl;
+    // std::cout << "after swapping the edge becomes " << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << std::endl;
+
     auto tri1 = oriented_tri_vids(t);
     auto t_opp = t.switch_face(*this);
     auto tri2 = oriented_tri_vids(t_opp.value());
@@ -155,8 +165,15 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     Eigen::VectorXd Es =
         wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-
+#ifdef OPT_MAX
     E = Es.maxCoeff(); // compute E_max
+#else
+    Eigen::VectorXd area;
+    igl::doublearea(V_local, F_local, area);
+    E = wmtk::compute_energy_from_jacobian(Ji, area) * area.sum();
+#endif
+
+    // std::cout << "Energy after swapping is" << E << std::endl;
     if (!std::isfinite(Es(0)) || !std::isfinite(Es(1))) {
         // std::cout << "nan fail" << std::endl;
         return false;
