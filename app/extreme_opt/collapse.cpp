@@ -3,54 +3,62 @@
 
 
 #include <wmtk/TriMeshOperation.h>
+#include <wmtk/ExecutionScheduler.hpp>
 
-namespace extremeopt {
-    class 
-class CollapsePairOperation
-    : public wmtk::TriMeshOperationShim<ExtremeOpt, CollapsePair, wmtk::TriMeshOperation>
+namespace {
+auto renew_collapse = [](auto& m, auto op, auto& tris) {
+    auto edges = m.new_edges_after(tris);
+    auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
+    for (auto& e : edges) {
+        if (m.m_params.with_cons) {
+            if (m.is_boundary_edge(e)) {
+                optup.emplace_back("test_op", e);
+            } else {
+                optup.emplace_back("edge_collapse", e);
+            }
+        } else {
+            optup.emplace_back("edge_collapse", e);
+        }
+    }
+    return optup;
+};
+using namespace extremeopt;
+using namespace wmtk;
+class CollapsePairOperation : public wmtk::TriMeshOperationShim<ExtremeOpt, CollapsePairOperation>
 {
 public:
-    bool before(ExtremeOpt& m, const TriMesh::Tuple& t) { return m.collapse_edge_before(t); }
-
-    bool after(ExtremeOpt& m, const ExecuteReturnData& retdata)
+    bool before(ExtremeOpt& m, const TriMesh::Tuple& t)
     {
-        const TriMesh::Tuple& t = retdata.tuple;
-        ret_data.success |= m.collapse_after_check(t);
-    }
-
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
-    {
-        ExecuteReturnData ret_data;
-        std::vector<Tuple>& new_tris = ret_data.new_tris;
-        Tuple& new_t = ret_data.tuple;
         // TODO: Relocate this code in before check
         if (!m.is_boundary_edge(t)) {
             // std::cout << "not boundary edge" << std::endl;
-            return ret_data;
+            return false;
         }
         if (!t.is_valid(m)) {
             std::cout << "not valid" << std::endl;
-            return ret_data;
+            return false;
         }
-        if (!m.wmtk::TriMesh::collapse_edge_before(t)) {
+        if (!m.collapse_edge_before(t)) {
             // std::cout << "link condition error" << std::endl;
-            return ret_data;
+            return false;
         }
-        Tuple t_pair_input = m.edge_attrs[t.eid(m)].pair;
-        if (!m.wmtk::TriMesh::collapse_edge_before(t_pair_input)) {
+        Tuple& t_pair_input = t_pair_input_per_thread.local();
+        t_pair_input = m.edge_attrs[t.eid(m)].pair;
+        if (!m.collapse_edge_before(t_pair_input)) {
             // std::cout << "link condition error" << std::endl;
-            return ret_data;
+            return false;
         }
         // Skip cases that paired edges are in the same triangle
         if (t_pair_input.fid(m) == t.fid(m)) {
-            return ret_data;
+            return false;
         }
         if (t_pair_input.vid(m) == t.switch_vertex(m).vid(m)) {
-            return ret_data;
+            return false;
         }
         if (t_pair_input.switch_vertex(m).vid(m) == t.vid(m)) {
-            return ret_data;
+            return false;
         }
+
         // Get E_max before collapse
         double E_max_t_input =
             std::max(m.get_e_max_onering(t), m.get_e_max_onering(t.switch_vertex(m)));
@@ -58,6 +66,16 @@ public:
             m.get_e_max_onering(t_pair_input),
             m.get_e_max_onering(t_pair_input.switch_vertex(m)));
         double E_max_input = std::max(E_max_t_input, E_max_t_pair_input);
+        initial_energy_per_thread.local() = E_max_input;
+        ;
+        return true;
+    }
+
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        const TriMesh::Tuple& new_t = ret_data.tuple;
+        const TriMesh::Tuple& t = ret_data.tuple;
+        Tuple& t_pair_input = t_pair_input_per_thread.local();
         // std::cout << "trying to collapse a boudnary edge" << std::endl;
         // t.print_info();
         // t_pair_input.print_info();
@@ -120,6 +138,7 @@ public:
         }
         if (!keep_t && !keep_t_opp) {
             // std::cout << "this boudnary edge cannot collapse" << std::endl;
+            ret_data.success = false;
             return ret_data;
         }
         Eigen::Vector3d V_keep_t, V_keep_t_pair;
@@ -136,15 +155,14 @@ public:
             uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
         }
 
-        m.start_protected_connectivity();
-        m.start_protected_attributes();
-        ret_data.merge(m_edge_collapser.execute(t));
         // new_t = m.collapse_edge_new(t, new_tris);
 
 
         double E_max_t, E_max_t_pair;
         if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_max_t)) {
             // std::cout << "collapse t fail" << std::endl;
+            ret_data.success = false;
+            ;
             return ret_data;
         } else {
             // std::cout << "collapse t ok" << std::endl;
@@ -169,7 +187,6 @@ public:
                 }
             }
         }
-        ret_data.merge(t_pair.execute(t));
         // new_t = m.collapse_edge_new(t_pair, new_tris);
         if (!m.collapse_bd_edge_after(
                 new_t,
@@ -179,60 +196,92 @@ public:
                 bd_t_pair_r,
                 E_max_t_pair)) {
             // std::cout << "collapse t pair fail" << std::endl;
+            ret_data.success = false;
+            ;
             return ret_data;
         } else {
             // std::cout << "collapse t pair ok" << std::endl;
         }
-        if (E_max_input < std::max(E_max_t, E_max_t_pair)) {
-            return ret_data;
+        double current_max_energy = std::max(E_max_t, E_max_t_pair);
+        if (initial_energy_per_thread.local() < current_max_energy) {
+            ret_data.success = false;
         }
-
-
-        ret_data.success = true;
         return ret_data;
     }
 
-    bool before_check(const Tuple& t, ExtremeOpt& m) { return m.collapse_edge_before(t); }
-
-    bool after_check(const Tuple& t, ExtremeOpt& m) { return m.collapse_edge_after(t); }
-
-    ExecuteReturnData execute(const Tuple& t, TriMesh& m) override
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
     {
         ExecuteReturnData ret_data;
-        std::vector<TriMesh::Tuple> new_tris;
-        if (std::tie(ret_data.tuple, ret_data.success) =
-                execute(t, dynamic_cast<ExtremeOpt&>(m), ret_data.new_tris);
-            ret_data.success) {
-            return ret_data;
-        } else {
-            return {};
-        }
+        std::vector<Tuple>& new_tris = ret_data.new_tris;
+        Tuple& new_t = ret_data.tuple;
+
+        const Tuple& t_pair_input = t_pair_input_per_thread.local();
+        Tuple t_pair =
+            m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
+
+        ret_data.combine(m_edge_collapser.execute(m,t));
+        ret_data.combine(m_edge_collapser.execute(m,t_pair));
+        return ret_data;
     }
-    bool after_check(const ExecuteReturnData& ret_data, TriMesh& m) override
-    {
-        return after_check(ret_data.tuple, dynamic_cast<ExtremeOpt&>(m));
-    }
-    bool before_check(const Tuple& t, TriMesh& m) override
-    {
-        return before_check(t, dynamic_cast<ExtremeOpt&>(m));
-    }
-    std::string name() const { return "collapse_pair"; }
+
+    std::string name() const override { return "collapse_pair"; }
     CollapsePairOperation(){};
     virtual ~CollapsePairOperation(){};
+
+    wmtk::TriMeshEdgeCollapseOperation m_edge_collapser;
+    tbb::enumerable_thread_specific<Tuple> t_pair_input_per_thread;
+    tbb::enumerable_thread_specific<double> initial_energy_per_thread;
 };
-} // namespace extremeopt
+
+
+class ExtremeOptEdgeCollapseOperation : public wmtk::TriMeshOperationShim<
+                                            ExtremeOpt,
+                                            ExtremeOptEdgeCollapseOperation,
+                                            wmtk::TriMeshEdgeCollapseOperation>
+{
+public:
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    {
+        return wmtk::TriMeshEdgeCollapseOperation::execute(m, t);
+    }
+    bool before(ExtremeOpt& m, const Tuple& t)
+    {
+        if (wmtk::TriMeshEdgeCollapseOperation::before(m, t)) {
+            return m.collapse_edge_before(t);
+        }
+        return false;
+    }
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshEdgeCollapseOperation::after(m, ret_data)) {
+            ret_data.success |= m.collapse_edge_after(ret_data.tuple);
+        }
+        return ret_data;
+    }
+    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshEdgeCollapseOperation::invariants(m, ret_data)) {
+            ret_data.success |= m.invariants(ret_data.new_tris);
+        }
+        return ret_data;
+    }
+};
+
+template <typename Executor>
+void addCustomOps(Executor& e)
+{
+    e.add_operation(std::make_shared<ExtremeOptEdgeCollapseOperation>());
+    e.add_operation(std::make_shared<CollapsePairOperation>());
+}
+} // namespace
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) {
         return false;
     }
-    if (!wmtk::TriMesh::collapse_edge_before(t)) {
-        return false;
-    }
 
     // avoid boundary edges here
-    if (m_params.with_cons && is_boundary_edge(t))
-    {
+    if (m_params.with_cons && is_boundary_edge(t)) {
         std::cout << "Error: Wrong function call when collapsing a boudnary edge" << std::endl;
         return false;
     }
@@ -266,8 +315,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
 
     // check edgelen
-    for (int vid_tmp : vid_onering)
-    {
+    for (int vid_tmp : vid_onering) {
         auto V_tmp = vertex_attrs[vid_tmp].pos_3d;
         auto uv_tmp = vertex_attrs[vid_tmp].pos;
         double elen_3d = (V_tmp - V).norm();
@@ -315,11 +363,9 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     auto E_max_after_collapses =
         wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    
-    for (int i = 0; i < E_max_after_collapses.size(); i++)
-    {
-        if (!std::isfinite(E_max_after_collapses(i)))
-        {
+
+    for (int i = 0; i < E_max_after_collapses.size(); i++) {
+        if (!std::isfinite(E_max_after_collapses(i))) {
             return false;
         }
     }
@@ -329,8 +375,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         return false;
     }
 
-    if (m_params.with_cons)
-    {
+    if (m_params.with_cons) {
         // update constraints
         if (this->is_boundary_vertex(t)) {
             // std::cout << "update constraints around vertex " << t.vid(*this) << std::endl;
@@ -429,17 +474,14 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     Eigen::MatrixXd Ji;
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     auto Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    for (int i = 0; i < Es.size(); i++)
-    {
-        if (!std::isfinite(Es(i)))
-        {
+    for (int i = 0; i < Es.size(); i++) {
+        if (!std::isfinite(Es(i))) {
             return false;
         }
     }
     E_max = Es.maxCoeff();
 
-    if (!invariants(get_one_ring_tris_for_vertex(t)))
-    {
+    if (!invariants(get_one_ring_tris_for_vertex(t))) {
         return false;
     }
     // update constraints
@@ -493,23 +535,19 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
 {
     auto collect_all_ops_collapse = std::vector<std::pair<std::string, Tuple>>();
     for (auto& loc : get_edges()) {
-        if (m_params.with_cons)
-        {
+        if (m_params.with_cons) {
             if (is_boundary_edge(loc)) {
                 collect_all_ops_collapse.emplace_back("collapse_pair", loc);
             } else {
                 collect_all_ops_collapse.emplace_back(TriMeshEdgeCollapseOperation{}.name(), loc);
             }
-        }
-        else
-        {
+        } else {
             collect_all_ops_collapse.emplace_back("edge_collapse", loc);
         }
         // collect_all_ops_collapse.emplace_back("collapse_pair", loc);
     }
     auto setup_and_execute = [&](auto& executor_collapse) {
-
-        addCustomOps(executor);
+        addCustomOps(executor_collapse);
         executor_collapse.renew_neighbor_tuples = renew_collapse;
         // add term with energy
         executor_collapse.priority = [&](auto& m, auto _, auto& e) {

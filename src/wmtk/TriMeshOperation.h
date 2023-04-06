@@ -15,6 +15,10 @@ public:
         std::vector<Tuple> new_tris;
         bool success = false;
         operator bool() const { return success;}
+
+    // two operation results combine by only succeeding if both succeed. The tuple returned is the ``this.tuple''
+    // Note that because only one tuple can be "returned" it is up to the user to provide semantics for reconstructing combined others
+    void combine(const ExecuteReturnData& o);
     };
 
     ExecuteReturnData operator()(TriMesh& m, const Tuple& t);

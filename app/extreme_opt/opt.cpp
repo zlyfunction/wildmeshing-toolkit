@@ -1,6 +1,6 @@
 
-#include "ExtremeOpt.h"
 #include "CollapsePairOperation.h"
+#include "ExtremeOpt.h"
 #include "wmtk/ExecutionScheduler.hpp"
 
 #include <Eigen/src/Core/util/Constants.h>
@@ -19,37 +19,6 @@
 #include "SYMDIR.h"
 
 using namespace wmtk;
-auto renew = [](auto& m, auto op, auto& tris) {
-    auto edges = m.new_edges_after(tris);
-    auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
-    for (auto& e : edges) optup.emplace_back(op, e);
-    return optup;
-};
-
-auto renew_collapse = [](auto& m, auto op, auto& tris) {
-    auto edges = m.new_edges_after(tris);
-    auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
-    for (auto& e : edges) {
-        if (m.m_params.with_cons)
-        {
-            if (m.is_boundary_edge(e)) {
-                optup.emplace_back("test_op", e);
-            } else {
-                optup.emplace_back("edge_collapse", e);
-            }
-        }
-        else
-        {
-            optup.emplace_back("edge_collapse", e);
-        }
-        
-    }
-    return optup;
-};
-
-
-
-
 
 
 void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
@@ -68,12 +37,10 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     // get edge length thresholds for collapsing operation
     elen_threshold = 0;
     elen_threshold_3d = 0;
-    for (int i = 0; i < F.rows(); i++)
-    {
-        for (int j = 0; j < 3; j++)
-        {
+    for (int i = 0; i < F.rows(); i++) {
+        for (int j = 0; j < 3; j++) {
             int v1 = F(i, j);
-            int v2 = F(i, (j+1)%3);
+            int v2 = F(i, (j + 1) % 3);
             double elen = (uv.row(v1) - uv.row(v2)).norm();
             double elen_3d = (V.row(v1) - V.row(v2)).norm();
             if (elen > elen_threshold) elen_threshold = elen;
@@ -107,7 +74,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
                     fmt::join(f, ","));
             }
         }
-       
+
         return EVec.maxCoeff();
     };
     auto compute_energy_all = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {
@@ -119,7 +86,10 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     double E = compute_energy(uv);
     wmtk::logger().info("Start Energy E = {}", E);
     opt_log["opt_log"].push_back(
-                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", compute_energy_max(uv)}, {"E_avg", E}});
+        {{"F_size", F.rows()},
+         {"V_size", V.rows()},
+         {"E_max", compute_energy_max(uv)},
+         {"E_avg", E}});
     double E_old = E;
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
@@ -138,7 +108,15 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}", compute_energy_max(uv));
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
-        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_splitted.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes)
+            igl::writeOBJ(
+                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_splitted.obj",
+                V,
+                F,
+                V,
+                F,
+                uv,
+                F);
 
         if (this->m_params.do_swap) {
             timer.start();
@@ -154,7 +132,15 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("After swapping, E = {}", E);
             wmtk::logger().info("E_max = {}", E_max);
         }
-        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_swapped.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes)
+            igl::writeOBJ(
+                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_swapped.obj",
+                V,
+                F,
+                V,
+                F,
+                uv,
+                F);
 
         if (this->m_params.do_collapse) {
             collapse_all_edges();
@@ -168,7 +154,16 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             E_max = compute_energy_max(uv);
             wmtk::logger().info("E_max = {}", E_max);
         }
-        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_collapsed.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes)
+            igl::writeOBJ(
+                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) +
+                    "_collapsed.obj",
+                V,
+                F,
+                V,
+                F,
+                uv,
+                F);
 
         if (this->m_params.local_smooth) {
             timer.start();
@@ -201,7 +196,15 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             opt_log["opt_log"].push_back(
                 {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E_avg", E}});
         }
-        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj", V, F, V, F, uv, F);
+        if (m_params.save_meshes)
+            igl::writeOBJ(
+                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj",
+                V,
+                F,
+                V,
+                F,
+                uv,
+                F);
 
         // terminate criteria
         // if (E < m_params.E_target) {

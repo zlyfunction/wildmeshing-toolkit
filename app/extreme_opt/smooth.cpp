@@ -1,4 +1,5 @@
 #include "ExtremeOpt.h"
+#include <wmtk/ExecutionScheduler.hpp>
 #include "SYMDIR.h"
 #include "rref.h"
 #include <igl/predicates/predicates.h>
@@ -599,6 +600,6 @@ void extremeopt::ExtremeOpt::smooth_all_vertices()
     }
 
     auto executor = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
-    addCusttomOps(executor);
+    addCustomOps(executor);
     executor(*this, collect_all_ops);
 }

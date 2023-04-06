@@ -1,11 +1,54 @@
 #include "ExtremeOpt.h"
+#include <wmtk/ExecutionScheduler.hpp>
 #include "SYMDIR.h"
+
+namespace {
+
+using namespace extremeopt;
+using namespace wmtk;
+
+class ExtremeOptSplitEdgeOperation : public wmtk::TriMeshOperationShim<
+                                                  ExtremeOpt,
+                                                  ExtremeOptSplitEdgeOperation,
+                                                  wmtk::TriMeshSplitEdgeOperation>
+{
+public:
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    {
+        return wmtk::TriMeshSplitEdgeOperation::execute(m, t);
+    }
+    bool before(ExtremeOpt& m, const Tuple& t)
+    {
+        if (wmtk::TriMeshSplitEdgeOperation::before(m, t)) {
+            return  m.split_edge_before(t);
+        }
+        return false;
+    }
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSplitEdgeOperation::after(m, ret_data)) {
+            ret_data.success |= m.split_edge_after(ret_data.tuple);
+        }
+        return ret_data;
+    }
+    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSplitEdgeOperation::invariants(m, ret_data)) {
+            ret_data.success |= m.invariants(ret_data.new_tris);
+        }
+        return ret_data;
+    }
+};
+
+    template <typename Executor>
+    void addCustomOps(Executor& e) {
+
+        e.add_operation(std::make_shared<ExtremeOptSplitEdgeOperation>());
+    }
+}
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) {
-        return false;
-    }
-    if (!TriMesh::split_edge_before(t)) {
         return false;
     }
 
@@ -160,7 +203,7 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
     
     
     auto setup_and_execute = [&](auto& executor_split) {
-        addCusttomOps(executor);
+        addCustomOps(executor_split);
         executor_split.priority = [&](auto& m, auto _, auto& e) {
             if (e.fid(*this) >= Es.size()) return 1e50;
             else return Es(e.fid(*this));

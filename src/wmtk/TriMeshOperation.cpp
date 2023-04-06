@@ -799,3 +799,9 @@ std::string TriMeshConsolidateOperation::name() const
     return "consolidate";
 }
 
+
+
+void TriMeshOperation::ExecuteReturnData::combine(const ExecuteReturnData& other) {
+    this->success &= other.success;
+    this->new_tris.insert(this->new_tris.end(), other.new_tris.begin(),other.new_tris.end());
+}
