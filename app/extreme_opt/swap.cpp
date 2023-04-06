@@ -1,9 +1,59 @@
+#include <wmtk/ExecutionScheduler.hpp>
 #include "ExtremeOpt.h"
 #include "SYMDIR.h"
+
+namespace {
+
+auto renew = [](auto& m, auto op, auto& tris) {
+    auto edges = m.new_edges_after(tris);
+    auto optup = std::vector<std::pair<std::string, wmtk::TriMesh::Tuple>>();
+    for (auto& e : edges) optup.emplace_back(op, e);
+    return optup;
+};
+using namespace extremeopt;
+using namespace wmtk;
+class ExtremeOptSwapEdgeOperation : public wmtk::TriMeshOperationShim<
+                                        ExtremeOpt,
+                                        ExtremeOptSwapEdgeOperation,
+                                        wmtk::TriMeshSwapEdgeOperation>
+{
+public:
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    {
+        return wmtk::TriMeshSwapEdgeOperation::execute(m, t);
+    }
+    bool before(ExtremeOpt& m, const Tuple& t)
+    {
+        if (wmtk::TriMeshSwapEdgeOperation::before(m, t)) {
+            return m.swap_edge_before(t);
+        }
+        return false;
+    }
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSwapEdgeOperation::after(m, ret_data)) {
+            ret_data.success |= m.swap_edge_after(ret_data.tuple);
+        }
+        return ret_data;
+    }
+    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSwapEdgeOperation::invariants(m, ret_data)) {
+            ret_data.success |= m.invariants(ret_data.new_tris);
+        }
+        return ret_data;
+    }
+};
+
+template <typename Executor>
+void addCustomOps(Executor& e)
+{
+    e.add_operation(std::make_shared<ExtremeOptSwapEdgeOperation>());
+}
+} // namespace
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) return false;
-    if (!TriMesh::swap_edge_before(t)) return false;
 
     // std::cout << "trying to swap edge " << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << std::endl;
 
@@ -18,25 +68,21 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
     auto tri1 = oriented_tri_vids(t);
     auto t_opp = t.switch_face(*this);
     auto tri2 = oriented_tri_vids(t_opp.value());
-    
+
     std::vector<int> v_ids;
     std::vector<int> v_map(vertex_attrs.size());
     Eigen::MatrixXi F_local(2, 3);
     Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
-    for (int i = 0; i < 3; i++)
-    {
+    for (int i = 0; i < 3; i++) {
         v_ids.push_back((int)tri1[i]);
     }
-    for (int i = 0; i < 3; i++)
-    {
-        if (std::find(v_ids.begin(), v_ids.end(), (int)tri2[i]) == v_ids.end())
-        {
+    for (int i = 0; i < 3; i++) {
+        if (std::find(v_ids.begin(), v_ids.end(), (int)tri2[i]) == v_ids.end()) {
             v_ids.push_back((int)tri2[i]);
         }
     }
     std::sort(v_ids.begin(), v_ids.end());
-    for (int i = 0; i < v_ids.size(); i++)
-    {
+    for (int i = 0; i < v_ids.size(); i++) {
         v_map[v_ids[i]] = i;
     }
     F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
@@ -63,7 +109,6 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 }
 
 
-
 bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 {
     // std::cout << "after swapping the edge becomes " << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << std::endl;
@@ -88,8 +133,7 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     }
     std::sort(v_ids.begin(), v_ids.end());
     assert(v_ids.size() == 4);
-    for (int i = 0; i < v_ids.size(); i++)
-    {
+    for (int i = 0; i < v_ids.size(); i++) {
         v_map[v_ids[i]] = i;
     }
 
@@ -138,13 +182,11 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
         return false;
     }
 
-    if (E >= swap_cache.local().E_old)
-    {
+    if (E >= swap_cache.local().E_old) {
         return false;
     }
-    
-    if (m_params.with_cons)
-    {
+
+    if (m_params.with_cons) {
         // update constraints after swap
         Tuple t1 = t.switch_edge(*this);
         Tuple t2 = t.switch_face(*this).value().switch_vertex(*this).switch_edge(*this);
@@ -191,8 +233,28 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
             }
         }
     }
-    
-    
+
+
     return true;
 }
 
+void extremeopt::ExtremeOpt::swap_all_edges()
+{
+    auto collect_all_ops_swap = std::vector<std::pair<std::string, Tuple>>();
+    for (auto& loc : get_edges()) {
+        collect_all_ops_swap.emplace_back("edge_swap", loc);
+    }
+
+    auto setup_and_execute = [&](auto& executor_swap) {
+        executor_swap.renew_neighbor_tuples = renew;
+        executor_swap.priority = [&](auto& m, auto _, auto& e) {
+            return -(vertex_attrs[e.vid(*this)].pos -
+                     vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
+                        .norm();
+        };
+        executor_swap.num_threads = NUM_THREADS;
+        executor_swap(*this, collect_all_ops_swap);
+    };
+    auto executor_swap = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    setup_and_execute(executor_swap);
+}

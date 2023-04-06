@@ -1,11 +1,54 @@
 #include "ExtremeOpt.h"
+#include <wmtk/ExecutionScheduler.hpp>
 #include "SYMDIR.h"
+
+namespace {
+
+using namespace extremeopt;
+using namespace wmtk;
+
+class ExtremeOptSplitEdgeOperation : public wmtk::TriMeshOperationShim<
+                                                  ExtremeOpt,
+                                                  ExtremeOptSplitEdgeOperation,
+                                                  wmtk::TriMeshSplitEdgeOperation>
+{
+public:
+    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    {
+        return wmtk::TriMeshSplitEdgeOperation::execute(m, t);
+    }
+    bool before(ExtremeOpt& m, const Tuple& t)
+    {
+        if (wmtk::TriMeshSplitEdgeOperation::before(m, t)) {
+            return  m.split_edge_before(t);
+        }
+        return false;
+    }
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSplitEdgeOperation::after(m, ret_data)) {
+            ret_data.success |= m.split_edge_after(ret_data.tuple);
+        }
+        return ret_data;
+    }
+    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        if (wmtk::TriMeshSplitEdgeOperation::invariants(m, ret_data)) {
+            ret_data.success |= m.invariants(ret_data.new_tris);
+        }
+        return ret_data;
+    }
+};
+
+    template <typename Executor>
+    void addCustomOps(Executor& e) {
+
+        e.add_operation(std::make_shared<ExtremeOptSplitEdgeOperation>());
+    }
+}
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) {
-        return false;
-    }
-    if (!TriMesh::split_edge_before(t)) {
         return false;
     }
 
@@ -118,4 +161,65 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
 
 
     return true;
+}
+
+void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
+{
+    Eigen::MatrixXi EE;
+    if (m_params.with_cons)
+    {
+        export_EE(EE);
+    }
+    size_t vid_threshold = 0;
+    auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
+
+    for (auto& loc : get_faces())
+    {
+        auto t0 = loc;
+        auto t1 = t0.switch_edge(*this);
+        auto t2 = t0.switch_vertex(*this).switch_edge(*this);
+        double l0 =
+            (vertex_attrs[t0.vid(*this)].pos - vertex_attrs[t0.switch_vertex(*this).vid(*this)].pos)
+                .norm();
+        double l1 =
+            (vertex_attrs[t1.vid(*this)].pos - vertex_attrs[t1.switch_vertex(*this).vid(*this)].pos)
+                .norm();
+        double l2 =
+            (vertex_attrs[t2.vid(*this)].pos - vertex_attrs[t2.switch_vertex(*this).vid(*this)].pos)
+                .norm();
+        if (is_boundary_edge(t0)) l0 = 0;
+        if (is_boundary_edge(t1)) l1 = 0;
+        if (is_boundary_edge(t2)) l2 = 0;
+
+        if (l0 >= l1 && l0 >= l2) {
+            collect_all_ops_split.emplace_back("edge_split", t0);
+        } else if (l1 >= l2) {
+            collect_all_ops_split.emplace_back("edge_split", t1);
+
+        } else {
+            collect_all_ops_split.emplace_back("edge_split", t2);
+        }
+    }
+    
+    
+    auto setup_and_execute = [&](auto& executor_split) {
+        addCustomOps(executor_split);
+        executor_split.priority = [&](auto& m, auto _, auto& e) {
+            if (e.fid(*this) >= Es.size()) return 1e50;
+            else return Es(e.fid(*this));
+        };
+        executor_split.stopping_criterion_checking_frequency = 300;
+        executor_split.stopping_criterion = [](const TriMesh&) {
+            return true; // non-stop, process everything
+        };
+        executor_split.num_threads = NUM_THREADS;
+        executor_split(*this, collect_all_ops_split);
+    };
+    auto executor_split = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
+    setup_and_execute(executor_split);
+    
+    if (m_params.with_cons)
+    {
+        update_constraints_EE_v(EE);
+    }
 }
