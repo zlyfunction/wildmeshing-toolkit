@@ -93,12 +93,12 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     wmtk::jacobian_from_uv(G_local, uv_local, Ji);
     double E_after_collapse = wmtk::compute_energy_from_jacobian(Ji, area_local_3d) * area_local_3d.sum();
 
-    std::cout << "E_after collapse: " << E_after_collapse  << " area: " << area_local_3d.sum() << std::endl;
+    // std::cout << "E_after collapse: " << E_after_collapse  << " area: " << area_local_3d.sum() << std::endl;
     if (E_after_collapse > position_cache.local().E_before_collapse) {
         // E_sum does not go down
         return false;
     }
-    std::cout << "collapse good" << std::endl;
+    // std::cout << "collapse good" << std::endl;
 
     if (m_params.with_cons)
     {

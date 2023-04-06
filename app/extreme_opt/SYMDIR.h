@@ -8,7 +8,7 @@
 
 #define SOFT_MAX
 
-#define NORM_P 1
+#define NORM_P 4
 namespace wmtk{
     template <typename T>
     T symmetric_dirichlet_energy_t(T a, T b, T c, T d)

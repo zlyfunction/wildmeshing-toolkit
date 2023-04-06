@@ -128,7 +128,7 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
     igl::doublearea(V_local, F_local, areas);
     position_cache.local().E_before_collapse = wmtk::compute_energy_from_jacobian(Ji, areas) * areas.sum();    
 
-    std::cout << "before collapse: E = " <<  position_cache.local().E_before_collapse << " area = " << areas.sum() << std::endl;
+    // std::cout << "before collapse: E = " <<  position_cache.local().E_before_collapse << " area = " << areas.sum() << std::endl;
 /*
     double E1, E2;
     E1 = get_e_max_onering(t);
