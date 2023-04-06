@@ -115,6 +115,7 @@ TEST_CASE("helmet_collapse", "[helmet]")
     param.do_projection = false;
     param.with_cons = true;
     param.save_meshes = false;
+    param.do_collapse = true;
 
     std::string model = "helmet";
     extremeopt::ExtremeOpt extremeopt;
@@ -144,6 +145,217 @@ TEST_CASE("helmet_collapse", "[helmet]")
     {
         REQUIRE(E_out <= E_in);
     }
+}
 
+TEST_CASE("helmet_swap", "[helmet]")
+{
+    extremeopt::Parameters param;
+    param.max_iters = 1;
+    param.local_smooth = false;
+    param.global_smooth = false;
+    param.use_envelope = true;
+    param.elen_alpha = 0.2;
+    param.do_projection = false;
+    param.with_cons = true;
+    param.save_meshes = false;
+    param.do_swap = true;
 
+    std::string model = "helmet";
+    extremeopt::ExtremeOpt extremeopt;
+    init_model(extremeopt, model, param);
+    
+    Eigen::MatrixXd V_in, uv_in;
+    Eigen::MatrixXi F_in;
+    extremeopt.export_mesh(V_in, F_in, uv_in);
+    double E_in = compute_energy(V_in, uv_in, F_in);
+    
+    extremeopt.collapse_all_edges();
+
+        
+    Eigen::MatrixXd V_out, uv_out;
+    Eigen::MatrixXi F_out;
+    extremeopt.export_mesh(V_out, F_out, uv_out);
+    double E_out = compute_energy(V_out, uv_out, F_out);
+    SECTION( "no flip" ) 
+    {
+        REQUIRE(check_flip(uv_out, F_out) == 0);
+    }
+    SECTION( "seamless constraints" ) 
+    {
+        REQUIRE(extremeopt.check_constraints());   
+    }
+    SECTION("smaller energy")
+    {
+        REQUIRE(E_out <= E_in);
+    }
+}
+
+TEST_CASE("eight_collapse", "[eight]")
+{
+    extremeopt::Parameters param;
+    param.max_iters = 1;
+    param.local_smooth = false;
+    param.global_smooth = false;
+    param.use_envelope = true;
+    param.elen_alpha = 0.2;
+    param.do_projection = false;
+    param.with_cons = true;
+    param.save_meshes = false;
+    param.do_collapse = true;
+
+    std::string model = "eight";
+    extremeopt::ExtremeOpt extremeopt;
+    init_model(extremeopt, model, param);
+    
+    Eigen::MatrixXd V_in, uv_in;
+    Eigen::MatrixXi F_in;
+    extremeopt.export_mesh(V_in, F_in, uv_in);
+    double E_in = compute_energy(V_in, uv_in, F_in);
+    
+    extremeopt.collapse_all_edges();
+
+        
+    Eigen::MatrixXd V_out, uv_out;
+    Eigen::MatrixXi F_out;
+    extremeopt.export_mesh(V_out, F_out, uv_out);
+    double E_out = compute_energy(V_out, uv_out, F_out);
+    SECTION( "no flip" ) 
+    {
+        REQUIRE(check_flip(uv_out, F_out) == 0);
+    }
+    SECTION( "seamless constraints" ) 
+    {
+        REQUIRE(extremeopt.check_constraints());   
+    }
+    SECTION("smaller energy")
+    {
+        REQUIRE(E_out <= E_in);
+    }
+}
+
+TEST_CASE("eight_swap", "[eight]")
+{
+    extremeopt::Parameters param;
+    param.max_iters = 1;
+    param.local_smooth = false;
+    param.global_smooth = false;
+    param.use_envelope = true;
+    param.elen_alpha = 0.2;
+    param.do_projection = false;
+    param.with_cons = true;
+    param.save_meshes = false;
+    param.do_swap = true;
+    
+    std::string model = "eight";
+    extremeopt::ExtremeOpt extremeopt;
+    init_model(extremeopt, model, param);
+    
+    Eigen::MatrixXd V_in, uv_in;
+    Eigen::MatrixXi F_in;
+    extremeopt.export_mesh(V_in, F_in, uv_in);
+    double E_in = compute_energy(V_in, uv_in, F_in);
+    
+    extremeopt.collapse_all_edges();
+
+        
+    Eigen::MatrixXd V_out, uv_out;
+    Eigen::MatrixXi F_out;
+    extremeopt.export_mesh(V_out, F_out, uv_out);
+    double E_out = compute_energy(V_out, uv_out, F_out);
+    SECTION( "no flip" ) 
+    {
+        REQUIRE(check_flip(uv_out, F_out) == 0);
+    }
+    SECTION( "seamless constraints" ) 
+    {
+        REQUIRE(extremeopt.check_constraints());   
+    }
+    SECTION("smaller energy")
+    {
+        REQUIRE(E_out <= E_in);
+    }
+}
+
+TEST_CASE("helmet_smooth", "[helmet]")
+{
+    extremeopt::Parameters param;
+    param.max_iters = 1;
+    param.local_smooth = true;
+    param.global_smooth = false;
+    param.use_envelope = true;
+    param.elen_alpha = 0.2;
+    param.do_projection = false;
+    param.with_cons = true;
+    param.save_meshes = false;
+
+    std::string model = "helmet";
+    extremeopt::ExtremeOpt extremeopt;
+    init_model(extremeopt, model, param);
+    
+    Eigen::MatrixXd V_in, uv_in;
+    Eigen::MatrixXi F_in;
+    extremeopt.export_mesh(V_in, F_in, uv_in);
+    double E_in = compute_energy(V_in, uv_in, F_in);
+    
+    extremeopt.collapse_all_edges();
+
+        
+    Eigen::MatrixXd V_out, uv_out;
+    Eigen::MatrixXi F_out;
+    extremeopt.export_mesh(V_out, F_out, uv_out);
+    double E_out = compute_energy(V_out, uv_out, F_out);
+    SECTION( "no flip" ) 
+    {
+        REQUIRE(check_flip(uv_out, F_out) == 0);
+    }
+    SECTION( "seamless constraints" ) 
+    {
+        REQUIRE(extremeopt.check_constraints());   
+    }
+    SECTION("smaller energy")
+    {
+        REQUIRE(E_out <= E_in);
+    }
+}
+
+TEST_CASE("eight_smooth", "[eight]")
+{
+    extremeopt::Parameters param;
+    param.max_iters = 1;
+    param.local_smooth = true;
+    param.global_smooth = false;
+    param.use_envelope = true;
+    param.elen_alpha = 0.2;
+    param.do_projection = false;
+    param.with_cons = true;
+    param.save_meshes = false;
+
+    std::string model = "eight";
+    extremeopt::ExtremeOpt extremeopt;
+    init_model(extremeopt, model, param);
+    
+    Eigen::MatrixXd V_in, uv_in;
+    Eigen::MatrixXi F_in;
+    extremeopt.export_mesh(V_in, F_in, uv_in);
+    double E_in = compute_energy(V_in, uv_in, F_in);
+    
+    extremeopt.collapse_all_edges();
+
+        
+    Eigen::MatrixXd V_out, uv_out;
+    Eigen::MatrixXi F_out;
+    extremeopt.export_mesh(V_out, F_out, uv_out);
+    double E_out = compute_energy(V_out, uv_out, F_out);
+    SECTION( "no flip" ) 
+    {
+        REQUIRE(check_flip(uv_out, F_out) == 0);
+    }
+    SECTION( "seamless constraints" ) 
+    {
+        REQUIRE(extremeopt.check_constraints());   
+    }
+    SECTION("smaller energy")
+    {
+        REQUIRE(E_out <= E_in);
+    }
 }

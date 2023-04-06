@@ -42,5 +42,5 @@ wmtk_copy_dll(extreme_opt)
 # target_link_libraries(test_opt PUBLIC wmtk::extreme_opt)
 # target_link_libraries(viewer igl::core igl::opengl igl::opengl_glfw)
 
-# add_subdirectory(tests)
+add_subdirectory(tests)
 
