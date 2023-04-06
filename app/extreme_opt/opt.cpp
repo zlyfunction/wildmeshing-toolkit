@@ -164,7 +164,7 @@ void extremeopt::ExtremeOpt::collapse_all_edges()
                     vertex_attrs[e.switch_vertex(*this).vid(*this)].pos)
                 .norm();
         };
-        executor_collapse.num_threads = NUM_THREADS;
+        executor_collapse.num_threads = 0;
         executor_collapse(*this, collect_all_ops_collapse);
         // TODO: priority queue (edge length)
     };
@@ -195,8 +195,6 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     Eigen::MatrixXi F;
 
     export_mesh(V, F, uv);
-
-
     // get edge length thresholds for collapsing operation
     elen_threshold = 0;
     elen_threshold_3d = 0;
@@ -214,7 +212,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     }
     elen_threshold *= m_params.elen_alpha;
     elen_threshold_3d *= m_params.elen_alpha;
-    
+
     get_grad_op(V, F, G_global);
     Eigen::VectorXd dblarea;
     igl::doublearea(V, F, dblarea);

@@ -94,6 +94,7 @@ void ExtremeOpt::create_mesh(
         m_envelope.use_exact = false;
         m_envelope.init(V_in, F_in, 0.01 * diag);
     }
+
     // std::vector<std::vector<int>> bds;
     // igl::boundary_loop(F, bds);
     // for (auto bd : bds) {

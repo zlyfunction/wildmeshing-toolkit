@@ -279,7 +279,12 @@ int main(int argc, char** argv)
     extremeopt::ExtremeOpt extremeopt;
     // uniform_upsample_with_cons(V, uv, F, EE, new_V, new_uv, new_F);
     extremeopt.m_params = param;
+    
     extremeopt.create_mesh(V, F, uv);
+    // return -1;
+
+
+
     if (extremeopt.m_params.with_cons)
     {
         std::vector<std::vector<int>> EE_e;
@@ -293,6 +298,7 @@ int main(int argc, char** argv)
             std::cout << "fails" << std::endl;
         }
     }
+
     extremeopt.do_optimization(opt_log);
     if (extremeopt.m_params.with_cons)
     {
