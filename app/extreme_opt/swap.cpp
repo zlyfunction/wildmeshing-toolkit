@@ -1,7 +1,7 @@
 #include <wmtk/ExecutionScheduler.hpp>
 #include "ExtremeOpt.h"
 #include "SYMDIR.h"
-
+#include "SYMDIR_NEW.h"
 namespace {
 
 auto renew = [](auto& m, auto op, auto& tris) {
@@ -29,17 +29,20 @@ public:
         }
         return false;
     }
+
     bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {
-        if (wmtk::TriMeshSwapEdgeOperation::after(m, ret_data)) {
-            ret_data.success |= m.swap_edge_after(ret_data.tuple);
+        ret_data.success &= wmtk::TriMeshSwapEdgeOperation::after(m, ret_data);
+        if (ret_data.success) {
+            ret_data.success &= m.swap_edge_after(ret_data.tuple);
         }
         return ret_data;
     }
     bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {
-        if (wmtk::TriMeshSwapEdgeOperation::invariants(m, ret_data)) {
-            ret_data.success |= m.invariants(ret_data.new_tris);
+        ret_data.success &= wmtk::TriMeshSwapEdgeOperation::invariants(m, ret_data);
+        if (ret_data.success) {
+            ret_data.success &= m.invariants(ret_data.new_tris);
         }
         return ret_data;
     }
@@ -64,48 +67,12 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
     swap_cache.local().t1 = t1;
     swap_cache.local().t2 = t2;
 
-    // compute old local energy
-    auto tri1 = oriented_tri_vids(t);
-    auto t_opp = t.switch_face(*this);
-    auto tri2 = oriented_tri_vids(t_opp.value());
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    double E = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
+    swap_cache.local().E_old = E;
 
-    std::vector<int> v_ids;
-    std::vector<int> v_map(vertex_attrs.size());
-    Eigen::MatrixXi F_local(2, 3);
-    Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
-    for (int i = 0; i < 3; i++) {
-        v_ids.push_back((int)tri1[i]);
-    }
-    for (int i = 0; i < 3; i++) {
-        if (std::find(v_ids.begin(), v_ids.end(), (int)tri2[i]) == v_ids.end()) {
-            v_ids.push_back((int)tri2[i]);
-        }
-    }
-    std::sort(v_ids.begin(), v_ids.end());
-    for (int i = 0; i < v_ids.size(); i++) {
-        v_map[v_ids[i]] = i;
-    }
-    F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
-    F_local.row(1) << v_map[tri2[0]], v_map[tri2[1]], v_map[tri2[2]];
-    for (int i = 0; i < 4; i++) {
-        V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
-        uv_local.row(i) = vertex_attrs[v_ids[i]].pos;
-    }
-    Eigen::SparseMatrix<double> G_local;
-    get_grad_op(V_local, F_local, G_local);
-    Eigen::MatrixXd Ji;
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    
-#ifdef OPT_MAX
-    swap_cache.local().E_old = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
-#else
-    Eigen::VectorXd area;
-    igl::doublearea(V_local, F_local, area);
-    swap_cache.local().E_old = wmtk::compute_energy_from_jacobian(Ji, area) * area.sum();
-#endif
-
-    // std::cout << "energy before swap is " << swap_cache.local().E_old << std::endl;
     return true;
+    // std::cout << "energy before swap is " << swap_cache.local().E_old << std::endl;
 }
 
 
@@ -116,75 +83,23 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     auto tri1 = oriented_tri_vids(t);
     auto t_opp = t.switch_face(*this);
     auto tri2 = oriented_tri_vids(t_opp.value());
-
-    std::vector<int> v_ids;
-    std::vector<int> v_map(vertex_attrs.size());
-    Eigen::MatrixXi F_local(2, 3);
-    Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
-    for (int i = 0; i < 3; i++) {
-        v_ids.push_back(tri1[i]);
-    }
-    for (int i = 0; i < 3; i++) {
-        int j = 0;
-        while (j < 3 && v_ids[j] != (int)tri2[i]) {
-            j++;
-        }
-        if (j == 3) v_ids.push_back((int)tri2[i]);
-    }
-    std::sort(v_ids.begin(), v_ids.end());
-    assert(v_ids.size() == 4);
-    for (int i = 0; i < v_ids.size(); i++) {
-        v_map[v_ids[i]] = i;
-    }
-
-    F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
-    F_local.row(1) << v_map[tri2[0]], v_map[tri2[1]], v_map[tri2[2]];
-
-    for (int i = 0; i < 4; i++) {
-        V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
-        uv_local.row(i) = vertex_attrs[v_ids[i]].pos;
-    }
-
-    Eigen::VectorXd dblarea, dblarea_3d;
-    igl::doublearea(V_local, F_local, dblarea_3d);
-    igl::doublearea(uv_local, F_local, dblarea);
-
-
-    if (dblarea_3d.minCoeff() <= 0) {
+    if (is_inverted(t) || is_inverted(t_opp.value()))
+    {
         return false;
     }
-    if (dblarea.minCoeff() <= 0) {
+    if (is_3d_degenerated(t) || is_3d_degenerated(t_opp.value()))
+    {
         return false;
     }
 
-    Eigen::SparseMatrix<double> G_local;
-    get_grad_op(V_local, F_local, G_local);
-
-    double E, E_old;
-    Eigen::MatrixXd Ji;
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    Eigen::VectorXd Es =
-        wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-#ifdef OPT_MAX
-    E = Es.maxCoeff(); // compute E_max
-#else
-    Eigen::VectorXd area;
-    igl::doublearea(V_local, F_local, area);
-    E = wmtk::compute_energy_from_jacobian(Ji, area) * area.sum();
-#endif
-
-    // std::cout << "Energy after swapping is" << E << std::endl;
-    if (!std::isfinite(Es(0)) || !std::isfinite(Es(1))) {
-        // std::cout << "nan fail" << std::endl;
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    double E = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
+    
+    if (!std::isfinite(E) || E >= swap_cache.local().E_old) {
         return false;
     }
-    if (Es.minCoeff() <= 0) {
-        return false;
-    }
-
-    if (E >= swap_cache.local().E_old) {
-        return false;
-    }
+    // std::cout << "Energy after swapping is " << E << std::endl;
+    // std::cout << std::endl;
 
     if (m_params.with_cons) {
         // update constraints after swap
@@ -246,6 +161,7 @@ void extremeopt::ExtremeOpt::swap_all_edges()
     }
 
     auto setup_and_execute = [&](auto& executor_swap) {
+        addCustomOps(executor_swap);
         executor_swap.renew_neighbor_tuples = renew;
         executor_swap.priority = [&](auto& m, auto _, auto& e) {
             return -(vertex_attrs[e.vid(*this)].pos -

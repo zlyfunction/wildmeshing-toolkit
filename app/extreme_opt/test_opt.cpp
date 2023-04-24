@@ -19,20 +19,20 @@
 #include <igl/writeOBJ.h>
 #include <igl/readOBJ.h>
 
-#include "autodiff_jakob.h"
-// using namespace jakob;
-DECLARE_DIFFSCALAR_BASE();
-using namespace extremeopt;
-template <typename T>
-T E_from_J(T a, T b, T c, T d)
-{
-    auto det = a * d - b * c;
-    auto frob2 = a * a + b * b + c * c + d * d;
-    return frob2 * (1 + 1 / (det * det)); // sym_dir
-}
+// #include "autodiff_jakob.h"
+// // using namespace jakob;
+// DECLARE_DIFFSCALAR_BASE();
+// using namespace extremeopt;
+// template <typename T>
+// T E_from_J(T a, T b, T c, T d)
+// {
+//     auto det = a * d - b * c;
+//     auto frob2 = a * a + b * b + c * c + d * d;
+//     return frob2 * (1 + 1 / (det * det)); // sym_dir
+// }
 
-
-int main(int argc, char** argv)
+/*
+int main_old(int argc, char** argv)
 {
     CLI::App app{argv[0]};
     std::string input_dir = "./objs";
@@ -98,5 +98,29 @@ int main(int argc, char** argv)
 
     return 0;
 }
+*/
 
-
+#include "SYMDIR_NEW.h"
+int main()
+{
+    wmtk::SymmetricDirichletEnergy E(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, 1);
+    Eigen::Vector3d A,B,C;
+    Eigen::Vector2d a,b,c;
+    A << 0,0,0;
+    B << 0,2,0;
+    C << 0,0,2;
+    a << 0,0;
+    b << 1,0;
+    c << 0,1;
+    std::cout << "Jacobian:\n" << E.jacobian(A, B, C, a, b, c) << std::endl;
+    std::cout << "Jacobian gt: \n" << E.jacobian_old(A, B, C, a, b, c) << std::endl;
+    std::cout << "Energy: " << E.symmetric_dirichlet_energy(A, B, C, a, b, c) << std::endl;
+    Eigen::Vector2d grad;
+    Eigen::Matrix2d hessian;
+    // double E_eval;
+    // E_eval = E.get_grad_and_hessian(A, B, C, a, b, c, grad, hessian);
+    // std::cout << "E_eval: " << E_eval << std::endl;
+    // std::cout << "grad:\n" << grad << std::endl;
+    // std::cout << "hessian:\n" << hessian << std::endl;
+    // std::cout << E.symmetric_dirichlet_energy(A, B, C, a, b, c) << std::endl;
+}

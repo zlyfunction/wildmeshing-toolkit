@@ -5,7 +5,7 @@
 #include <igl/predicates/predicates.h>
 #include <igl/boundary_loop.h>
 #include <igl/writeOBJ.h>
-
+#include "SYMDIR_NEW.h"
 
 namespace {
 
@@ -31,15 +31,17 @@ public:
     }
     bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {
-        if (wmtk::TriMeshSmoothVertexOperation::after(m, ret_data)) {
-            ret_data.success |= m.smooth_after(ret_data.tuple);
+        ret_data.success &= wmtk::TriMeshSmoothVertexOperation::after(m, ret_data);
+        if (ret_data.success) {
+            ret_data.success &= m.smooth_after(ret_data.tuple);
         }
         return ret_data;
     }
     bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {
-        if (wmtk::TriMeshSmoothVertexOperation::invariants(m, ret_data)) {
-            ret_data.success |= m.invariants(ret_data.new_tris);
+        ret_data.success &= wmtk::TriMeshSmoothVertexOperation::invariants(m, ret_data);
+        if (ret_data.success) {
+            ret_data.success &= m.invariants(ret_data.new_tris);
         }
         return ret_data;
     }
@@ -190,102 +192,45 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     auto vid = t.vid(*this);
 
     wmtk::logger().trace("smooth vertex {}", vid);
-    // std::cout << "vertex " << vid << std::endl;
     bool ls_good = false;
 
-    if (!is_boundary_vertex(t))
+    if (!is_boundary_vertex(t) || !m_params.with_cons)
     { 
         // return false;
         auto vid_onering = get_one_ring_vids_for_vertex(vid);
         auto locs = get_one_ring_tris_for_vertex(t);
         assert(locs.size() > 0);
 
-        // get local (V, F)
-        Eigen::MatrixXd V_local(vid_onering.size(), 3);
-        Eigen::MatrixXd uv_local(vid_onering.size(), 2);
-        for (size_t i = 0; i < vid_onering.size(); i++) {
-            V_local.row(i) = vertex_attrs[vid_onering[i]].pos_3d;
-            uv_local.row(i) = vertex_attrs[vid_onering[i]].pos;
-        }
-        std::vector<int> v_map(vertex_attrs.size(), -1);
-        for (size_t i = 0; i < vid_onering.size(); i++) {
-            v_map[vid_onering[i]] = i;
-        }
-        Eigen::MatrixXi F_local(locs.size(), 3);
-        Eigen::VectorXd area_local(locs.size());
-        for (size_t i = 0; i < locs.size(); i++) {
-            int t_id = locs[i].fid(*this);
-            auto local_tuples = oriented_tri_vertices(locs[i]);
-            for (size_t j = 0; j < 3; j++) {
-                F_local(i, j) = v_map[local_tuples[j].vid(*this)];
-            }
-            // area_local(i) =s 1;
-        }
-        igl::doublearea(V_local, F_local, area_local);
-        
-        Eigen::SparseMatrix<double> G_local;
-        get_grad_op(V_local, F_local, G_local);
 
-        auto compute_energy = [&G_local, &area_local](Eigen::MatrixXd& aaa) {
-            Eigen::MatrixXd Ji;
-            wmtk::jacobian_from_uv(G_local, aaa, Ji);
-            return wmtk::compute_energy_from_jacobian(Ji, area_local);
-        };
+        Eigen::Matrix2d hessian_at_v;
+        Eigen::Vector2d grad_at_v;
 
-        auto compute_energy_max = [&G_local, &area_local](Eigen::MatrixXd& aaa) {
-            Eigen::MatrixXd Ji;
-            wmtk::jacobian_from_uv(G_local, aaa, Ji);
-            return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
-        };
+        wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+        double local_energy_0 = E_eval.get_grad_and_hessian_onering(*this, t, grad_at_v, hessian_at_v);
 
-
-        Eigen::SparseMatrix<double> hessian_local;
-        Eigen::VectorXd grad_local;
-
-        double local_energy_0 = wmtk::get_grad_and_hessian(
-            G_local,
-            area_local,
-            uv_local,
-            grad_local,
-            hessian_local,
-            m_params.do_newton);
         Eigen::MatrixXd search_dir(1, 2);
         if (!m_params.do_newton) {
-            search_dir =
-                -Eigen::Map<Eigen::MatrixXd>(grad_local.data(), uv_local.rows(), 2).row(v_map[vid]);
-            // std::cout << "grad.norm() = " << search_dir.norm() << std::endl;
+            search_dir << -grad_at_v(0), -grad_at_v(1);
         } else {
-            // local hessian for only one node
-            Eigen::Matrix2d hessian_at_v;
-            hessian_at_v << hessian_local.coeff(v_map[vid], v_map[vid]),
-                hessian_local.coeff(v_map[vid], v_map[vid] + vid_onering.size()),
-                hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid]),
-                hessian_local.coeff(v_map[vid] + vid_onering.size(), v_map[vid] + vid_onering.size());
-            Eigen::Vector2d grad_at_v;
-            grad_at_v << grad_local(v_map[vid]), grad_local(v_map[vid] + vid_onering.size());
             Eigen::Vector2d newton_at_v = hessian_at_v.ldlt().solve(-grad_at_v);
             search_dir << newton_at_v(0), newton_at_v(1);
         }
-        // std::cout << "search_dir" << search_dir << std::endl;
+
         auto pos_copy = vertex_attrs[vid].pos;
         double step = 1.0;
         double new_energy;
-        auto new_x = uv_local;
         for (int i = 0; i < m_params.ls_iters; i++) {
-            // std::cout << i << "  step_size " << step << std::endl;
-            new_x.row(v_map[vid]) = uv_local.row(v_map[vid]) + step * search_dir;
-            vertex_attrs[vid].pos << new_x(v_map[vid], 0), new_x(v_map[vid], 1);
-            new_energy = compute_energy(new_x);
-
+            vertex_attrs[vid].pos << pos_copy + step * search_dir;
+            
             bool has_flip = false;
             for (auto loc : locs) {
                 if (is_inverted(loc)) {
-                    // std::cout << "flip" << std::endl;
                     has_flip = true;
                     break;
                 }
             }
-            if (new_energy < local_energy_0 && !has_flip) {
+            new_energy = E_eval.symmetric_dirichlet_energy_onering(*this, t);
+            if (std::isfinite(new_energy) && new_energy < local_energy_0 && !has_flip) {
                 ls_good = true;
                 break;
             }
@@ -296,15 +241,16 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             step = step * 0.8;
         }
         if (ls_good) {
-            wmtk::logger()
-                .info("vertex {} onering_size {} ls good, step = {}, energy {} -> {}, E_max {} -> {}", vid, locs.size(), step, local_energy_0, new_energy, compute_energy_max(uv_local), compute_energy_max(new_x));
+            // wmtk::logger()
+            //     .info("vertex {} onering_size {} ls good, step = {}, energy {} -> {}", vid, locs.size(), step, local_energy_0, new_energy);
         } else {
-            wmtk::logger().info("vertex {} ls failed", vid);
+            // wmtk::logger().info("vertex {} ls failed", vid);
             vertex_attrs[vid].pos = pos_copy;
         }
     }
     else if (m_params.with_cons)// boudnary vertex
     {
+        return false;
         std::vector<Tuple> ts;
         std::vector<Eigen::MatrixXd> Vs, uvs;
         std::vector<Eigen::MatrixXi> Fs;

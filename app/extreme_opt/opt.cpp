@@ -17,7 +17,7 @@
 #include <optional>
 #include <wmtk/utils/TupleUtils.hpp>
 #include "SYMDIR.h"
-
+#include "SYMDIR_NEW.h"
 using namespace wmtk;
 
 
@@ -26,13 +26,10 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     igl::Timer timer;
     double time;
 
-    // prepare to compute energy
-    Eigen::SparseMatrix<double> G_global;
+    // get edge length thresholds for collapsing operation
     Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
-
     export_mesh(V, F, uv);
-    // get edge length thresholds for collapsing operation
     elen_threshold = 0;
     elen_threshold_3d = 0;
     for (int i = 0; i < F.rows(); i++) {
@@ -47,140 +44,89 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     }
     elen_threshold *= m_params.elen_alpha;
     elen_threshold_3d *= m_params.elen_alpha;
-
-    get_grad_op(V, F, G_global);
-    Eigen::VectorXd dblarea;
-    igl::doublearea(V, F, dblarea);
-    auto compute_energy = [&G_global, &dblarea](Eigen::MatrixXd& aaa) {
-        Eigen::MatrixXd Ji;
-        wmtk::jacobian_from_uv(G_global, aaa, Ji);
-        return wmtk::compute_energy_from_jacobian(Ji, dblarea) * dblarea.sum();
-    };
-
-    auto compute_energy_avg = [&G_global, &dblarea](Eigen::MatrixXd& aaa) {
-        Eigen::MatrixXd Ji;
-        wmtk::jacobian_from_uv(G_global, aaa, Ji);
-        return wmtk::compute_energy_from_jacobian(Ji, dblarea);
-    };
-
-    auto compute_energy_max = [&G_global, &dblarea, &F, &V](Eigen::MatrixXd& aaa) {
-        Eigen::MatrixXd Ji;
-        wmtk::jacobian_from_uv(G_global, aaa, Ji);
-        auto EVec = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-        for (int j = 0; j < EVec.size(); ++j) {
-            if (!std::isfinite(EVec(j))) {
-                auto f = F.row(j);
-                spdlog::info(
-                    "triangle {} was not finite area {} ({})",
-                    j,
-                    dblarea(j),
-                    fmt::join(f, ","));
-            }
-        }
-
-        return EVec.maxCoeff();
-    };
-    auto compute_energy_all = [&G_global, &dblarea, &F](Eigen::MatrixXd& aaa) {
-        Eigen::MatrixXd Ji;
-        wmtk::jacobian_from_uv(G_global, aaa, Ji);
-        return wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    };
-
-    double E = compute_energy(uv);
+    
+    double E = get_quality();
     wmtk::logger().info("Start Energy E = {}", E);
-    wmtk::logger().info("Start E_max = {}", compute_energy_max(uv));
+
+    double E_max = get_quality_max();
+    wmtk::logger().info("Start E_max = {}", E_max);
+    
     opt_log["opt_log"].push_back(
-                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", compute_energy_max(uv)}, {"E", E},{"E_avg", E / dblarea.sum()}});
+                {{"F_size", get_faces().size()}, {"V_size", get_vertices().size()}, {"E_max", E_max}, {"E", E}});
     double E_old = E;
+    int V_size, F_size;
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
-
+        
         if (this->m_params.do_split) {
-            auto Es = compute_energy_all(uv);
+            // TODO: set priority inside split_all_edges
+            auto Es = get_quality_all();
+            timer.start();
             split_all_edges(Es);
+            time = timer.getElapsedTime();
+            wmtk::logger().info("edges splitting operation time serial: {}s", time);
 
-            export_mesh(V, F, uv);
-            get_grad_op(V, F, G_global);
-            igl::doublearea(V, F, dblarea);
-            E = compute_energy(uv);
+            E = get_quality();
+            E_max = get_quality_max();
+
+            V_size = get_vertices().size();
+            F_size = get_faces().size();
+
             wmtk::logger()
-                .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+                .info("Mesh F size {}, V size {}", F_size, V_size);
             wmtk::logger().info("After splitting, E = {}", E);
-            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
-            wmtk::logger().info("E_max = {}", compute_energy_max(uv));
+            wmtk::logger().info("E_max = {}",E_max);
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
-        if (m_params.save_meshes)
-            igl::writeOBJ(
-                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_splitted.obj",
-                V,
-                F,
-                V,
-                F,
-                uv,
-                F);
 
         if (this->m_params.do_swap) {
             timer.start();
             swap_all_edges();
             time = timer.getElapsedTime();
             wmtk::logger().info("edges swapping operation time serial: {}s", time);
-            export_mesh(V, F, uv);
 
-            get_grad_op(V, F, G_global);
-            igl::doublearea(V, F, dblarea);
-            E = compute_energy(uv);
-            E_max = compute_energy_max(uv);
+            E = get_quality();
+            E_max = get_quality_max();
+
+            V_size = get_vertices().size();
+            F_size = get_faces().size();
+
+            wmtk::logger()
+                .info("Mesh F size {}, V size {}", F_size, V_size);
             wmtk::logger().info("After swapping, E = {}", E);
-            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
-            wmtk::logger().info("E_max = {}", E_max);
+            wmtk::logger().info("E_max = {}",E_max);
+            spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
-        if (m_params.save_meshes)
-            igl::writeOBJ(
-                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_swapped.obj",
-                V,
-                F,
-                V,
-                F,
-                uv,
-                F);
 
         if (this->m_params.do_collapse) {
+            timer.start();
             collapse_all_edges();
-            export_mesh(V, F, uv);
-            get_grad_op(V, F, G_global);
-            igl::doublearea(V, F, dblarea);
-            E = compute_energy(uv);
+            time = timer.getElapsedTime();
+            wmtk::logger().info("edges collapsing operation time serial: {}s", time);
+
+            E = get_quality();
+            E_max = get_quality_max();
+
+            V_size = get_vertices().size();
+            F_size = get_faces().size();
+
             wmtk::logger()
-                .info("Mesh F size {}, V size {}, uv size {}", F.rows(), V.rows(), uv.rows());
+                .info("Mesh F size {}, V size {}", F_size, V_size);
             wmtk::logger().info("After collapsing, E = {}", E);
-            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
-            E_max = compute_energy_max(uv);
-            wmtk::logger().info("E_max = {}", E_max);
+            wmtk::logger().info("E_max = {}",E_max);
+            spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
-        if (m_params.save_meshes)
-            igl::writeOBJ(
-                "new_tests/" + m_params.model_name + "_step_" + std::to_string(i) +
-                    "_collapsed.obj",
-                V,
-                F,
-                V,
-                F,
-                uv,
-                F);
 
         if (this->m_params.local_smooth) {
             timer.start();
             smooth_all_vertices();
             time = timer.getElapsedTime();
             wmtk::logger().info("LOCAL smoothing operation time serial: {}s", time);
-            export_mesh(V, F, uv);
-            get_grad_op(V, F, G_global);
-            igl::doublearea(V, F, dblarea);
-            E = compute_energy(uv);
-            E_max = compute_energy_max(uv);
+
+            E = get_quality();
+            E_max = get_quality_max();
+
             wmtk::logger().info("After LOCAL smoothing {}, E = {}", i, E);
-            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             wmtk::logger().info("E_max = {}", E_max);
         }
         if (this->m_params.global_smooth) {
@@ -188,19 +134,17 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             smooth_global(1);
             time = timer.getElapsedTime();
             wmtk::logger().info("GLOBAL smoothing operation time serial: {}s", time);
-            export_mesh(V, F, uv);
-            get_grad_op(V, F, G_global);
-            igl::doublearea(V, F, dblarea);
-            E = compute_energy(uv);
-            E_max = compute_energy_max(uv);
+            
+            E = get_quality();
+            E_max = get_quality_max();
+
             wmtk::logger().info("After GLOBAL smoothing {}, E = {}", i, E);
-            wmtk::logger().info("E_avg = {}", E / dblarea.sum());
             wmtk::logger().info("E_max = {}", E_max);
         }
-        if (m_params.save_meshes) igl::writeOBJ("new_tests/" + m_params.model_name + "_step_" + std::to_string(i) + "_smoothed.obj", V, F, V, F, uv, F);
         opt_log["opt_log"].push_back(
-                {{"F_size", F.rows()}, {"V_size", V.rows()}, {"E_max", E_max}, {"E", E}, {"E_avg", E / dblarea.sum()}});
-        // terminate criteria
+                {{"F_size", F_size}, {"V_size", V_size}, {"E_max", E_max}, {"E", E}});
+
+        // TODO: terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(
         //         "Reach target energy({}), optimization succeed!",

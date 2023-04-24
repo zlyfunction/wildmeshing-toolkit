@@ -12,6 +12,7 @@ public:
     struct ExecuteReturnData
     {
         Tuple tuple;
+        std::vector<Tuple> tuples;
         std::vector<Tuple> new_tris;
         bool success = false;
         operator bool() const { return success;}

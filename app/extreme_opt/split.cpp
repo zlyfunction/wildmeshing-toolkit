@@ -1,7 +1,7 @@
 #include "ExtremeOpt.h"
 #include <wmtk/ExecutionScheduler.hpp>
 #include "SYMDIR.h"
-
+#include "SYMDIR_NEW.h"
 namespace {
 
 using namespace extremeopt;
@@ -25,16 +25,18 @@ public:
         return false;
     }
     bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {
-        if (wmtk::TriMeshSplitEdgeOperation::after(m, ret_data)) {
-            ret_data.success |= m.split_edge_after(ret_data.tuple);
+    {   
+        ret_data.success &= wmtk::TriMeshSplitEdgeOperation::after(m, ret_data);
+        if (ret_data.success) {
+            ret_data.success &= m.split_edge_after(ret_data.tuple);
         }
         return ret_data;
     }
     bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {
-        if (wmtk::TriMeshSplitEdgeOperation::invariants(m, ret_data)) {
-            ret_data.success |= m.invariants(ret_data.new_tris);
+        ret_data.success &= wmtk::TriMeshSplitEdgeOperation::invariants(m, ret_data);
+        if (ret_data.success) {
+            ret_data.success &= m.invariants(ret_data.new_tris);
         }
         return ret_data;
     }
@@ -45,13 +47,13 @@ public:
 
         e.add_operation(std::make_shared<ExtremeOptSplitEdgeOperation>());
     }
-}
+} // namespace
+
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
 {
     if (!t.is_valid(*this)) {
         return false;
     }
-
 
     if (is_boundary_edge(t)) {
         return false;
@@ -62,41 +64,8 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
 
-    auto tri1 = oriented_tri_vids(t);
-    auto t_opp = t.switch_face(*this);
-    auto tri2 = oriented_tri_vids(t_opp.value());
-
-    std::vector<int> v_ids;
-    std::vector<int> v_map(vertex_attrs.size());
-    Eigen::MatrixXi F_local(2, 3);
-    Eigen::MatrixXd V_local(4, 3), uv_local(4, 2);
-    for (int i = 0; i < 3; i++)
-    {
-        v_ids.push_back((int)tri1[i]);
-    }
-    for (int i = 0; i < 3; i++)
-    {
-        if (std::find(v_ids.begin(), v_ids.end(), (int)tri2[i]) == v_ids.end())
-        {
-            v_ids.push_back((int)tri2[i]);
-        }
-    }
-    std::sort(v_ids.begin(), v_ids.end());
-    for (int i = 0; i < v_ids.size(); i++)
-    {
-        v_map[v_ids[i]] = i;
-    }
-    F_local.row(0) << v_map[tri1[0]], v_map[tri1[1]], v_map[tri1[2]];
-    F_local.row(1) << v_map[tri2[0]], v_map[tri2[1]], v_map[tri2[2]];
-    for (int i = 0; i < 4; i++) {
-        V_local.row(i) = vertex_attrs[v_ids[i]].pos_3d;
-        uv_local.row(i) = vertex_attrs[v_ids[i]].pos;
-    }
-    Eigen::SparseMatrix<double> G_local;
-    get_grad_op(V_local, F_local, G_local);
-    Eigen::MatrixXd Ji;
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    position_cache.local().E_before_collapse = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3)).maxCoeff();
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    position_cache.local().E_before = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
     return true;
 }
 
@@ -116,43 +85,39 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
         V = C;
     }
 
+    // update the attributes
     auto& v = vertex_attrs[vid];
     v.pos = uv;
     v.pos_3d = V;
 
-    Eigen::MatrixXd V_local, uv_local, Ji;
-    Eigen::MatrixXi F_local;
-    Eigen::SparseMatrix<double> G_local;
-    get_mesh_onering(t.switch_vertex(*this), V_local, uv_local, F_local);
-    Eigen::VectorXd area, area_3d;
-    igl::doublearea(V_local, F_local, area_3d);
-    igl::doublearea(uv_local, F_local, area);
+    // check for inverted/degenerate triangles
+    auto locs = get_one_ring_tris_for_vertex(vert_tuple);
+    for (auto loc : locs)
+    {
+        if (is_inverted(loc) || is_3d_degenerated(loc))
+        {
+            return false;
+        }
+    }
 
-    if (area.minCoeff() <= 0 || area_3d.minCoeff() <= 0)
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    double E = E_eval.symmetric_dirichlet_energy_onering(*this, vert_tuple);
+
+    if (!std::isfinite(E))
     {
         return false;
     }
-    get_grad_op(V_local, F_local, G_local);
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    auto Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
 
-    for (int i = 0; i < Es.rows(); i++)
-    {
-        if (!std::isfinite(Es(i)) || std::isnan(Es(i)))
-        {
-            return false;
-        }
-    }
-
-    // if use projection, we need to check E_max
+    // if use projection, we need to check Energy
     if (m_params.do_projection)
     {
-        if (Es.maxCoeff() > position_cache.local().E_before_collapse)
+        if (E > position_cache.local().E_before)
         {
             return false;
         }
     }
-        
+
+    // avoid degenrate triangles
     for (size_t nbr_vid : get_one_ring_vids_for_vertex(vid)) {
         if (nbr_vid != vid && vertex_attrs[nbr_vid].pos == v.pos) {
             return false;

@@ -7,7 +7,7 @@
 #include <wmtk/utils/AMIPS2D.h>
 #include <Eigen/Core>
 
-
+#include "SYMDIR_NEW.h"
 namespace extremeopt {
 
 bool ExtremeOpt::has_degenerate_tris(const std::vector<Tuple>& tris) const
@@ -154,7 +154,7 @@ void ExtremeOpt::update_constraints_EE_v(const Eigen::MatrixXi& EE)
 void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv)
 {
     // consolidate_mesh();
-    consolidate_mesh_cons(); // use the one with constraints
+    // consolidate_mesh_cons(); // use the one with constraints
     V = Eigen::MatrixXd::Zero(vert_capacity(), 3);
     uv = Eigen::MatrixXd::Zero(vert_capacity(), 2);
     for (auto& t : get_vertices()) {
@@ -206,39 +206,50 @@ void ExtremeOpt::write_obj(const std::string& path)
 }
 
 
-double ExtremeOpt::get_quality(const Tuple& loc) const
+double ExtremeOpt::get_quality()
 {
-    // Global ids of the vertices of the triangle
-    auto its = oriented_tri_vids(loc);
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    auto vs = get_vertices();
+    double energy = 0;
+    for (auto loc : vs)
+    {
+        energy += E_eval.symmetric_dirichlet_energy_onering(*this, loc);
+    }
 
-    // Temporary variable to store the stacked coordinates of the triangle
-    std::array<double, 6> T;
-    auto energy = -1.;
-    for (auto k = 0; k < 3; k++)
-        for (auto j = 0; j < 2; j++) T[k * 2 + j] = vertex_attrs[its[k]].pos[j];
+    return energy / 3.0;
+}
 
-    // Energy evaluation
-    energy = wmtk::AMIPS2D_energy(T);
-
-    // Filter for numerical issues
-    if (std::isinf(energy) || std::isnan(energy)) return MAX_ENERGY;
+double ExtremeOpt::get_quality_max()
+{
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Max, 1);
+    auto vs = get_vertices();
+    double energy = 0;
+    for (auto loc : vs)
+    {
+        energy = std::max(energy, E_eval.symmetric_dirichlet_energy_onering(*this, loc));
+    }
 
     return energy;
 }
 
-Eigen::VectorXd ExtremeOpt::get_quality_all_triangles()
+Eigen::VectorXd ExtremeOpt::get_quality_all()
 {
-    // Use a concurrent vector as for_each_face is parallel
-    tbb::concurrent_vector<double> quality;
-    quality.reserve(vertex_attrs.size());
-
-    // Evaluate quality in parallel
-    for_each_face([&](auto& f) { quality.push_back(get_quality(f)); });
-
-    // Copy back in a VectorXd
-    Eigen::VectorXd ret(quality.size());
-    for (unsigned i = 0; i < quality.size(); ++i) ret[i] = quality[i];
-    return ret;
+    Eigen::VectorXd Es(m_tri_connectivity.size());
+    Es.setZero();
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    auto fs = get_faces();
+    for (auto loc : fs)
+    {
+        auto local_tuples = oriented_tri_vertices(loc);
+        Eigen::Vector3d A = vertex_attrs[local_tuples[0].vid(*this)].pos_3d;
+        Eigen::Vector3d B = vertex_attrs[local_tuples[1].vid(*this)].pos_3d;
+        Eigen::Vector3d C = vertex_attrs[local_tuples[2].vid(*this)].pos_3d;
+        Eigen::Vector2d a = vertex_attrs[local_tuples[1].vid(*this)].pos;
+        Eigen::Vector2d b = vertex_attrs[local_tuples[1].vid(*this)].pos;
+        Eigen::Vector2d c = vertex_attrs[local_tuples[2].vid(*this)].pos;
+        Es(loc.fid(*this)) = E_eval.symmetric_dirichlet_energy(A, B, C, a, b, c);
+    }
+    return Es;
 }
 
 int ExtremeOpt::get_mesh_onering(
@@ -370,6 +381,21 @@ bool ExtremeOpt::is_inverted(const Tuple& loc) const
     // The element is inverted if it not positive (i.e. it is negative or it is degenerate)
     return (res != igl::predicates::Orientation::POSITIVE);
 }
+
+bool ExtremeOpt::is_3d_degenerated(const Tuple& loc) const
+{
+    // Get the vertices ids
+    auto vs = oriented_tri_vertices(loc);
+
+    Eigen::Vector3d A = vertex_attrs[vs[0].vid(*this)].pos_3d;
+    Eigen::Vector3d B = vertex_attrs[vs[1].vid(*this)].pos_3d;
+    Eigen::Vector3d C = vertex_attrs[vs[2].vid(*this)].pos_3d;
+
+    double area = ((B-A).cross(C-A)).norm();
+    return (area <= 0);
+}
+
+
 
 void ExtremeOpt::consolidate_mesh_cons()
 {

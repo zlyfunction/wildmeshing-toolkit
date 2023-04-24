@@ -90,7 +90,7 @@ public:
         bool is_v2_bd;
         Tuple bd_e1;
         Tuple bd_e2;
-        double E_before_collapse;
+        double E_before;
     };
     tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
@@ -117,11 +117,10 @@ public:
     // Writes a triangle mesh in OBJ format
     void write_obj(const std::string& path);
 
-    // Computes the quality of a triangle
-    double get_quality(const Tuple& loc) const;
-
-    // Computes the average quality of a mesh
-    Eigen::VectorXd get_quality_all_triangles();
+    // Computes the quality of the mesh
+    double get_quality();
+    double get_quality_max();
+    Eigen::VectorXd get_quality_all();
 
     // compute the max_E of a one ring
     int get_mesh_onering(
@@ -139,6 +138,7 @@ public:
     );
     // Check if a triangle is inverted
     bool is_inverted(const Tuple& loc) const;
+    bool is_3d_degenerated(const Tuple& loc) const;
 
     // Optimization
     void do_optimization(json& opt_log);

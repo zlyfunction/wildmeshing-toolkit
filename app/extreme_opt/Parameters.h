@@ -23,6 +23,7 @@ struct Parameters
 
 
     bool use_max_energy = false;
+    int Lp = 4;
     /* data */
 };
 

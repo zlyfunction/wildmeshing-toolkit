@@ -458,7 +458,7 @@ std::string TriMeshSwapEdgeOperation::name() const
 auto TriMeshSmoothVertexOperation::execute(TriMesh& m, const Tuple& t) -> ExecuteReturnData
 {
     // always succeed and return the Tuple for the (vertex) that we pointed at
-    return {t, {}, true};
+    return {t,{}, {}, true};
 }
 bool TriMeshSmoothVertexOperation::before(TriMesh& m, const Tuple& t)
 {
