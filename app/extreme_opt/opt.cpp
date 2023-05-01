@@ -18,6 +18,10 @@
 #include <wmtk/utils/TupleUtils.hpp>
 #include "SYMDIR.h"
 #include "SYMDIR_NEW.h"
+
+#include <paraviewo/HDF5VTUWriter.hpp>
+#include <paraviewo/ParaviewWriter.hpp>
+#include <paraviewo/VTUWriter.hpp>
 using namespace wmtk;
 
 
@@ -58,6 +62,27 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
         
+        if (m_params.save_meshes)
+        {
+            export_mesh(V, F, uv);
+            auto all_E = get_quality_all();
+            Eigen::MatrixXd dirichlet_energy;
+            dirichlet_energy.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i) {
+                dirichlet_energy(i, 0) = all_E(i);
+            }
+            paraviewo::HDF5VTUWriter writer;
+            Eigen::MatrixXd face_id;
+            face_id.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i){
+                face_id(i, 0) = i;
+            }
+            writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+            writer.add_cell_field("face_id", face_id);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + std::to_string(i)+"_0" + ".hdf", V, F);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + "_param_" + std::to_string(i)+"_0" + ".hdf", uv, F);
+
+        }
         if (this->m_params.do_split) {
             // TODO: set priority inside split_all_edges
             auto Es = get_quality_all();
@@ -78,6 +103,27 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}",E_max);
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
+        if (m_params.save_meshes)
+        {
+            export_mesh(V, F, uv);
+            auto all_E = get_quality_all();
+            Eigen::MatrixXd dirichlet_energy;
+            dirichlet_energy.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i) {
+                dirichlet_energy(i, 0) = all_E(i);
+            }
+            paraviewo::HDF5VTUWriter writer;
+            Eigen::MatrixXd face_id;
+            face_id.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i){
+                face_id(i, 0) = i;
+            }
+            writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+            writer.add_cell_field("face_id", face_id);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + std::to_string(i)+"_1" + ".hdf", V, F);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + "_param_" + std::to_string(i)+"_1" + ".hdf", uv, F);
+
+        }
 
         if (this->m_params.do_swap) {
             timer.start();
@@ -97,6 +143,27 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("E_max = {}",E_max);
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
         }
+        if (m_params.save_meshes)
+        {
+            export_mesh(V, F, uv);
+            auto all_E = get_quality_all();
+            Eigen::MatrixXd dirichlet_energy;
+            dirichlet_energy.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i) {
+                dirichlet_energy(i, 0) = all_E(i);
+            }
+            paraviewo::HDF5VTUWriter writer;
+            Eigen::MatrixXd face_id;
+            face_id.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i){
+                face_id(i, 0) = i;
+            }
+            writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+            writer.add_cell_field("face_id", face_id);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + std::to_string(i)+"_2" + ".hdf", V, F);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + "_param_" + std::to_string(i)+"_2" + ".hdf", uv, F);
+
+        }
 
         if (this->m_params.do_collapse) {
             timer.start();
@@ -115,6 +182,27 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             wmtk::logger().info("After collapsing, E = {}", E);
             wmtk::logger().info("E_max = {}",E_max);
             spdlog::info("E is {} {} {}", std::isfinite(E), !std::isnan(E), !std::isinf(E));
+        }
+        if (m_params.save_meshes)
+        {
+            export_mesh(V, F, uv);
+            auto all_E = get_quality_all();
+            Eigen::MatrixXd dirichlet_energy;
+            dirichlet_energy.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i) {
+                dirichlet_energy(i, 0) = all_E(i);
+            }
+            paraviewo::HDF5VTUWriter writer;
+            Eigen::MatrixXd face_id;
+            face_id.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i){
+                face_id(i, 0) = i;
+            }
+            writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+            writer.add_cell_field("face_id", face_id);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + std::to_string(i)+"_3" + ".hdf", V, F);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + "_param_" + std::to_string(i)+"_3" + ".hdf", uv, F);
+
         }
 
         if (this->m_params.local_smooth) {
@@ -143,7 +231,27 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         }
         opt_log["opt_log"].push_back(
                 {{"F_size", F_size}, {"V_size", V_size}, {"E_max", E_max}, {"E", E}});
+        if (m_params.save_meshes)
+        {
+            export_mesh(V, F, uv);
+            auto all_E = get_quality_all();
+            Eigen::MatrixXd dirichlet_energy;
+            dirichlet_energy.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i) {
+                dirichlet_energy(i, 0) = all_E(i);
+            }
+            paraviewo::HDF5VTUWriter writer;
+            Eigen::MatrixXd face_id;
+            face_id.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i){
+                face_id(i, 0) = i;
+            }
+            writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+            writer.add_cell_field("face_id", face_id);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + std::to_string(i)+"_4" + ".hdf", V, F);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/" + m_params.model_name + "_param_" + std::to_string(i)+"_4" + ".hdf", uv, F);
 
+        }
         // TODO: terminate criteria
         // if (E < m_params.E_target) {
         //     wmtk::logger().info(
@@ -158,5 +266,27 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
 
         E_old = E;
         std::cout << std::endl;
+        if (m_params.save_meshes)
+        {
+            export_mesh(V, F, uv);
+            auto all_E = get_quality_all();
+            Eigen::MatrixXd dirichlet_energy;
+            dirichlet_energy.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i) {
+                dirichlet_energy(i, 0) = all_E(i);
+            }
+            paraviewo::HDF5VTUWriter writer;
+            Eigen::MatrixXd face_id;
+            face_id.resize(F.rows(), 1);
+            for (unsigned i = 0; i < F.rows(); ++i){
+                face_id(i, 0) = i;
+            }
+            writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+            writer.add_cell_field("face_id", face_id);
+            
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/" + m_params.model_name + std::to_string(i) + ".hdf", V, F);
+            writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/" + m_params.model_name + "_param_" + std::to_string(i) + ".hdf", uv, F);
+
+        }
     }
 }

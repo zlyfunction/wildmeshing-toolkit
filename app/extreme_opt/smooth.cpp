@@ -268,6 +268,8 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
         while (flag)
         {
             ts.push_back(t_cur);
+            
+            
             Eigen::MatrixXd V_local, uv_local;
             Eigen::MatrixXi F_local;
             local_vids.push_back(get_mesh_onering(t_cur, V_local, uv_local, F_local));

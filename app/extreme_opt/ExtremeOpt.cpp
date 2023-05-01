@@ -8,6 +8,7 @@
 #include <Eigen/Core>
 
 #include "SYMDIR_NEW.h"
+
 namespace extremeopt {
 
 bool ExtremeOpt::has_degenerate_tris(const std::vector<Tuple>& tris) const
@@ -154,7 +155,7 @@ void ExtremeOpt::update_constraints_EE_v(const Eigen::MatrixXi& EE)
 void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv)
 {
     // consolidate_mesh();
-    // consolidate_mesh_cons(); // use the one with constraints
+    consolidate_mesh_cons(); // use the one with constraints
     V = Eigen::MatrixXd::Zero(vert_capacity(), 3);
     uv = Eigen::MatrixXd::Zero(vert_capacity(), 2);
     for (auto& t : get_vertices()) {
@@ -244,7 +245,7 @@ Eigen::VectorXd ExtremeOpt::get_quality_all()
         Eigen::Vector3d A = vertex_attrs[local_tuples[0].vid(*this)].pos_3d;
         Eigen::Vector3d B = vertex_attrs[local_tuples[1].vid(*this)].pos_3d;
         Eigen::Vector3d C = vertex_attrs[local_tuples[2].vid(*this)].pos_3d;
-        Eigen::Vector2d a = vertex_attrs[local_tuples[1].vid(*this)].pos;
+        Eigen::Vector2d a = vertex_attrs[local_tuples[0].vid(*this)].pos;
         Eigen::Vector2d b = vertex_attrs[local_tuples[1].vid(*this)].pos;
         Eigen::Vector2d c = vertex_attrs[local_tuples[2].vid(*this)].pos;
         Es(loc.fid(*this)) = E_eval.symmetric_dirichlet_energy(A, B, C, a, b, c);

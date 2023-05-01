@@ -51,15 +51,11 @@ double extremeopt::ExtremeOpt::get_e_max_onering(const Tuple& t)
 
 double extremeopt::ExtremeOpt::get_e_onering_edge(const Tuple& t)
 {
-    Eigen::MatrixXd V_local, uv_local, Ji;
-    Eigen::MatrixXi F_local;
-    Eigen::SparseMatrix<double> G_local;
-    get_mesh_onering_edge(t, V_local, uv_local, F_local);
-    get_grad_op(V_local, F_local, G_local);
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    Eigen::VectorXd areas;
-    igl::doublearea(V_local, F_local, areas);
-    return wmtk::compute_energy_from_jacobian(Ji, areas) * areas.sum();
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    double E_edge = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
+    double E_t1 = E_eval.symmetric_dirichlet_energy_onering(*this, t);
+    double E_t2 = E_eval.symmetric_dirichlet_energy_onering(*this, t.switch_vertex(*this));
+    return E_t1 + E_t2 - E_edge;
 }
 
 void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
@@ -117,29 +113,11 @@ void extremeopt::ExtremeOpt::cache_edge_positions(const Tuple& t)
         }
     }
 
-
-
-    // Eigen::MatrixXd V_local, uv_local, Ji;
-    // Eigen::MatrixXi F_local;
-    // Eigen::SparseMatrix<double> G_local;
-    // get_mesh_onering_edge(t, V_local, uv_local, F_local);
-    // get_grad_op(V_local, F_local, G_local);
-    // wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    // Eigen::VectorXd areas;
-    // igl::doublearea(V_local, F_local, areas);
     wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
     double E_edge = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
     double E_t1 = E_eval.symmetric_dirichlet_energy_onering(*this, t);
     double E_t2 = E_eval.symmetric_dirichlet_energy_onering(*this, t.switch_vertex(*this));
     position_cache.local().E_before = E_t1 + E_t2 - E_edge;    
-
-    // std::cout << "before collapse: E = " <<  position_cache.local().E_before << " ref: " << wmtk::compute_energy_from_jacobian(Ji, areas) * areas.sum() << std::endl; 
-/*
-    double E1, E2;
-    E1 = get_e_max_onering(t);
-    E2 = get_e_max_onering(t.switch_vertex(*this));
-    position_cache.local().E_before = std::max(E1, E2);
-*/
 }
 
 std::vector<wmtk::TriMesh::Tuple> extremeopt::ExtremeOpt::new_edges_after(

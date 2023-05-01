@@ -38,13 +38,13 @@ public:
             std::cout << "not valid" << std::endl;
             return false;
         }
-        if (!m.collapse_edge_before(t)) {
+        if (!m_edge_collapser.before(m, t)) {
             // std::cout << "link condition error" << std::endl;
             return false;
         }
         Tuple& t_pair_input = t_pair_input_per_thread.local();
         t_pair_input = m.edge_attrs[t.eid(m)].pair;
-        if (!m.collapse_edge_before(t_pair_input)) {
+        if (!m_edge_collapser.before(m, t_pair_input)) {
             // std::cout << "link condition error" << std::endl;
             return false;
         }
@@ -75,23 +75,11 @@ public:
             double E_input = E_t_input + E_t_pair_input;
             initial_energy_per_thread.local() = E_t_input;
         }
-        return true;
-    }
 
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {
-        const TriMesh::Tuple& new_t = ret_data.tuples[0];
-        const TriMesh::Tuple& t = ret_data.tuple;
-        Tuple& t_pair_input = t_pair_input_per_thread.local();
-        // std::cout << "trying to collapse a boudnary edge" << std::endl;
-        // t.print_info();
-        // t_pair_input.print_info();
-        // std::cout << "E before collapsing is " << E_input << std::endl;
-
-        // get neighbor edges
+         // get neighbor edges
         auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
         auto onering_t_r = m.get_one_ring_edges_for_vertex(t.switch_vertex(m));
-        Tuple bd_t_l, bd_t_r;
+        
         for (auto t_tmp : onering_t_l) {
             if (m.is_boundary_edge(t_tmp)) {
                 if (t_tmp.eid(m) != t.eid(m)) {
@@ -107,8 +95,8 @@ public:
             }
         }
 
-        Tuple bd_t_l_pair = m.edge_attrs[bd_t_l.eid(m)].pair;
-        Tuple bd_t_r_pair = m.edge_attrs[bd_t_r.eid(m)].pair;
+        bd_t_l_pair = m.edge_attrs[bd_t_l.eid(m)].pair;
+        bd_t_r_pair = m.edge_attrs[bd_t_r.eid(m)].pair;
         bool keep_t = false, keep_t_opp = false;
         if (bd_t_r_pair.switch_vertex(m).vid(m) == t_pair_input.vid(m)) {
             auto len1 =
@@ -145,13 +133,9 @@ public:
         }
         if (!keep_t && !keep_t_opp) {
             // std::cout << "this boudnary edge cannot collapse" << std::endl;
-            ret_data.success = false;
-            return ret_data;
+            return false;
         }
 
-        
-        Eigen::Vector3d V_keep_t, V_keep_t_pair;
-        Eigen::Vector2d uv_keep_t, uv_keep_t_pair;
         if (keep_t) {
             V_keep_t = m.vertex_attrs[t.vid(m)].pos_3d;
             uv_keep_t = m.vertex_attrs[t.vid(m)].pos;
@@ -162,10 +146,14 @@ public:
             uv_keep_t = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos;
             V_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos_3d;
             uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
-        }
+        } // get neighbor edges
+        
+        return true;
+    }
 
-        // new_t = m.collapse_edge_new(t, new_tris);
-
+    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        const TriMesh::Tuple& new_t = ret_data.tuples[0];
 
         double E_t, E_t_pair;
         if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) {
@@ -177,26 +165,7 @@ public:
             // std::cout << "collapse t ok" << std::endl;
         }
 
-        Tuple t_pair =
-            m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
-        auto onering_t_pair_l = m.get_one_ring_edges_for_vertex(t_pair);
-        auto onering_t_pair_r = m.get_one_ring_edges_for_vertex(t_pair.switch_vertex(m));
-        Tuple bd_t_pair_l, bd_t_pair_r;
-        for (auto t_tmp : onering_t_pair_l) {
-            if (m.is_boundary_edge(t_tmp)) {
-                if (t_tmp.eid(m) != t_pair.eid(m)) {
-                    bd_t_pair_l = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
-                }
-            }
-        }
-        for (auto t_tmp : onering_t_pair_r) {
-            if (m.is_boundary_edge(t_tmp)) {
-                if (t_tmp.eid(m) != t_pair.eid(m)) {
-                    bd_t_pair_r = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
-                }
-            }
-        }
-        // new_t = m.collapse_edge_new(t_pair, new_tris);
+        
         const TriMesh::Tuple& new_t_pair = ret_data.tuples[1];
         if (!m.collapse_bd_edge_after(
                 new_t_pair,
@@ -205,7 +174,6 @@ public:
                 bd_t_pair_l,
                 bd_t_pair_r,
                 E_t_pair)) {
-            // std::cout << "collapse t pair fail" << std::endl;
             ret_data.success = false;
             ;
             return ret_data;
@@ -233,10 +201,30 @@ public:
         Tuple& new_t = ret_data.tuple;
 
         const Tuple& t_pair_input = t_pair_input_per_thread.local();
+        // Tuple t_pair =
+            // m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
+
+        
+        auto ret1 = m_edge_collapser.execute(m, t);
         Tuple t_pair =
             m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
-
-        auto ret1 = m_edge_collapser.execute(m, t);
+        auto onering_t_pair_l = m.get_one_ring_edges_for_vertex(t_pair);
+        auto onering_t_pair_r = m.get_one_ring_edges_for_vertex(t_pair.switch_vertex(m));
+        Tuple bd_t_pair_l, bd_t_pair_r;
+        for (auto t_tmp : onering_t_pair_l) {
+            if (m.is_boundary_edge(t_tmp)) {
+                if (t_tmp.eid(m) != t_pair.eid(m)) {
+                    bd_t_pair_l = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
+                }
+            }
+        }
+        for (auto t_tmp : onering_t_pair_r) {
+            if (m.is_boundary_edge(t_tmp)) {
+                if (t_tmp.eid(m) != t_pair.eid(m)) {
+                    bd_t_pair_r = t_tmp.is_ccw(m) ? t_tmp : t_tmp.switch_vertex(m);
+                }
+            }
+        }
         auto ret2 = m_edge_collapser.execute(m, t_pair);
         ret_data.combine(ret1);
         ret_data.combine(ret2);
@@ -253,6 +241,12 @@ public:
     wmtk::TriMeshEdgeCollapseOperation m_edge_collapser;
     tbb::enumerable_thread_specific<Tuple> t_pair_input_per_thread;
     tbb::enumerable_thread_specific<double> initial_energy_per_thread;
+    Eigen::Vector3d V_keep_t, V_keep_t_pair;
+    Eigen::Vector2d uv_keep_t, uv_keep_t_pair;
+    Tuple bd_t_l, bd_t_r;
+    Tuple bd_t_l_pair, bd_t_r_pair;
+    Tuple bd_t_pair_l, bd_t_pair_r;
+
 };
 
 
@@ -443,33 +437,28 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     vertex_attrs[vid].pos = uv_keep;
 
     // get local mesh and check area/E
-    Eigen::MatrixXd V_local, uv_local;
-    Eigen::MatrixXi F_local;
-    get_mesh_onering(t, V_local, uv_local, F_local);
-    Eigen::VectorXd area_local_3d, area_local;
-    igl::doublearea(V_local, F_local, area_local_3d);
-    igl::doublearea(uv_local, F_local, area_local);
-    if (area_local_3d.minCoeff() <= 0 || area_local.minCoeff() <= 0) {
-        return false;
-    }
-    Eigen::SparseMatrix<double> G_local;
-    get_grad_op(V_local, F_local, G_local);
-    Eigen::MatrixXd Ji;
-    wmtk::jacobian_from_uv(G_local, uv_local, Ji);
-    auto Es = wmtk::symmetric_dirichlet_energy(Ji.col(0), Ji.col(1), Ji.col(2), Ji.col(3));
-    for (int i = 0; i < Es.size(); i++) {
-        if (!std::isfinite(Es(i))) {
+   auto locs = get_one_ring_tris_for_vertex(t);
+    for (auto loc : locs)
+    {
+        if (is_inverted(loc) || is_3d_degenerated(loc))
+        {
             return false;
         }
     }
 
-    // compute energy here
-    E = Es.dot(area_local_3d);
+    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    E = E_eval.symmetric_dirichlet_energy_onering(*this, t);
+
+    if (!std::isfinite(E))
+    {
+        return false;
+    }
 
     // check envelope
     if (!invariants(get_one_ring_tris_for_vertex(t))) {
         return false;
     }
+
     // update constraints
     auto one_ring_edges = this->get_one_ring_edges_for_vertex(t);
     Tuple e_new_l, e_new_r;
