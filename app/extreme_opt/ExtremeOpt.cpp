@@ -8,7 +8,9 @@
 #include <Eigen/Core>
 
 #include "SYMDIR_NEW.h"
-
+#include <paraviewo/HDF5VTUWriter.hpp>
+#include <paraviewo/ParaviewWriter.hpp>
+#include <paraviewo/VTUWriter.hpp>
 namespace extremeopt {
 
 bool ExtremeOpt::has_degenerate_tris(const std::vector<Tuple>& tris) const
@@ -182,6 +184,68 @@ void ExtremeOpt::export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::Matr
         }
     }
 }
+
+void ExtremeOpt::export_mesh_vtu(const std::string &dir, const std::string &filename)
+{
+    std::vector<Eigen::RowVector3d> V_vec;
+    std::vector<Eigen::RowVector2d> uv_vec;
+
+    auto v_cnt = 0;
+    std::vector<size_t> map_v_ids(vert_capacity(), -1);
+    for (auto i = 0; i < vert_capacity(); i++) {
+        if (m_vertex_connectivity[i].m_is_removed) continue;
+        map_v_ids[i] = v_cnt;
+        V_vec.push_back(vertex_attrs[i].pos_3d);
+        uv_vec.push_back(vertex_attrs[i].pos);
+        v_cnt++;
+    }
+
+    std::vector<Eigen::RowVector3i> F_vec;
+    std::vector<int> face_ids_vec;
+    auto t_cnt = 0;
+    std::vector<size_t> map_t_ids(tri_capacity(), -1);
+    for (auto i = 0; i < tri_capacity(); i++) {
+        if (m_tri_connectivity[i].m_is_removed) continue;
+        map_t_ids[i] = t_cnt;
+        Eigen::RowVector3i face;
+        face << map_v_ids[m_tri_connectivity[i][0]], map_v_ids[m_tri_connectivity[i][1]], map_v_ids[m_tri_connectivity[i][2]];
+        F_vec.push_back(face);
+        face_ids_vec.push_back(i);
+        t_cnt++;
+    }
+
+    Eigen::MatrixXd V(v_cnt, 3);
+    Eigen::MatrixXd uv(v_cnt, 2);
+    for (auto i = 0; i < v_cnt; i++)
+    {
+        V.row(i) = V_vec[i];
+        uv.row(i) = uv_vec[i];
+    }
+    Eigen::MatrixXi F(t_cnt, 3);
+    for (auto i = 0; i < t_cnt; i++)
+    {
+        F.row(i) = F_vec[i];
+    }
+
+
+    paraviewo::HDF5VTUWriter writer;
+    auto Es = get_quality_all();
+    Eigen::MatrixXd dirichlet_energy;
+    dirichlet_energy.resize(F.rows(), 1);
+    for (unsigned i = 0; i < F.rows(); ++i) {
+        dirichlet_energy(i, 0) = Es(face_ids_vec[i]);
+    }
+    Eigen::MatrixXd face_id;
+    face_id.resize(F.rows(), 1);
+    for (unsigned i = 0; i < F.rows(); ++i){
+        face_id(i, 0) = face_ids_vec[i];
+    }
+
+    writer.add_cell_field("dirichlet_energy", dirichlet_energy);
+    writer.add_cell_field("face_id", face_id);
+    writer.write_mesh(dir + filename, V, F);
+    writer.write_mesh(dir + "param_" + filename, uv, F);
+}   
 
 void ExtremeOpt::export_EE(Eigen::MatrixXi& EE)
 {

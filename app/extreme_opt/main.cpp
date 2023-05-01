@@ -316,45 +316,45 @@ int main(int argc, char** argv)
     }
 
     
-    extremeopt.export_mesh(V, F, uv);
+    // extremeopt.export_mesh(V, F, uv);
 
-    auto all_E = extremeopt.get_quality_all();
+    // auto all_E = extremeopt.get_quality_all();
   
-    Eigen::MatrixXd vertex_idx;
-    vertex_idx.resize(V.rows(), 1);
-    for (unsigned i = 0; i < V.rows(); ++i) {
-        vertex_idx(i, 0) = i;
-    }
+    // Eigen::MatrixXd vertex_idx;
+    // vertex_idx.resize(V.rows(), 1);
+    // for (unsigned i = 0; i < V.rows(); ++i) {
+    //     vertex_idx(i, 0) = i;
+    // }
 
-    Eigen::MatrixXd distortion;
-    distortion.resize(F.rows(), 1);
-    for (unsigned i = 0; i < F.rows(); ++i) {
-        distortion(i, 0) = all_E(i);
-    }
+    // Eigen::MatrixXd distortion;
+    // distortion.resize(F.rows(), 1);
+    // for (unsigned i = 0; i < F.rows(); ++i) {
+    //     distortion(i, 0) = all_E(i);
+    // }
 
-    paraviewo::HDF5VTUWriter writer;
-    writer.add_field("vertex_idx", vertex_idx);
-    writer.add_cell_field("distortion", distortion);
-    writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/helmet.hdf", V, F);
+    // paraviewo::HDF5VTUWriter writer;
+    // writer.add_field("vertex_idx", vertex_idx);
+    // writer.add_cell_field("distortion", distortion);
+    // writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/helmet.hdf", V, F);
 
-    std::vector<std::vector<int>> new_bds;
-    igl::boundary_loop(F, new_bds);
-    Eigen::MatrixXi F_edges(new_bds[0].size(), 2);
-    for (int i = 0; i < new_bds[0].size(); i++)
-    {
-        F_edges.row(i) << new_bds[0][i], new_bds[0][(i+1)%new_bds[0].size()];
-    }
-    paraviewo::HDF5VTUWriter writer1;
-    writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/helmet_edges.hdf", V, F_edges);
+    // std::vector<std::vector<int>> new_bds;
+    // igl::boundary_loop(F, new_bds);
+    // Eigen::MatrixXi F_edges(new_bds[0].size(), 2);
+    // for (int i = 0; i < new_bds[0].size(); i++)
+    // {
+    //     F_edges.row(i) << new_bds[0][i], new_bds[0][(i+1)%new_bds[0].size()];
+    // }
+    // paraviewo::HDF5VTUWriter writer1;
+    // writer.write_mesh("/home/leyi/wildmeshing-toolkit/build/helmet_edges.hdf", V, F_edges);
     
 
-    std::cout << "write pvd..." << std::endl;
-    std::vector<std::string> filenames(extremeopt.m_params.max_iters);
-    for (int i = 0; i < filenames.size(); i++)
-    {
-        filenames[i] = "/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/" + extremeopt.m_params.model_name + std::to_string(i+1) + ".hdf";
-    }
-    paraviewo::PVDWriter::save_pvd("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/output.pvd",[&](int index)->std::string{return filenames[index];}, filenames.size() - 1 , 0, 1, 1);
+    // std::cout << "write pvd..." << std::endl;
+    // std::vector<std::string> filenames(extremeopt.m_params.max_iters);
+    // for (int i = 0; i < filenames.size(); i++)
+    // {
+    //     filenames[i] = "/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/" + extremeopt.m_params.model_name + std::to_string(i+1) + ".hdf";
+    // }
+    // paraviewo::PVDWriter::save_pvd("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/output.pvd",[&](int index)->std::string{return filenames[index];}, filenames.size() - 1 , 0, 1, 1);
     if (extremeopt.m_params.with_cons) extremeopt.export_EE(EE);
 
     for (int i = 0; i < param.global_upsample; i++)

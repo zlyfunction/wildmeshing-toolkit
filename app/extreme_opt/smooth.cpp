@@ -250,7 +250,7 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
     }
     else if (m_params.with_cons)// boudnary vertex
     {
-        return false;
+        // return false;
         std::vector<Tuple> ts;
         std::vector<Eigen::MatrixXd> Vs, uvs;
         std::vector<Eigen::MatrixXi> Fs;

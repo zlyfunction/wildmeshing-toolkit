@@ -110,6 +110,7 @@ public:
 
     // Exports V and F of the stored mesh
     void export_mesh(Eigen::MatrixXd& V, Eigen::MatrixXi& F, Eigen::MatrixXd& uv);
+    void export_mesh_vtu(const std::string &dir,const std::string &filename);
 
     // Export constraints EE
     void export_EE(Eigen::MatrixXi& EE);
