@@ -59,6 +59,12 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
                 {{"F_size", get_faces().size()}, {"V_size", get_vertices().size()}, {"E_max", E_max}, {"E", E}});
     double E_old = E;
     int V_size, F_size;
+
+    if (m_params.save_meshes)
+    {
+        export_mesh_vtu("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus/", m_params.model_name + std::to_string(0) + ".hdf");
+    }
+
     for (int i = 1; i <= m_params.max_iters; i++) {
         double E_max;
         
