@@ -56,8 +56,22 @@ void addCustomOps(Executor& e)
 } // namespace
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 {
-    if (!t.is_valid(*this)) return false;
 
+    // DEBUG_FID
+    if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
+    {
+        std::cout << "face 26198 for swap!" << std::endl;
+    }
+
+    if (!t.is_valid(*this)) 
+    {
+        // DEBUG_FID
+        if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
+        {
+            std::cout << "not valid" << std::endl;
+        }
+        return false;
+    }
     // std::cout << "trying to swap edge " << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << std::endl;
 
     Tuple t1 = t.switch_vertex(*this).switch_edge(*this);
@@ -78,6 +92,11 @@ bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)
 
 bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
 {
+    // DEBUG_FID
+    if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
+    {
+        std::cout << "face 26198 for swap after!" << std::endl;
+    }
     // std::cout << "after swapping the edge becomes " << t.vid(*this) << "," << t.switch_vertex(*this).vid(*this) << std::endl;
 
     auto tri1 = oriented_tri_vids(t);
@@ -85,10 +104,20 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     auto tri2 = oriented_tri_vids(t_opp.value());
     if (is_inverted(t) || is_inverted(t_opp.value()))
     {
+        // DEBUG_FID
+        if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
+        {
+            std::cout << "face 26198 for swap after! fail(inverted)" << std::endl;
+        }
         return false;
     }
     if (is_3d_degenerated(t) || is_3d_degenerated(t_opp.value()))
     {
+        // DEBUG_FID
+        if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
+        {
+            std::cout << "face 26198 for swap after! fail(degenerated)" << std::endl;
+        }
         return false;
     }
 
@@ -96,6 +125,12 @@ bool extremeopt::ExtremeOpt::swap_edge_after(const Tuple& t)
     double E = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
     
     if (!std::isfinite(E) || E >= swap_cache.local().E_old) {
+        // DEBUG_FID
+        if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
+        {
+            std::cout << "face 26198 for swap after! fail energy" << std::endl;
+            std::cout << "Energy: " << E << std::endl;
+        }
         return false;
     }
     // std::cout << "Energy after swapping is " << E << std::endl;

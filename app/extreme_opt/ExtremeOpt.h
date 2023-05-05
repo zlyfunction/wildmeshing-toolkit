@@ -91,6 +91,8 @@ public:
         Tuple bd_e1;
         Tuple bd_e2;
         double E_before;
+
+        bool debug_switch;
     };
     tbb::enumerable_thread_specific<PositionInfoCache> position_cache;
 
@@ -178,6 +180,7 @@ public:
     // Edge Splitting
     bool split_edge_before(const Tuple& t);
     bool split_edge_after(const Tuple& t);
+    bool split_bd_edge_after(Eigen::Vector3d V1, Eigen::Vector3d V2, Eigen::Vector2d uv1, Eigen::Vector2d uv2, const Tuple& t);
     void split_all_edges(const Eigen::VectorXd& Es);
 };
 

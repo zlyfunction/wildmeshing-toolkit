@@ -280,12 +280,6 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             Eigen::VectorXd area_local;
             igl::doublearea(V_local, F_local, area_local);
 
-            // // TODO: for debug
-            // for (int i = 0; i < area_local.rows(); i++)
-            // {
-            //     area_local(i) = 1.0;
-            // }
-
             areas.push_back(area_local);
             auto ve = get_one_ring_edges_for_vertex(t_cur);
             Tuple local_bd;
@@ -433,10 +427,10 @@ bool extremeopt::ExtremeOpt::smooth_after(const Tuple& t)
             {
                 onering_size += Fs[i].rows();
             }
-            wmtk::logger()
-                .info("boundary vertex {}, copies {}, onering_size {}, ls good, step = {}, energy {} -> {}, E_max {} -> {}", t.vid(*this), ts.size(), onering_size, step, total_energy0 / total_area, new_energy / total_area, max_energy0, new_E_max);
+            // wmtk::logger()
+                // .info("boundary vertex {}, copies {}, onering_size {}, ls good, step = {}, energy {} -> {}, E_max {} -> {}", t.vid(*this), ts.size(), onering_size, step, total_energy0 / total_area, new_energy / total_area, max_energy0, new_E_max);
         } else {
-            wmtk::logger().info("boundary vertex {} ls failed", t.vid(*this));
+            // wmtk::logger().info("boundary vertex {} ls failed", t.vid(*this));
         }
     }
 

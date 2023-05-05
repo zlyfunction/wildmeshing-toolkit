@@ -21,7 +21,7 @@ struct Parameters
     bool with_cons = true;
     bool do_projection = true;
 
-
+    int split_succ_cnt = 300;
     bool use_max_energy = false;
     int Lp = 4;
     /* data */

@@ -261,6 +261,7 @@ int main(int argc, char** argv)
     param.Lp = config["Lp"];
     param.save_meshes = config["save_meshes"];
     param.model_name = model;
+    param.split_succ_cnt = config["split_succ_cnt"];
 
     json opt_log;
     opt_log["model_name"] = model;

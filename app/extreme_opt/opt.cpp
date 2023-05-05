@@ -30,6 +30,9 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
     igl::Timer timer;
     double time;
 
+    int split_succ_cnt_cache = m_params.split_succ_cnt;
+
+
     // get edge length thresholds for collapsing operation
     Eigen::MatrixXd V, uv;
     Eigen::MatrixXi F;
@@ -73,6 +76,15 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
             export_mesh_vtu("/home/leyi/wildmeshing-toolkit/build/new_tests/vtus_detail/", m_params.model_name + std::to_string(i)+"_0" + ".hdf");
         }
         if (this->m_params.do_split) {
+
+            if (i <= 5)
+            {
+                m_params.split_succ_cnt = 100000;
+            }
+            else
+            {
+                m_params.split_succ_cnt = split_succ_cnt_cache;
+            }
             // TODO: set priority inside split_all_edges
             auto Es = get_quality_all();
             timer.start();
