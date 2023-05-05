@@ -29,8 +29,6 @@ class CollapsePairOperation : public wmtk::TriMeshOperationShim<ExtremeOpt, Coll
 public:
     bool before(ExtremeOpt& m, const TriMesh::Tuple& t)
     {
-        std::cout << "collapse_pair before: " << t.eid(m) << std::endl;
-        // TODO: Relocate this code in before check
         if (!m.is_boundary_edge(t)) {
             // std::cout << "not boundary edge" << std::endl;
             return false;
@@ -154,41 +152,6 @@ public:
 
     bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {
-        const TriMesh::Tuple& new_t = ret_data.tuples[0];
-        if (!new_t.is_valid(m))
-        {
-            std::cout << "new_t not valid any more" << std::endl;
-        }
-        std::cout << "collapse_pair after: " << new_t.eid(m) << std::endl;
-        
-
-        double E_t, E_t_pair;
-        if (!m.collapse_bd_edge_after(new_t, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) {
-            // std::cout << "collapse t fail" << std::endl;
-            ret_data.success = false;
-            ;
-            return ret_data;
-        } else {
-            // std::cout << "collapse t ok" << std::endl;
-        }
-        std::cout << "collapse_pair after: finish first check" << new_t.eid(m) << std::endl;
-        
-        const TriMesh::Tuple& new_t_pair = ret_data.tuples[1];
-        if (!m.collapse_bd_edge_after(
-                new_t_pair,
-                V_keep_t_pair,
-                uv_keep_t_pair,
-                bd_t_pair_l,
-                bd_t_pair_r,
-                E_t_pair)) {
-            ret_data.success = false;
-            ;
-            return ret_data;
-        } else {
-            // std::cout << "collapse t pair ok" << std::endl;
-        }
-        std::cout << "collapse_pair after: finish second check" << new_t_pair.eid(m) << std::endl;
-
         double current_energy;
 
         if (m.m_params.use_max_energy) {
@@ -200,18 +163,28 @@ public:
         if (initial_energy_per_thread.local() < current_energy) {
             ret_data.success = false;
         }
-        std::cout << "collapse_pair after: all finish" << new_t_pair.eid(m) << std::endl;
+
+        if (ret_data.success)
+        {
+            std::cout << "collapse pair successful!" << std::endl;
+        }
         return ret_data;
     }
 
     ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
     {
-        std::cout << "collapse_pair execute: " << t.eid(m) << std::endl;
         ExecuteReturnData ret_data;
 
         const Tuple& t_pair_input = t_pair_input_per_thread.local();
         
         ret_data = m_edge_collapser.execute(m, t);
+
+        if (!m.collapse_bd_edge_after(ret_data.tuple, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) 
+        {
+            ret_data.success = false;
+            return ret_data;
+        }
+
         Tuple t_pair =
             m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
         auto onering_t_pair_l = m.get_one_ring_edges_for_vertex(t_pair);
@@ -232,12 +205,22 @@ public:
         }
 
         auto ret_pair = m_edge_collapser.execute(m, t_pair);
+        if (!m.collapse_bd_edge_after(
+                ret_pair.tuple,
+                V_keep_t_pair,
+                uv_keep_t_pair,
+                bd_t_pair_l,
+                bd_t_pair_r,
+                E_t_pair)) {
+            ret_data.success = false;
+            return ret_data;
+        }
 
-        ret_data.tuple = ret_pair.tuple;
-        ret_data.combine(ret_pair);
+        // ret_data.tuple = ret_pair.tuple;
+        // ret_data.combine(ret_pair);
 
-        ret_data.tuples.push_back(ret_data.tuple);
-        ret_data.tuples.push_back(ret_pair.tuple);
+        // ret_data.tuples.push_back(ret_data.tuple);
+        // ret_data.tuples.push_back(ret_pair.tuple);
 
         // std::cout << "collapse_pair execute succ: " << ret_data.success << std::endl;
         return ret_data;
@@ -260,6 +243,7 @@ public:
     Tuple bd_t_l, bd_t_r;
     Tuple bd_t_l_pair, bd_t_r_pair;
     Tuple bd_t_pair_l, bd_t_pair_r;
+    double E_t, E_t_pair;
 
 };
 
