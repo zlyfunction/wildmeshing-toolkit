@@ -14,11 +14,21 @@ public:
     bool before(ExtremeOpt& m, const TriMesh::Tuple& t)
     {
         if (!t.is_valid(m)) {
+            std::cout << "t is not valid" << std::endl;
+            t.print_info();
+            std::cout << std::endl;
             return false;
         }
         Tuple& t_pair_input = t_pair_input_per_thread.local();
         t_pair_input = m.edge_attrs[t.eid(m)].pair;
         
+        if (!t_pair_input.is_valid(m))
+        {
+            std::cout << "t_pair is not valid" << std::endl;
+            t.print_info();
+            t_pair_input.is_valid(m);
+            std::cout << std::endl;
+        }
         if (t.fid(m) == t_pair_input.fid(m))
         {
             return false;
@@ -39,42 +49,158 @@ public:
 
     bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {   
-        std::cout << "in after check of split_pair" << std::endl;
-        const TriMesh::Tuple& new_t = ret_data.tuples[0];
-        bool flag1 = m.split_bd_edge_after(V1, V2, uv1, uv2, new_t);
-        if (!flag1)
-        {
-            std::cout << "fail in split t" << std::endl;
-            return false;
-        }
-        const TriMesh::Tuple& new_t_pair = ret_data.tuples[1];
-        bool flag2 = m.split_bd_edge_after(V1_pair, V2_pair, uv1_pair, uv2_pair, new_t_pair);
-        if (!flag2)
-        {
-            std::cout << "fail in split t_pair" << std::endl;
-        }
-
-        std::cout << "split_pair successful" << std::endl;
         return true;
     }
 
     ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
     {
-        std::cout << "trying to split pair" << std::endl;
+        auto t_input = t.is_ccw(m)?t:t.switch_vertex(m);
         ExecuteReturnData ret_data;
+        ret_data.success = true;
+        std::cout << "try to split pair" << t_input.eid(m) << std::endl;
         const Tuple& t_pair_input = t_pair_input_per_thread.local();
-        std::cout << t.eid(m) << "\t" << t_pair_input.eid(m) << std::endl;
-        auto ret1 = m_edge_spliter.execute(m, t);
-        Tuple t_pair =
+
+        //         v2                      v2
+        //         |\                      |\
+        //         | \tn                   | \tn_after
+        //         |  \                    |  \
+        //         |   \                   |   \
+        //       t |    \   ==>            nv___\ 
+        //         |    /                  |    /
+        //         |   /                   |   /
+        //         |  /tnn                t|  /tnn_after
+        //         | /                     | /
+        //         |/                      |/
+        //         v1                      v1
+
+
+        t_n = t_input.switch_vertex(m).switch_edge(m);
+        t_nn = t_input.switch_edge(m);
+        if (m.is_boundary_edge(t_n))
+        {
+            std::cout << "t_n.pair is valid: " <<  m.edge_attrs[t_n.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        }
+        if (m.is_boundary_edge(t_nn))
+        {
+            std::cout << "t_nn.pair is valid: " <<  m.edge_attrs[t_nn.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        }      
+        auto ret1 = m_edge_spliter.execute(m, t_input);
+        if (ret1)
+        {
+            Tuple t_after = ret1.tuple;
+            bool flag1 = m.split_bd_edge_after(V1, V2, uv1, uv2, t_after);
+            // update constraints here
+            if (flag1)
+            {
+                t_n_after = t_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m).switch_vertex(m).switch_edge(m);
+                t_nn_after = t_after.switch_edge(m);
+                if (!t_n_after.is_ccw(m))
+                {
+                    t_n_after = t_n_after.switch_vertex(m);
+                }
+                if (!t_nn_after.is_ccw(m))
+                {
+                    t_nn_after = t_nn_after.switch_vertex(m);
+                }
+                if (m.is_boundary_edge(t_n_after))
+                {
+                    Tuple tmp = m.edge_attrs[t_n.eid_unsafe(m)].pair;
+                    m.edge_attrs[t_n_after.eid(m)].pair = tmp;
+                    m.edge_attrs[tmp.eid(m)].pair = t_n_after;
+                }
+
+                if (m.is_boundary_edge(t_nn_after))
+                {
+                    Tuple tmp = m.edge_attrs[t_nn.eid_unsafe(m)].pair;
+                    m.edge_attrs[t_nn_after.eid(m)].pair = tmp;
+                    m.edge_attrs[tmp.eid(m)].pair = t_nn_after;
+                }
+            }
+
+            ret1.success = flag1;
+        }
+
+        if (!ret1)
+        {
+            return ret1;
+        }
+        
+        // update t_pair
+        auto t_pair =
             m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
+        t_pair_n = t_pair.switch_vertex(m).switch_edge(m);
+        t_pair_nn = t_pair.switch_edge(m);
+        if (m.is_boundary_edge(t_pair_n))
+        {
+            auto t_pair_n_pair =  m.edge_attrs[t_pair_n.eid_unsafe(m)].pair;
+            std::cout << "t_pair_n.pair is valid: " <<  m.edge_attrs[t_pair_n.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        }
+        if (m.is_boundary_edge(t_pair_nn))
+        {
+            std::cout << "t_pair_nn.pair is valid: " <<  m.edge_attrs[t_pair_nn.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        }
         auto ret2 = m_edge_spliter.execute(m, t_pair);
+        if (ret2)
+        {
+            Tuple t_pair_after = ret2.tuple;
+            bool flag2 = m.split_bd_edge_after(V1_pair, V2_pair, uv1_pair, uv2_pair, t_pair_after);
+            // update constraints here
+            if (flag2)
+            {
+                t_pair_n_after = t_pair_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m).switch_vertex(m).switch_edge(m);
+                t_pair_nn_after = t_pair_after.switch_edge(m);
+                if (!t_pair_n_after.is_ccw(m))
+                {
+                    t_pair_n_after = t_pair_n_after.switch_vertex(m);
+                }
+                if (!t_pair_nn_after.is_ccw(m))
+                {
+                    t_pair_nn_after = t_pair_nn_after.switch_vertex(m);
+                }
+                if (m.is_boundary_edge(t_pair_n_after))
+                {
+                    Tuple tmp = m.edge_attrs[t_pair_n.eid_unsafe(m)].pair;
+                    m.edge_attrs[t_pair_n_after.eid(m)].pair = tmp;
+                    m.edge_attrs[tmp.eid(m)].pair = t_pair_n_after;
+                }
+
+                if (m.is_boundary_edge(t_pair_nn_after))
+                {
+                    Tuple tmp = m.edge_attrs[t_pair_nn.eid_unsafe(m)].pair;
+                    m.edge_attrs[t_pair_nn_after.eid(m)].pair = tmp;
+                    m.edge_attrs[tmp.eid(m)].pair = t_pair_nn_after;
+                }
+            }
+
+            ret2.success = flag2;
+        }
+        
+        // TODO: update the pair edges
+        
+        Tuple t_after = ret1.tuple;
+        Tuple t_after_other = t_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m);
+        Tuple t_pair_after = ret2.tuple;
+        Tuple t_pair_after_other = t_pair_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m);
+        
+        m.edge_attrs[t_after.eid(m)].pair = t_pair_after;
+        m.edge_attrs[t_pair_after.eid(m)].pair = t_after;
+        m.edge_attrs[t_after_other.eid(m)].pair = t_pair_after_other;
+        m.edge_attrs[t_pair_after_other.eid(m)].pair = t_after_other;
+        
+        ret_data.tuple = ret2.tuple;
         ret_data.combine(ret1);
         ret_data.combine(ret2);
 
-        ret_data.tuples.push_back(ret1.tuple);
-        ret_data.tuples.push_back(ret2.tuple);
+        // ret_data.tuples.push_back(ret1.tuple);
+        // ret_data.tuples.push_back(ret2.tuple);
         std::cout << "finish topology part of the split_pair" << std::endl;
-        std::cout << ret1.success << "\t" << ret2.success << "\t" << ret_data.success << std::endl;
+        // std::cout << ret1.success << "\t" << ret2.success << "\t" << ret_data.success << std::endl;
+        return ret_data;
+    }
+
+    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    {
+        ret_data.success &= m.invariants(ret_data.new_tris);
         return ret_data;
     }
 
@@ -88,6 +214,10 @@ public:
     Eigen::Vector3d V2,V2_pair;
     Eigen::Vector2d uv1,uv1_pair;
     Eigen::Vector2d uv2,uv2_pair;
+
+    Tuple t_n, t_nn, t_n_after, t_nn_after;
+    Tuple t_pair_n, t_pair_nn, t_pair_n_after, t_pair_nn_after;
+
 };
 
 class ExtremeOptSplitEdgeOperation : public wmtk::TriMeshOperationShim<
@@ -289,14 +419,18 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
                 collect_all_ops_split.emplace_back("split_pair", t0);
             }
             else
-                collect_all_ops_split.emplace_back("edge_split", t0);
+            {    
+                // collect_all_ops_split.emplace_back("edge_split", t0);
+            }
         } else if (l1 >= l2) {
             if (is_boundary_edge(t1))
             {
                 collect_all_ops_split.emplace_back("split_pair", t1);
             }
             else
-                collect_all_ops_split.emplace_back("edge_split", t1);
+            {    
+                // collect_all_ops_split.emplace_back("edge_split", t1);
+            }
 
         } else {
             if (is_boundary_edge(t2))
@@ -304,7 +438,9 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
                 collect_all_ops_split.emplace_back("split_pair", t2);
             }
             else
-                collect_all_ops_split.emplace_back("edge_split", t2);
+            {    
+                // collect_all_ops_split.emplace_back("edge_split", t2);
+            }
         }
     }
     
@@ -325,8 +461,8 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
     auto executor_split = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_split);
     
-    if (m_params.with_cons)
-    {
-        update_constraints_EE_v(EE);
-    }
+    // if (m_params.with_cons)
+    // {
+    //     update_constraints_EE_v(EE);
+    // }
 }

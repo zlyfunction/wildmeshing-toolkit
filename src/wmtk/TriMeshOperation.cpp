@@ -229,7 +229,7 @@ auto TriMeshSplitEdgeOperation::execute(TriMesh& m, const Tuple& t) -> ExecuteRe
     // To return a caanonical face for the returned tuple pick the min face
     size_t new_fid = std::min(fid1, new_fid1);
 
-    t.print_info();
+    // t.print_info();
     // if f2 exists then we have to do an analogous process to the above
     if (fid2_opt.has_value()) {
         const size_t fid2 = fid2_opt.value().fid(m);

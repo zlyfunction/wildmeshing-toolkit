@@ -77,7 +77,7 @@ void extremeopt::ExtremeOpt::do_optimization(json& opt_log)
         }
         if (this->m_params.do_split) {
 
-            if (i <= 5)
+            if (i <= 2)
             {
                 m_params.split_succ_cnt = 100000;
             }

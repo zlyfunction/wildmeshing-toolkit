@@ -228,7 +228,7 @@ public:
 
     bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
     {   
-        std::cout << "collapse pair invariant check here!" << std::endl;
+        // std::cout << "collapse pair invariant check here!" << std::endl;
         return true;
     }
     std::string name() const override { return "collapse_pair"; }
