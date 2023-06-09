@@ -2,6 +2,8 @@
 #include "ExtremeOpt.h"
 #include "SYMDIR.h"
 #include "SYMDIR_NEW.h"
+#include <wmtk/operations/TriMeshOperationShim.hpp>
+#include <wmtk/operations/TriMeshEdgeSwapOperation.h>
 namespace {
 
 auto renew = [](auto& m, auto op, auto& tris) {
@@ -12,46 +14,36 @@ auto renew = [](auto& m, auto op, auto& tris) {
 };
 using namespace extremeopt;
 using namespace wmtk;
-class ExtremeOptSwapEdgeOperation : public wmtk::TriMeshOperationShim<
-                                        ExtremeOpt,
-                                        ExtremeOptSwapEdgeOperation,
-                                        wmtk::TriMeshSwapEdgeOperation>
+class ExtremeOptEdgeSwapOperation : public wmtk::TriMeshOperationShim<
+                                              ExtremeOpt,
+                                              ExtremeOptEdgeSwapOperation,
+                                              wmtk::TriMeshEdgeSwapOperation>
 {
 public:
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    bool execute(ExtremeOpt& m, const Tuple& t)
     {
-        return wmtk::TriMeshSwapEdgeOperation::execute(m, t);
+        return wmtk::TriMeshEdgeSwapOperation::execute(m, t);
     }
     bool before(ExtremeOpt& m, const Tuple& t)
     {
-        if (wmtk::TriMeshSwapEdgeOperation::before(m, t)) {
-            return m.swap_edge_before(t);
+        if (wmtk::TriMeshEdgeSwapOperation::before(m, t)) {
+            return  m.swap_edge_before(t);
         }
         return false;
     }
-
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    bool after(ExtremeOpt& m)
     {
-        ret_data.success &= wmtk::TriMeshSwapEdgeOperation::after(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.swap_edge_after(ret_data.tuple);
+        if (wmtk::TriMeshEdgeSwapOperation::after(m)) {
+            return m.swap_edge_after(get_return_tuple_opt().value());
         }
-        return ret_data;
-    }
-    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {
-        ret_data.success &= wmtk::TriMeshSwapEdgeOperation::invariants(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.invariants(ret_data.new_tris);
-        }
-        return ret_data;
+        return false;
     }
 };
 
 template <typename Executor>
 void addCustomOps(Executor& e)
 {
-    e.add_operation(std::make_shared<ExtremeOptSwapEdgeOperation>());
+    e.add_operation(std::make_shared<ExtremeOptEdgeSwapOperation>());
 }
 } // namespace
 bool extremeopt::ExtremeOpt::swap_edge_before(const Tuple& t)

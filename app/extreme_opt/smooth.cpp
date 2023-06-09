@@ -1,4 +1,6 @@
 #include "ExtremeOpt.h"
+#include <wmtk/operations/TriMeshOperationShim.hpp>
+#include <wmtk/operations/TriMeshVertexSmoothOperation.h>
 #include <wmtk/ExecutionScheduler.hpp>
 #include "SYMDIR.h"
 #include "rref.h"
@@ -12,45 +14,36 @@ namespace {
 using namespace extremeopt;
 using namespace wmtk;
 
-class ExtremeOptSmoothVertexOperation : public wmtk::TriMeshOperationShim<
+class ExtremeOptVertexSmoothOperation : public wmtk::TriMeshOperationShim<
                                                   ExtremeOpt,
-                                                  ExtremeOptSmoothVertexOperation,
-                                                  wmtk::TriMeshSmoothVertexOperation>
+                                                  ExtremeOptVertexSmoothOperation,
+                                                  wmtk::TriMeshVertexSmoothOperation>
 {
 public:
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    bool execute(ExtremeOpt& m, const Tuple& t)
     {
-        return wmtk::TriMeshSmoothVertexOperation::execute(m, t);
+        return wmtk::TriMeshVertexSmoothOperation::execute(m, t);
     }
     bool before(ExtremeOpt& m, const Tuple& t)
     {
-        if (wmtk::TriMeshSmoothVertexOperation::before(m, t)) {
+        if (wmtk::TriMeshVertexSmoothOperation::before(m, t)) {
             return  m.smooth_before(t);
         }
         return false;
     }
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    bool after(ExtremeOpt& m)
     {
-        ret_data.success &= wmtk::TriMeshSmoothVertexOperation::after(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.smooth_after(ret_data.tuple);
+        if (wmtk::TriMeshVertexSmoothOperation::after(m)) {
+            return m.smooth_after(get_return_tuple_opt().value());
         }
-        return ret_data;
-    }
-    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {
-        ret_data.success &= wmtk::TriMeshSmoothVertexOperation::invariants(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.invariants(ret_data.new_tris);
-        }
-        return ret_data;
+        return false;
     }
 };
 
     template <typename Executor>
     void addCustomOps(Executor& e) {
 
-        e.add_operation(std::make_shared<ExtremeOptSmoothVertexOperation>());
+        e.add_operation(std::make_shared<ExtremeOptVertexSmoothOperation>());
     }
 }
 void buildAeq(

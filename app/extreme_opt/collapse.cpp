@@ -3,7 +3,9 @@
 #include "SYMDIR_NEW.h"
 
 #include <wmtk/TriMeshOperation.h>
+#include <wmtk/operations/TriMeshEdgeCollapseOperation.h>
 #include <wmtk/ExecutionScheduler.hpp>
+#include <wmtk/operations/TriMeshOperationShim.hpp>
 
 namespace {
 auto renew_collapse = [](auto& m, auto op, auto& tris) {
@@ -12,7 +14,7 @@ auto renew_collapse = [](auto& m, auto op, auto& tris) {
     for (auto& e : edges) {
         if (m.m_params.with_cons) {
             if (m.is_boundary_edge(e)) {
-                optup.emplace_back("collapse_pair", e); 
+                optup.emplace_back("collapse_pair", e);
             } else {
                 optup.emplace_back("edge_collapse", e);
             }
@@ -75,10 +77,10 @@ public:
             initial_energy_per_thread.local() = E_t_input;
         }
 
-         // get neighbor edges
+        // get neighbor edges
         auto onering_t_l = m.get_one_ring_edges_for_vertex(t);
         auto onering_t_r = m.get_one_ring_edges_for_vertex(t.switch_vertex(m));
-        
+
         for (auto t_tmp : onering_t_l) {
             if (m.is_boundary_edge(t_tmp)) {
                 if (t_tmp.eid(m) != t.eid(m)) {
@@ -146,11 +148,11 @@ public:
             V_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos_3d;
             uv_keep_t_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
         } // get neighbor edges
-        
+
         return true;
     }
 
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    bool after(ExtremeOpt& m)
     {
         double current_energy;
 
@@ -161,28 +163,31 @@ public:
             ;
         }
         if (initial_energy_per_thread.local() < current_energy) {
-            ret_data.success = false;
+            return false;
         }
 
-        if (ret_data.success)
-        {
-            std::cout << "collapse pair successful!" << std::endl;
-        }
-        return ret_data;
+        std::cout << "collapse pair successful!" << std::endl;
+        return true;
     }
 
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    bool execute(ExtremeOpt& m, const Tuple& t)
     {
-        ExecuteReturnData ret_data;
-
         const Tuple& t_pair_input = t_pair_input_per_thread.local();
-        
-        ret_data = m_edge_collapser.execute(m, t);
 
-        if (!m.collapse_bd_edge_after(ret_data.tuple, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) 
-        {
-            ret_data.success = false;
-            return ret_data;
+        if (!m_edge_collapser.execute(m, t)) {
+            return false;
+        } else {
+            {
+                auto& mod_tups = modified_triangles_per_thread.local();
+                mod_tups = m_edge_collapser.modified_triangles(m);
+            }
+        }
+
+        Tuple t_after = m_edge_collapser.get_return_tuple_opt().value();
+
+
+        if (!m.collapse_bd_edge_after(t_after, V_keep_t, uv_keep_t, bd_t_l, bd_t_r, E_t)) {
+            return false;
         }
 
         Tuple t_pair =
@@ -204,30 +209,33 @@ public:
             }
         }
 
-        auto ret_pair = m_edge_collapser.execute(m, t_pair);
+        if (!m_edge_collapser.execute(m, t_pair)) {
+            return false;
+        } else {
+            auto& mod_tups = modified_triangles_per_thread.local();
+            auto a = m_edge_collapser.modified_triangles(m);
+            mod_tups.insert(mod_tups.end(), a.begin(), a.end());
+        }
+        Tuple t_pair_after = m_edge_collapser.get_return_tuple_opt().value();
         if (!m.collapse_bd_edge_after(
-                ret_pair.tuple,
+                t_pair_after,
                 V_keep_t_pair,
                 uv_keep_t_pair,
                 bd_t_pair_l,
                 bd_t_pair_r,
                 E_t_pair)) {
-            ret_data.success = false;
-            return ret_data;
+            return false;
         }
 
-        // ret_data.tuple = ret_pair.tuple;
-        // ret_data.combine(ret_pair);
-
-        // ret_data.tuples.push_back(ret_data.tuple);
-        // ret_data.tuples.push_back(ret_pair.tuple);
-
-        // std::cout << "collapse_pair execute succ: " << ret_data.success << std::endl;
-        return ret_data;
+        return true;
+    }
+    std::vector<Tuple> modified_triangles(const TriMesh& m) const override
+    {
+        return modified_triangles_per_thread.local();
     }
 
-    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {   
+    bool invariants(ExtremeOpt& m)
+    {
         // std::cout << "collapse pair invariant check here!" << std::endl;
         return true;
     }
@@ -244,7 +252,7 @@ public:
     Tuple bd_t_l_pair, bd_t_r_pair;
     Tuple bd_t_pair_l, bd_t_pair_r;
     double E_t, E_t_pair;
-
+    mutable tbb::enumerable_thread_specific<std::vector<Tuple>> modified_triangles_per_thread;
 };
 
 
@@ -254,7 +262,7 @@ class ExtremeOptEdgeCollapseOperation : public wmtk::TriMeshOperationShim<
                                             wmtk::TriMeshEdgeCollapseOperation>
 {
 public:
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    bool execute(ExtremeOpt& m, const Tuple& t)
     {
         return wmtk::TriMeshEdgeCollapseOperation::execute(m, t);
     }
@@ -265,23 +273,13 @@ public:
         }
         return false;
     }
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    bool after(ExtremeOpt& m)
     {
-        ret_data.success &= wmtk::TriMeshEdgeCollapseOperation::after(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.collapse_edge_after(ret_data.tuple);
+        if (wmtk::TriMeshEdgeCollapseOperation::after(m)) {
+            return m.collapse_edge_after(get_return_tuple_opt().value());
         }
-        return ret_data;
+        return false;
     }
-    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {   
-        ret_data.success &= wmtk::TriMeshEdgeCollapseOperation::invariants(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.invariants(ret_data.new_tris);
-        }
-        return ret_data;
-    }
-    bool for_debug = false;
 };
 
 template <typename Executor>
@@ -293,15 +291,11 @@ void addCustomOps(Executor& e)
 } // namespace
 bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 {
-
     // DEBUG_FID
-    if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198)
-    {
+    if (t.fid(*this) == 26198 || t.switch_face(*this).value().fid(*this) == 26198) {
         std::cout << "face 26198 for collapse!" << std::endl;
         position_cache.local().debug_switch = true;
-    }
-    else
-    {
+    } else {
         position_cache.local().debug_switch = false;
     }
 
@@ -322,11 +316,10 @@ bool extremeopt::ExtremeOpt::collapse_edge_before(const Tuple& t)
 bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
 {
     // DEBUG_FID
-    if (position_cache.local().debug_switch)
-    {
+    if (position_cache.local().debug_switch) {
         std::cout << "face 26198 for collapse after!" << std::endl;
     }
-    
+
     Eigen::Vector3d V;
     Eigen::Vector2d uv;
     if (position_cache.local().is_v1_bd) {
@@ -342,18 +335,16 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     v.pos_3d = V;
     v.pos = uv;
 
-    // check elen 
+    // check elen
     auto vid_onering = get_one_ring_vids_for_vertex(vid);
     for (int vid_tmp : vid_onering) {
         auto V_tmp = vertex_attrs[vid_tmp].pos_3d;
         auto uv_tmp = vertex_attrs[vid_tmp].pos;
         double elen_3d = (V_tmp - V).norm();
         double elen = (uv_tmp - uv).norm();
-        if (elen > elen_threshold || elen_3d > elen_threshold_3d) 
-        {
+        if (elen > elen_threshold || elen_3d > elen_threshold_3d) {
             // DEBUG_FID
-            if (position_cache.local().debug_switch)
-            {
+            if (position_cache.local().debug_switch) {
                 std::cout << "face 26198 for collapse after! fail elen threshold" << std::endl;
             }
             return false;
@@ -361,26 +352,25 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
     }
 
     auto locs = get_one_ring_tris_for_vertex(t);
-    for (auto loc : locs)
-    {
-        if (is_inverted(loc) || is_3d_degenerated(loc))
-        {
+    for (auto loc : locs) {
+        if (is_inverted(loc) || is_3d_degenerated(loc)) {
             // DEBUG_FID
-            if (position_cache.local().debug_switch)
-            {
-                std::cout << "face 26198 for collapse after! fail(inverted/degenerate)" << std::endl;
+            if (position_cache.local().debug_switch) {
+                std::cout << "face 26198 for collapse after! fail(inverted/degenerate)"
+                          << std::endl;
             }
             return false;
         }
     }
 
-    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    wmtk::SymmetricDirichletEnergy E_eval(
+        wmtk::SymmetricDirichletEnergy::EnergyType::Lp,
+        m_params.Lp);
     double E_after_collapse = E_eval.symmetric_dirichlet_energy_onering(*this, t);
 
     if (!std::isfinite(E_after_collapse) || E_after_collapse > position_cache.local().E_before) {
         // DEBUG_FID
-        if (position_cache.local().debug_switch)
-        {
+        if (position_cache.local().debug_switch) {
             std::cout << "face 26198 for collapse after! fail(energy+ or infinite)" << std::endl;
             std::cout << "Energy: " << E_after_collapse << std::endl;
         }
@@ -455,8 +445,7 @@ bool extremeopt::ExtremeOpt::collapse_edge_after(const Tuple& t)
         }
     }
 
-    if (position_cache.local().debug_switch)
-    {
+    if (position_cache.local().debug_switch) {
         std::cout << "face 26198 for collapse succeed" << std::endl;
     }
     return true;
@@ -476,20 +465,19 @@ bool extremeopt::ExtremeOpt::collapse_bd_edge_after(
     vertex_attrs[vid].pos = uv_keep;
 
     // get local mesh and check area/E
-   auto locs = get_one_ring_tris_for_vertex(t);
-    for (auto loc : locs)
-    {
-        if (is_inverted(loc) || is_3d_degenerated(loc))
-        {
+    auto locs = get_one_ring_tris_for_vertex(t);
+    for (auto loc : locs) {
+        if (is_inverted(loc) || is_3d_degenerated(loc)) {
             return false;
         }
     }
 
-    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    wmtk::SymmetricDirichletEnergy E_eval(
+        wmtk::SymmetricDirichletEnergy::EnergyType::Lp,
+        m_params.Lp);
     E = E_eval.symmetric_dirichlet_energy_onering(*this, t);
 
-    if (!std::isfinite(E))
-    {
+    if (!std::isfinite(E)) {
         return false;
     }
 

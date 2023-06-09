@@ -159,7 +159,8 @@ public:
         const std::vector<wmtk::TriMesh::Tuple>& tris,
         const size_t vid_threshold) const;
 
-    bool invariants(const std::vector<Tuple>& new_tris) override;
+    bool invariants(const std::vector<Tuple>& new_tris);
+    bool invariants(const wmtk::TriMeshOperation& op) override;
 
     bool swap_edge_before(const Tuple& t);
     bool swap_edge_after(const Tuple& t);

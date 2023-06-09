@@ -1,5 +1,7 @@
-#include "ExtremeOpt.h"
+#include <wmtk/operations/TriMeshEdgeSplitOperation.h>
 #include <wmtk/ExecutionScheduler.hpp>
+#include <wmtk/operations/TriMeshOperationShim.hpp>
+#include "ExtremeOpt.h"
 #include "SYMDIR.h"
 #include "SYMDIR_NEW.h"
 namespace {
@@ -21,16 +23,14 @@ public:
         }
         Tuple& t_pair_input = t_pair_input_per_thread.local();
         t_pair_input = m.edge_attrs[t.eid(m)].pair;
-        
-        if (!t_pair_input.is_valid(m))
-        {
+
+        if (!t_pair_input.is_valid(m)) {
             std::cout << "t_pair is not valid" << std::endl;
             t.print_info();
             t_pair_input.is_valid(m);
             std::cout << std::endl;
         }
-        if (t.fid(m) == t_pair_input.fid(m))
-        {
+        if (t.fid(m) == t_pair_input.fid(m)) {
             return false;
         }
 
@@ -38,7 +38,7 @@ public:
         V2 = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos_3d;
         uv1 = m.vertex_attrs[t.vid(m)].pos;
         uv2 = m.vertex_attrs[t.switch_vertex(m).vid(m)].pos;
-        
+
         V1_pair = m.vertex_attrs[t_pair_input.vid(m)].pos_3d;
         V2_pair = m.vertex_attrs[t_pair_input.switch_vertex(m).vid(m)].pos_3d;
         uv1_pair = m.vertex_attrs[t_pair_input.vid(m)].pos;
@@ -47,16 +47,11 @@ public:
         return true;
     }
 
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {   
-        return true;
-    }
+    bool after(ExtremeOpt& m) { return true; }
 
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    bool execute(ExtremeOpt& m, const Tuple& t)
     {
-        auto t_input = t.is_ccw(m)?t:t.switch_vertex(m);
-        ExecuteReturnData ret_data;
-        ret_data.success = true;
+        auto t_input = t.is_ccw(m) ? t : t.switch_vertex(m);
         std::cout << "try to split pair" << t_input.eid(m) << std::endl;
         const Tuple& t_pair_input = t_pair_input_per_thread.local();
 
@@ -76,132 +71,137 @@ public:
 
         t_n = t_input.switch_vertex(m).switch_edge(m);
         t_nn = t_input.switch_edge(m);
-        if (m.is_boundary_edge(t_n))
-        {
-            std::cout << "t_n.pair is valid: " <<  m.edge_attrs[t_n.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        if (m.is_boundary_edge(t_n)) {
+            std::cout << "t_n.pair is valid: " << m.edge_attrs[t_n.eid_unsafe(m)].pair.is_valid(m)
+                      << std::endl;
         }
-        if (m.is_boundary_edge(t_nn))
-        {
-            std::cout << "t_nn.pair is valid: " <<  m.edge_attrs[t_nn.eid_unsafe(m)].pair.is_valid(m) << std::endl;
-        }      
-        auto ret1 = m_edge_spliter.execute(m, t_input);
-        if (ret1)
-        {
-            Tuple t_after = ret1.tuple;
+        if (m.is_boundary_edge(t_nn)) {
+            std::cout << "t_nn.pair is valid: " << m.edge_attrs[t_nn.eid_unsafe(m)].pair.is_valid(m)
+                      << std::endl;
+        }
+        if (m_edge_splitter.execute(m, t_input)) {
+            Tuple t_after = m_edge_splitter.get_return_tuple_opt().value();
+            {
+                auto& mod_tups = modified_triangles_per_thread.local();
+                mod_tups = m_edge_splitter.modified_triangles(m);
+            }
             bool flag1 = m.split_bd_edge_after(V1, V2, uv1, uv2, t_after);
             // update constraints here
-            if (flag1)
-            {
-                t_n_after = t_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m).switch_vertex(m).switch_edge(m);
+            if (flag1) {
+                t_n_after = t_after.switch_vertex(m)
+                                .switch_edge(m)
+                                .switch_face(m)
+                                .value()
+                                .switch_edge(m)
+                                .switch_vertex(m)
+                                .switch_edge(m);
                 t_nn_after = t_after.switch_edge(m);
-                if (!t_n_after.is_ccw(m))
-                {
+                if (!t_n_after.is_ccw(m)) {
                     t_n_after = t_n_after.switch_vertex(m);
                 }
-                if (!t_nn_after.is_ccw(m))
-                {
+                if (!t_nn_after.is_ccw(m)) {
                     t_nn_after = t_nn_after.switch_vertex(m);
                 }
-                if (m.is_boundary_edge(t_n_after))
-                {
+                if (m.is_boundary_edge(t_n_after)) {
                     Tuple tmp = m.edge_attrs[t_n.eid_unsafe(m)].pair;
                     m.edge_attrs[t_n_after.eid(m)].pair = tmp;
                     m.edge_attrs[tmp.eid(m)].pair = t_n_after;
                 }
 
-                if (m.is_boundary_edge(t_nn_after))
-                {
+                if (m.is_boundary_edge(t_nn_after)) {
                     Tuple tmp = m.edge_attrs[t_nn.eid_unsafe(m)].pair;
                     m.edge_attrs[t_nn_after.eid(m)].pair = tmp;
                     m.edge_attrs[tmp.eid(m)].pair = t_nn_after;
                 }
+            } else {
+                return false;
             }
 
-            ret1.success = flag1;
+        } else {
+            return false;
         }
+        Tuple t_after = m_edge_splitter.get_return_tuple_opt().value();
+        Tuple t_after_other =
+            t_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m);
 
-        if (!ret1)
-        {
-            return ret1;
-        }
-        
+
         // update t_pair
         auto t_pair =
             m.tuple_from_edge(t_pair_input.eid_unsafe(m) / 3, t_pair_input.eid_unsafe(m) % 3);
         t_pair_n = t_pair.switch_vertex(m).switch_edge(m);
         t_pair_nn = t_pair.switch_edge(m);
-        if (m.is_boundary_edge(t_pair_n))
-        {
-            auto t_pair_n_pair =  m.edge_attrs[t_pair_n.eid_unsafe(m)].pair;
-            std::cout << "t_pair_n.pair is valid: " <<  m.edge_attrs[t_pair_n.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        if (m.is_boundary_edge(t_pair_n)) {
+            auto t_pair_n_pair = m.edge_attrs[t_pair_n.eid_unsafe(m)].pair;
+            std::cout << "t_pair_n.pair is valid: "
+                      << m.edge_attrs[t_pair_n.eid_unsafe(m)].pair.is_valid(m) << std::endl;
         }
-        if (m.is_boundary_edge(t_pair_nn))
-        {
-            std::cout << "t_pair_nn.pair is valid: " <<  m.edge_attrs[t_pair_nn.eid_unsafe(m)].pair.is_valid(m) << std::endl;
+        if (m.is_boundary_edge(t_pair_nn)) {
+            std::cout << "t_pair_nn.pair is valid: "
+                      << m.edge_attrs[t_pair_nn.eid_unsafe(m)].pair.is_valid(m) << std::endl;
         }
-        auto ret2 = m_edge_spliter.execute(m, t_pair);
-        if (ret2)
-        {
-            Tuple t_pair_after = ret2.tuple;
+        if (m_edge_splitter.execute(m, t_pair)) {
+            {
+                auto& mod_tups = modified_triangles_per_thread.local();
+                auto a = m_edge_splitter.modified_triangles(m);
+                mod_tups.insert(mod_tups.end(), a.begin(), a.end());
+            }
+
+            Tuple t_pair_after = m_edge_splitter.get_return_tuple_opt().value();
             bool flag2 = m.split_bd_edge_after(V1_pair, V2_pair, uv1_pair, uv2_pair, t_pair_after);
             // update constraints here
-            if (flag2)
-            {
-                t_pair_n_after = t_pair_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m).switch_vertex(m).switch_edge(m);
+            if (flag2) {
+                t_pair_n_after = t_pair_after.switch_vertex(m)
+                                     .switch_edge(m)
+                                     .switch_face(m)
+                                     .value()
+                                     .switch_edge(m)
+                                     .switch_vertex(m)
+                                     .switch_edge(m);
                 t_pair_nn_after = t_pair_after.switch_edge(m);
-                if (!t_pair_n_after.is_ccw(m))
-                {
+                if (!t_pair_n_after.is_ccw(m)) {
                     t_pair_n_after = t_pair_n_after.switch_vertex(m);
                 }
-                if (!t_pair_nn_after.is_ccw(m))
-                {
+                if (!t_pair_nn_after.is_ccw(m)) {
                     t_pair_nn_after = t_pair_nn_after.switch_vertex(m);
                 }
-                if (m.is_boundary_edge(t_pair_n_after))
-                {
+                if (m.is_boundary_edge(t_pair_n_after)) {
                     Tuple tmp = m.edge_attrs[t_pair_n.eid_unsafe(m)].pair;
                     m.edge_attrs[t_pair_n_after.eid(m)].pair = tmp;
                     m.edge_attrs[tmp.eid(m)].pair = t_pair_n_after;
                 }
 
-                if (m.is_boundary_edge(t_pair_nn_after))
-                {
+                if (m.is_boundary_edge(t_pair_nn_after)) {
                     Tuple tmp = m.edge_attrs[t_pair_nn.eid_unsafe(m)].pair;
                     m.edge_attrs[t_pair_nn_after.eid(m)].pair = tmp;
                     m.edge_attrs[tmp.eid(m)].pair = t_pair_nn_after;
                 }
+            } else {
+                return false;
             }
 
-            ret2.success = flag2;
+        } else {
+            return false;
         }
-        
+
         // TODO: update the pair edges
-        
-        Tuple t_after = ret1.tuple;
-        Tuple t_after_other = t_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m);
-        Tuple t_pair_after = ret2.tuple;
-        Tuple t_pair_after_other = t_pair_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m);
-        
+
+        Tuple t_pair_after = m_edge_splitter.get_return_tuple_opt().value();
+        Tuple t_pair_after_other =
+            t_pair_after.switch_vertex(m).switch_edge(m).switch_face(m).value().switch_edge(m);
+
         m.edge_attrs[t_after.eid(m)].pair = t_pair_after;
         m.edge_attrs[t_pair_after.eid(m)].pair = t_after;
         m.edge_attrs[t_after_other.eid(m)].pair = t_pair_after_other;
         m.edge_attrs[t_pair_after_other.eid(m)].pair = t_after_other;
-        
-        ret_data.tuple = ret2.tuple;
-        ret_data.combine(ret1);
-        ret_data.combine(ret2);
 
-        // ret_data.tuples.push_back(ret1.tuple);
-        // ret_data.tuples.push_back(ret2.tuple);
+
         std::cout << "finish topology part of the split_pair" << std::endl;
-        // std::cout << ret1.success << "\t" << ret2.success << "\t" << ret_data.success << std::endl;
-        return ret_data;
+        return true;
     }
 
-    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    std::vector<Tuple> modified_triangles(const TriMesh& m) const override
     {
-        ret_data.success &= m.invariants(ret_data.new_tris);
-        return ret_data;
+        return modified_triangles_per_thread.local();
     }
 
     std::string name() const override { return "split_pair"; }
@@ -209,65 +209,55 @@ public:
     virtual ~SplitPairOperation(){};
 
     tbb::enumerable_thread_specific<Tuple> t_pair_input_per_thread;
-    wmtk::TriMeshSplitEdgeOperation m_edge_spliter;
-    Eigen::Vector3d V1,V1_pair;
-    Eigen::Vector3d V2,V2_pair;
-    Eigen::Vector2d uv1,uv1_pair;
-    Eigen::Vector2d uv2,uv2_pair;
+    wmtk::TriMeshEdgeSplitOperation m_edge_splitter;
+    Eigen::Vector3d V1, V1_pair;
+    Eigen::Vector3d V2, V2_pair;
+    Eigen::Vector2d uv1, uv1_pair;
+    Eigen::Vector2d uv2, uv2_pair;
 
     Tuple t_n, t_nn, t_n_after, t_nn_after;
     Tuple t_pair_n, t_pair_nn, t_pair_n_after, t_pair_nn_after;
-
+    mutable tbb::enumerable_thread_specific<std::vector<Tuple>> modified_triangles_per_thread;
 };
 
-class ExtremeOptSplitEdgeOperation : public wmtk::TriMeshOperationShim<
-                                                  ExtremeOpt,
-                                                  ExtremeOptSplitEdgeOperation,
-                                                  wmtk::TriMeshSplitEdgeOperation>
+class ExtremeOptEdgeSplitOperation : public wmtk::TriMeshOperationShim<
+                                         ExtremeOpt,
+                                         ExtremeOptEdgeSplitOperation,
+                                         wmtk::TriMeshEdgeSplitOperation>
 {
 public:
-    ExecuteReturnData execute(ExtremeOpt& m, const Tuple& t)
+    bool execute(ExtremeOpt& m, const Tuple& t)
     {
-        return wmtk::TriMeshSplitEdgeOperation::execute(m, t);
+        return wmtk::TriMeshEdgeSplitOperation::execute(m, t);
     }
     bool before(ExtremeOpt& m, const Tuple& t)
     {
-        if (wmtk::TriMeshSplitEdgeOperation::before(m, t)) {
-            return  m.split_edge_before(t);
+        if (wmtk::TriMeshEdgeSplitOperation::before(m, t)) {
+            return m.split_edge_before(t);
         }
         return false;
     }
-    bool after(ExtremeOpt& m, ExecuteReturnData& ret_data)
-    {   
-        ret_data.success &= wmtk::TriMeshSplitEdgeOperation::after(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.split_edge_after(ret_data.tuple);
-        }
-        return ret_data;
-    }
-    bool invariants(ExtremeOpt& m, ExecuteReturnData& ret_data)
+    bool after(ExtremeOpt& m)
     {
-        ret_data.success &= wmtk::TriMeshSplitEdgeOperation::invariants(m, ret_data);
-        if (ret_data.success) {
-            ret_data.success &= m.invariants(ret_data.new_tris);
+        if (wmtk::TriMeshEdgeSplitOperation::after(m)) {
+            return m.split_edge_after(get_return_tuple_opt().value());
         }
-        return ret_data;
+        return false;
     }
 };
 
-    template <typename Executor>
-    void addCustomOps(Executor& e) {
-        e.add_operation(std::make_shared<SplitPairOperation>());
-        e.add_operation(std::make_shared<ExtremeOptSplitEdgeOperation>());
-    }
+template <typename Executor>
+void addCustomOps(Executor& e)
+{
+    e.add_operation(std::make_shared<SplitPairOperation>());
+    e.add_operation(std::make_shared<ExtremeOptEdgeSplitOperation>());
+}
 } // namespace
 
 bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
-{   
-
+{
     // DEBUG_FID
-    if (t.fid(*this) == 26198)
-    {
+    if (t.fid(*this) == 26198) {
         std::cout << "face 26198 for split!" << std::endl;
     }
 
@@ -283,7 +273,9 @@ bool extremeopt::ExtremeOpt::split_edge_before(const Tuple& t)
     position_cache.local().uv1 = vertex_attrs[t.vid(*this)].pos;
     position_cache.local().uv2 = vertex_attrs[t.switch_vertex(*this).vid(*this)].pos;
 
-    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    wmtk::SymmetricDirichletEnergy E_eval(
+        wmtk::SymmetricDirichletEnergy::EnergyType::Lp,
+        m_params.Lp);
     position_cache.local().E_before = E_eval.symmetric_dirichlet_energy_2chart(*this, t);
     return true;
 }
@@ -295,8 +287,7 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     Tuple vert_tuple = t.switch_vertex(*this);
     size_t vid = vert_tuple.vid(*this);
 
-    if (m_params.do_projection)
-    {
+    if (m_params.do_projection) {
         Eigen::VectorXd sqrD;
         int fid;
         Eigen::RowVector3d C;
@@ -311,27 +302,24 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
 
     // check for inverted/degenerate triangles
     auto locs = get_one_ring_tris_for_vertex(vert_tuple);
-    for (auto loc : locs)
-    {
-        if (is_inverted(loc) || is_3d_degenerated(loc))
-        {
+    for (auto loc : locs) {
+        if (is_inverted(loc) || is_3d_degenerated(loc)) {
             return false;
         }
     }
 
-    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    wmtk::SymmetricDirichletEnergy E_eval(
+        wmtk::SymmetricDirichletEnergy::EnergyType::Lp,
+        m_params.Lp);
     double E = E_eval.symmetric_dirichlet_energy_onering(*this, vert_tuple);
 
-    if (!std::isfinite(E))
-    {
+    if (!std::isfinite(E)) {
         return false;
     }
 
     // if use projection, we need to check Energy
-    if (m_params.do_projection)
-    {
-        if (E > position_cache.local().E_before)
-        {
+    if (m_params.do_projection) {
+        if (E > position_cache.local().E_before) {
             return false;
         }
     }
@@ -347,7 +335,12 @@ bool extremeopt::ExtremeOpt::split_edge_after(const Tuple& t)
     return true;
 }
 
-bool extremeopt::ExtremeOpt::split_bd_edge_after(Eigen::Vector3d V1, Eigen::Vector3d V2, Eigen::Vector2d uv1, Eigen::Vector2d uv2, const Tuple& t)
+bool extremeopt::ExtremeOpt::split_bd_edge_after(
+    Eigen::Vector3d V1,
+    Eigen::Vector3d V2,
+    Eigen::Vector2d uv1,
+    Eigen::Vector2d uv2,
+    const Tuple& t)
 {
     Eigen::Vector3d V = (V1 + V2) / 2.0;
     Eigen::Vector2d uv = (uv1 + uv2) / 2.0;
@@ -361,19 +354,18 @@ bool extremeopt::ExtremeOpt::split_bd_edge_after(Eigen::Vector3d V1, Eigen::Vect
 
     // check for inverted/degenerate triangles
     auto locs = get_one_ring_tris_for_vertex(vert_tuple);
-    for (auto loc : locs)
-    {
-        if (is_inverted(loc) || is_3d_degenerated(loc))
-        {
+    for (auto loc : locs) {
+        if (is_inverted(loc) || is_3d_degenerated(loc)) {
             return false;
         }
     }
 
-    wmtk::SymmetricDirichletEnergy E_eval(wmtk::SymmetricDirichletEnergy::EnergyType::Lp, m_params.Lp);
+    wmtk::SymmetricDirichletEnergy E_eval(
+        wmtk::SymmetricDirichletEnergy::EnergyType::Lp,
+        m_params.Lp);
     double E = E_eval.symmetric_dirichlet_energy_onering(*this, vert_tuple);
 
-    if (!std::isfinite(E))
-    {
+    if (!std::isfinite(E)) {
         return false;
     }
 
@@ -388,18 +380,16 @@ bool extremeopt::ExtremeOpt::split_bd_edge_after(Eigen::Vector3d V1, Eigen::Vect
 }
 
 
-void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
+void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd& Es)
 {
     Eigen::MatrixXi EE;
-    if (m_params.with_cons)
-    {
+    if (m_params.with_cons) {
         export_EE(EE);
     }
     size_t vid_threshold = 0;
     auto collect_all_ops_split = std::vector<std::pair<std::string, Tuple>>();
 
-    for (auto& loc : get_faces())
-    {
+    for (auto& loc : get_faces()) {
         auto t0 = loc;
         auto t1 = t0.switch_edge(*this);
         auto t2 = t0.switch_vertex(*this).switch_edge(*this);
@@ -414,42 +404,35 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
                 .norm();
 
         if (l0 >= l1 && l0 >= l2) {
-            if (is_boundary_edge(t0))
-            {
+            if (is_boundary_edge(t0)) {
                 collect_all_ops_split.emplace_back("split_pair", t0);
-            }
-            else
-            {    
+            } else {
                 // collect_all_ops_split.emplace_back("edge_split", t0);
             }
         } else if (l1 >= l2) {
-            if (is_boundary_edge(t1))
-            {
+            if (is_boundary_edge(t1)) {
                 collect_all_ops_split.emplace_back("split_pair", t1);
-            }
-            else
-            {    
+            } else {
                 // collect_all_ops_split.emplace_back("edge_split", t1);
             }
 
         } else {
-            if (is_boundary_edge(t2))
-            {
+            if (is_boundary_edge(t2)) {
                 collect_all_ops_split.emplace_back("split_pair", t2);
-            }
-            else
-            {    
+            } else {
                 // collect_all_ops_split.emplace_back("edge_split", t2);
             }
         }
     }
-    
-    
+
+
     auto setup_and_execute = [&](auto& executor_split) {
         addCustomOps(executor_split);
         executor_split.priority = [&](auto& m, auto _, auto& e) {
-            if (e.fid(*this) >= Es.size()) return 1e50;
-            else return Es(e.fid(*this));
+            if (e.fid(*this) >= Es.size())
+                return 1e50;
+            else
+                return Es(e.fid(*this));
         };
         executor_split.stopping_criterion_checking_frequency = m_params.split_succ_cnt;
         executor_split.stopping_criterion = [](const TriMesh&) {
@@ -460,7 +443,7 @@ void extremeopt::ExtremeOpt::split_all_edges(const Eigen::VectorXd &Es)
     };
     auto executor_split = wmtk::ExecutePass<ExtremeOpt, wmtk::ExecutionPolicy::kSeq>();
     setup_and_execute(executor_split);
-    
+
     // if (m_params.with_cons)
     // {
     //     update_constraints_EE_v(EE);

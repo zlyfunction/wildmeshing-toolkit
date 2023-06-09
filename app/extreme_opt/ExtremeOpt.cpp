@@ -540,6 +540,10 @@ void ExtremeOpt::consolidate_mesh_cons()
         }
     }
 }
+
+bool ExtremeOpt::invariants(const wmtk::TriMeshOperation& op) {
+    return invariants(op.modified_triangles(*this));
+}
 bool ExtremeOpt::invariants(const std::vector<Tuple>& new_tris)
 {
     if (m_params.use_envelope)
