@@ -1,0 +1,9 @@
+<map id="wmtk::operations::SplitNewAttributeStrategy::assign_split_ribs" name="wmtk::operations::SplitNewAttributeStrategy::assign_split_ribs">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,62,208,117"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1attribute_1_1_accessor.html#a4b89ff4381fe73d4827b663203a964fc" title=" " alt="" coords="256,5,445,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="208,60,260,46,261,52,209,65"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1attribute_1_1_accessor_base.html#aa29524d9ac03d223c29cc2e70ac5d69b" title=" " alt="" coords="256,69,445,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="208,87,242,87,242,92,208,92"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1attribute_1_1_accessor.html#af3d28e7dfd45b1f3cdd396153bb69ebe" title=" " alt="" coords="256,133,445,173"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="209,113,261,127,260,132,208,118"/>
+</map>

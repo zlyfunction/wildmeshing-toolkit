@@ -1,0 +1,15 @@
+<map id="wmtk::simplex::SimplexCollection::get_union" name="wmtk::simplex::SimplexCollection::get_union">
+<area shape="rect" id="Node000001" title="Get union of two simplex collections." alt="" coords="791,69,1036,109"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1simplex_1_1_simplex_collection.html#a156241f0bd0aa0e054347929261a9db0" title="Check if the two simplex collections are equal." alt="" coords="497,69,743,109"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="777,92,743,92,743,87,777,87"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1simplex.html#a428755c0a4c93af10690b6828a3c79f5" title=" " alt="" coords="227,5,426,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="514,69,418,48,419,43,515,64"/>
+<area shape="rect" id="Node000005" href="$namespacewmtk_1_1simplex.html#a3b3266f811539b7df8d85a51552bc1f7" title=" " alt="" coords="229,69,424,109"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="483,92,424,92,424,87,483,87"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1simplex_1_1_simplex_collection.html#a685bd1949491c0f6d61a69d61b2a1235" title=" " alt="" coords="204,133,449,173"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="515,115,419,136,418,131,514,110"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1simplex.html#aead7bf4f261c58bdb33bd0bf7fcd541d" title=" " alt="" coords="5,5,156,45"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="214,28,156,28,156,23,214,23"/>
+<area shape="rect" id="Node000006" href="$namespacewmtk_1_1simplex.html#aad86388bdc8c1685d7d55fad016f0ca2" title=" " alt="" coords="5,69,156,109"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="215,92,156,92,156,87,215,87"/>
+</map>

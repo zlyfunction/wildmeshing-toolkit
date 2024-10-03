@@ -1,0 +1,12 @@
+<map id="wmtk::simplex::link_condition" name="wmtk::simplex::link_condition">
+<area shape="rect" id="Node000001" title="Check if the edge to collapse satisfying the link condition." alt="" coords="547,93,697,133"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1simplex.html#a3307260114e435efa2ea5848902fa5cb" title=" " alt="" coords="304,5,455,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="568,90,498,60,454,46,456,41,500,55,570,85"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components_1_1internal.html#a8890d5e5bb5f11779d4e40e07882253a" title=" " alt="" coords="277,93,482,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="533,116,482,116,482,111,533,111"/>
+<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="260,158,499,183"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="534,139,499,148,443,161,442,155,498,143,533,134"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="421,82,406,75,379,72,356,74,342,79,337,85,339,92,334,94,331,84,339,74,355,69,379,67,408,70,423,77"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="5,93,212,133"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="263,116,212,116,212,111,263,111"/>
+</map>

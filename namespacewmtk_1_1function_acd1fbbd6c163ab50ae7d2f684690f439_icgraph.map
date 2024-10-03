@@ -1,0 +1,19 @@
+<map id="wmtk::function::Tri_AMIPS_energy" name="wmtk::function::Tri_AMIPS_energy">
+<area shape="rect" id="Node000001" title=" " alt="" coords="387,275,529,315"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1function_1_1_a_m_i_p_s.html#af9abca3d72a09a1b5f792fb7f94f7076" title="This function is defined over a simplex (normally a triangle or tetrahedron)." alt="" coords="87,5,257,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="447,262,434,216,413,160,381,105,360,81,337,60,299,39,256,29,257,24,301,34,340,55,364,77,385,102,417,158,439,214,453,261"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#adfb3a02b9a933d5913c7e85cd55c063f" title=" " alt="" coords="37,70,307,125"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="439,264,399,199,370,166,337,138,306,122,308,117,340,134,374,162,403,196,444,261"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a2877cde3e1e8548d7060a898b8971826" title=" " alt="" coords="27,149,317,203"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="420,268,381,241,338,217,308,206,310,201,340,212,384,236,423,264"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#a51a9afb1da894de12d142b715f972ecc" title=" " alt="" coords="37,227,307,282"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="373,286,306,276,307,271,374,280"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a6181aedd6d0e35b51395da3153b5fef6" title=" " alt="" coords="27,306,317,361"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="374,309,317,316,316,311,373,303"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#ab59d438a581f80e7c225a440c0cfafb6" title=" " alt="" coords="31,385,313,425"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="423,325,384,352,340,374,300,388,298,383,338,370,381,347,420,321"/>
+<area shape="rect" id="Node000008" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a678a1813c9b5d871c22fe6525e074e86" title=" " alt="" coords="5,449,339,489"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="441,328,400,386,372,415,340,440,316,452,313,447,337,435,369,411,396,383,437,325"/>
+<area shape="rect" id="Node000009" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="53,514,291,539"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="450,329,435,371,413,418,381,465,362,486,340,504,317,516,293,524,291,519,315,511,337,499,358,482,377,462,408,416,430,368,445,328"/>
+</map>

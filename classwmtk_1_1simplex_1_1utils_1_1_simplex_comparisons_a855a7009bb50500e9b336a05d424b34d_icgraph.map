@@ -1,0 +1,45 @@
+<map id="wmtk::simplex::utils::SimplexComparisons::equal" name="wmtk::simplex::utils::SimplexComparisons::equal">
+<area shape="rect" id="Node000001" title=" " alt="" coords="928,446,1096,501"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1invariants_1_1_collapse_energy_before_invariant.html#aaf60c03541b2a73aebe4ebad561f2535" title=" " alt="" coords="636,5,855,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1008,433,1001,353,982,252,966,199,943,148,914,101,878,59,854,43,857,39,882,55,919,98,948,146,971,198,987,251,1007,352,1013,432"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1invariants_1_1_collapse_energy_before_invariant_double.html#aedec3d60165b7fe7541a9caa18f6c131" title=" " alt="" coords="638,70,853,125"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="1004,433,992,368,970,288,953,247,933,207,908,170,878,138,851,120,854,116,882,134,912,167,938,205,958,245,975,287,998,367,1009,432"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1invariants_1_1_collapse_soft_energy_before_invariant.html#aab8e4687323543f65ee7a38e93b9e32d" title=" " alt="" coords="647,149,843,203"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="999,433,983,383,958,325,924,266,902,240,878,217,842,196,845,191,882,213,906,236,928,263,963,323,988,382,1004,432"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1simplex_1_1utils_1_1_simplex_comparisons.html#a64c61b4dc2a24ac2254da283a59f100d" title=" " alt="" coords="661,227,829,282"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="987,435,942,368,913,333,878,303,854,289,828,278,830,273,857,284,882,299,916,330,947,365,992,432"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing.html#a2c409cd3da46f4360119e142ef3c3682" title="returns an empty vector in case of failure" alt="" coords="5,361,275,401"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="983,436,938,387,910,365,879,348,834,332,789,320,694,305,598,301,503,306,414,317,332,332,204,364,203,359,331,326,413,311,503,300,598,296,694,299,790,314,836,327,881,343,913,360,942,383,987,433"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic.html#a86df18fe3713cb41dca1687487dea61b" title="returns an empty vector in case of failure" alt="" coords="611,357,880,397"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="948,442,879,412,841,400,842,395,881,407,950,437"/>
+<area shape="rect" id="Node000008" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a15a37c1d8c6556c11d387fbf78060f4e" title=" " alt="" coords="626,421,865,461"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="914,464,865,458,865,453,915,459"/>
+<area shape="rect" id="Node000009" href="$namespacewmtk_1_1function_1_1utils.html#a10708966079a04e25ba0ea7953479662" title="get attributes from a simplex" alt="" coords="655,485,835,525"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="915,488,836,497,835,492,914,482"/>
+<area shape="rect" id="Node000012" href="$namespacewmtk_1_1simplex.html#a0ca1602c328b51a103411fcac3d70ebe" title="Check if the edge to collapse satisfying the link condition." alt="" coords="670,549,821,589"/>
+<area shape="poly" id="edge12_Node000001_Node000012" title=" " alt="" coords="950,510,881,540,822,557,820,552,879,535,948,505"/>
+<area shape="rect" id="Node000017" href="$namespacewmtk_1_1simplex.html#aead7bf4f261c58bdb33bd0bf7fcd541d" title=" " alt="" coords="670,613,821,653"/>
+<area shape="poly" id="edge18_Node000001_Node000017" title=" " alt="" coords="984,513,939,561,911,584,881,604,852,617,822,625,820,620,850,612,879,599,908,580,935,557,980,509"/>
+<area shape="rect" id="Node000018" href="$namespacewmtk_1_1simplex.html#aad86388bdc8c1685d7d55fad016f0ca2" title=" " alt="" coords="670,677,821,717"/>
+<area shape="poly" id="edge19_Node000001_Node000018" title=" " alt="" coords="997,514,978,551,953,593,920,633,882,668,853,683,822,692,820,687,851,678,878,663,916,630,948,590,973,549,992,512"/>
+<area shape="rect" id="Node000019" href="$classwmtk_1_1simplex_1_1utils_1_1_mesh_simplex_comparator_1_1_equal.html#a1860a38e7a3e000b6a3c5010c836550d" title=" " alt="" coords="648,742,843,797"/>
+<area shape="poly" id="edge20_Node000001_Node000019" title=" " alt="" coords="1003,515,987,564,962,623,928,681,906,708,882,731,844,753,842,749,878,727,902,704,923,678,958,620,982,563,998,513"/>
+<area shape="rect" id="Node000020" href="$structwmtk_1_1simplex_1_1internal_1_1_simplex_equal_functor.html#adf088974d25815e4aa13559301ecd9db" title=" " alt="" coords="657,821,834,875"/>
+<area shape="poly" id="edge21_Node000001_Node000020" title=" " alt="" coords="1009,515,997,580,975,659,958,701,937,741,912,778,882,811,860,827,835,838,833,833,857,822,878,807,908,775,933,738,953,699,970,658,992,579,1004,514"/>
+<area shape="rect" id="Node000021" href="$structwmtk_1_1simplex_1_1internal_1_1_homogeneous_simplex_equal_functor.html#a11c73b0efcb6ade6021ef2a8cb8aa42a" title=" " alt="" coords="615,899,876,954"/>
+<area shape="poly" id="edge22_Node000001_Node000021" title=" " alt="" coords="1013,515,1005,594,986,695,969,747,947,799,918,847,882,890,868,901,864,897,878,886,914,844,942,797,964,746,980,693,1000,593,1007,515"/>
+<area shape="rect" id="Node000010" href="$classwmtk_1_1function_1_1_per_simplex_autodiff_function.html#a2925164a2ef8ed1f86a9c07075972967" title=" " alt="" coords="323,389,563,429"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="641,487,609,476,585,460,561,444,530,432,532,427,564,439,588,455,612,471,643,482"/>
+<area shape="rect" id="Node000011" href="$classwmtk_1_1function_1_1_a_m_i_p_s.html#a36709a007132c33f85efe0b4abd16b93" title=" " alt="" coords="358,453,527,493"/>
+<area shape="poly" id="edge10_Node000009_Node000011" title=" " alt="" coords="641,497,527,485,528,480,642,492"/>
+<area shape="poly" id="edge11_Node000011_Node000006" title=" " alt="" coords="351,452,322,444,198,404,200,399,323,439,352,447"/>
+<area shape="rect" id="Node000013" href="$namespacewmtk_1_1simplex.html#a3307260114e435efa2ea5848902fa5cb" title=" " alt="" coords="367,517,518,557"/>
+<area shape="poly" id="edge13_Node000012_Node000013" title=" " alt="" coords="656,563,518,548,519,543,657,557"/>
+<area shape="rect" id="Node000014" href="$namespacewmtk_1_1components_1_1internal.html#a8890d5e5bb5f11779d4e40e07882253a" title=" " alt="" coords="340,605,545,645"/>
+<area shape="poly" id="edge14_Node000012_Node000014" title=" " alt="" coords="657,588,546,609,545,604,656,583"/>
+<area shape="rect" id="Node000016" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="323,670,562,695"/>
+<area shape="poly" id="edge17_Node000012_Node000016" title=" " alt="" coords="658,584,612,604,597,617,589,631,580,646,564,660,536,672,533,667,561,655,576,642,584,628,593,613,609,599,655,580"/>
+<area shape="poly" id="edge16_Node000014_Node000014" title=" " alt="" coords="494,594,476,587,443,584,413,586,395,591,389,597,392,604,387,606,384,596,393,586,412,581,443,579,477,581,496,589"/>
+<area shape="rect" id="Node000015" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="37,605,243,645"/>
+<area shape="poly" id="edge15_Node000014_Node000015" title=" " alt="" coords="326,628,244,628,244,623,326,623"/>
+</map>

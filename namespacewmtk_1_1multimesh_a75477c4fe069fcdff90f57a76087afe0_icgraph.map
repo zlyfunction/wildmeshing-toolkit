@@ -1,0 +1,31 @@
+<map id="wmtk::multimesh::consolidate" name="wmtk::multimesh::consolidate">
+<area shape="rect" id="Node000001" title=" " alt="" coords="581,406,801,431"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components_1_1internal.html#a49432d47b0fca2f5fe80f1e9c634fa14" title=" " alt="" coords="311,187,516,227"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="661,400,439,229,443,225,664,395"/>
+<area shape="rect" id="Node000010" href="$namespacewmtk_1_1components_1_1internal.html#a8890d5e5bb5f11779d4e40e07882253a" title=" " alt="" coords="311,367,516,407"/>
+<area shape="poly" id="edge10_Node000001_Node000010" title=" " alt="" coords="567,407,516,401,517,396,568,402"/>
+<area shape="rect" id="Node000012" href="$namespacewmtk_1_1components.html#ae3a4b32383fdc9c2eb8334cc8ef947a5" title="Perform shortest&#45;edge collapse on a triangular surface mesh." alt="" coords="293,431,533,471"/>
+<area shape="poly" id="edge13_Node000001_Node000012" title=" " alt="" coords="568,436,534,439,533,434,568,430"/>
+<area shape="rect" id="Node000014" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="294,495,533,521"/>
+<area shape="poly" id="edge15_Node000001_Node000014" title=" " alt="" coords="651,440,596,463,534,485,485,498,484,493,533,480,594,458,649,435"/>
+<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="461,175,444,168,413,165,386,167,370,172,364,178,367,185,362,187,359,177,367,168,385,162,413,160,445,163,463,170"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components.html#ae6dfdbd73d7018f6f21bb2396872c796" title=" " alt="" coords="20,5,231,45"/>
+<area shape="poly" id="edge3_Node000002_Node000003" title=" " alt="" coords="384,178,324,118,286,86,244,60,217,48,220,43,247,55,289,82,328,114,388,174"/>
+<area shape="rect" id="Node000004" href="$test__component__isotropic__remeshing_8cpp.html#a64dc4992576434e79fdb0838f9092ab8" title=" " alt="" coords="78,70,173,95"/>
+<area shape="poly" id="edge4_Node000002_Node000004" title=" " alt="" coords="373,181,314,143,244,109,208,98,172,91,173,86,209,93,246,104,316,139,375,176"/>
+<area shape="rect" id="Node000005" href="$test__component__isotropic__remeshing_8cpp.html#aae475685ae29b731655dd43137a950d6" title=" " alt="" coords="78,119,173,145"/>
+<area shape="poly" id="edge5_Node000002_Node000005" title=" " alt="" coords="337,185,245,159,173,143,174,138,246,153,339,180"/>
+<area shape="rect" id="Node000006" href="$test__component__isotropic__remeshing_8cpp.html#ab3fcea88943daf212aeeda03eb0baa8b" title=" " alt="" coords="78,169,173,194"/>
+<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="297,199,172,188,173,183,297,194"/>
+<area shape="rect" id="Node000007" href="$test__component__isotropic__remeshing_8cpp.html#aceca2caa1612565bd919bd8cf0ea0232" title=" " alt="" coords="78,218,173,243"/>
+<area shape="poly" id="edge7_Node000002_Node000007" title=" " alt="" coords="297,219,173,229,172,224,297,214"/>
+<area shape="rect" id="Node000008" href="$test__component__isotropic__remeshing_8cpp.html#a51ae85bc413e9940267e8a366e0bcc9f" title=" " alt="" coords="78,267,173,293"/>
+<area shape="poly" id="edge8_Node000002_Node000008" title=" " alt="" coords="334,233,246,257,174,273,172,268,245,252,333,228"/>
+<area shape="rect" id="Node000009" href="$test__component__isotropic__remeshing_8cpp.html#a9e0dd9408a6fe42f1fb8e8764f740dda" title=" " alt="" coords="78,317,173,342"/>
+<area shape="poly" id="edge9_Node000002_Node000009" title=" " alt="" coords="374,237,315,273,246,306,209,318,173,326,172,320,208,313,244,302,313,268,371,232"/>
+<area shape="poly" id="edge12_Node000010_Node000010" title=" " alt="" coords="461,355,444,348,413,345,386,347,370,352,364,358,367,365,362,367,359,357,367,348,385,342,413,340,445,343,463,350"/>
+<area shape="rect" id="Node000011" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="22,367,229,407"/>
+<area shape="poly" id="edge11_Node000010_Node000011" title=" " alt="" coords="297,389,229,389,229,384,297,384"/>
+<area shape="rect" id="Node000013" href="$namespacewmtk_1_1components.html#a3154cdbc6047eee67258b69cc7d5e7cf" title="Perform shortest&#45;edge collapse on a triangular surface mesh." alt="" coords="5,431,245,471"/>
+<area shape="poly" id="edge14_Node000012_Node000013" title=" " alt="" coords="280,453,245,453,245,448,280,448"/>
+</map>

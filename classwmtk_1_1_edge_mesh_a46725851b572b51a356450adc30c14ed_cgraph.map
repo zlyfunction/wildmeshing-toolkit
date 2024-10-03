@@ -1,0 +1,26 @@
+<map id="wmtk::EdgeMesh::switch_tuple" name="wmtk::EdgeMesh::switch_tuple">
+<area shape="rect" id="Node000001" title="switch the orientation of the Tuple of the given dimension" alt="" coords="5,158,189,198"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#ab850fe07669c7bc92ca6cf6e86c60ee0" title=" " alt="" coords="241,5,423,60"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="123,156,174,118,236,77,259,64,261,69,239,82,177,122,126,160"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1attribute_1_1_accessor.html#a4b89ff4381fe73d4827b663203a964fc" title=" " alt="" coords="475,101,664,141"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="137,155,184,136,237,121,294,112,352,108,461,109,461,114,352,114,294,118,238,126,186,141,139,160"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1_edge_mesh.html#a34530ca80c07ae67ffe601c2b8f22e3e" title=" " alt="" coords="255,136,409,161"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="189,164,241,157,242,163,190,169"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1attribute_1_1_accessor.html#a2d587e12c47a6d839ab80e9198cf75b5" title=" " alt="" coords="237,186,427,226"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="190,186,224,190,224,196,189,192"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1_edge_mesh.html#a83db0c93833dacdfb169807d8ba4b6ca" title="TODO this needs dimension?" alt="" coords="239,251,425,276"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="142,196,238,235,266,244,265,249,236,241,140,201"/>
+<area shape="rect" id="Node000008" href="$classwmtk_1_1_edge_mesh.html#acd802c89cf0cba9c312a8e7ecfa11c80" title="check validity of tuple including its hash" alt="" coords="493,271,646,311"/>
+<area shape="poly" id="edge13_Node000001_Node000008" title=" " alt="" coords="118,196,168,245,202,268,238,286,299,302,362,308,423,308,479,303,479,309,423,313,362,313,298,307,236,291,199,273,165,249,114,200"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="409,137,461,131,462,136,410,142"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1attribute_1_1_accessor.html#afd97a48ec5d1db975a030428df81f617" title=" " alt="" coords="475,186,664,226"/>
+<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="427,203,461,203,461,209,427,209"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="425,272,479,278,479,283,424,277"/>
+<area shape="rect" id="Node000009" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="712,279,872,304"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="646,289,698,289,698,294,646,294"/>
+<area shape="rect" id="Node000010" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="938,241,1089,267"/>
+<area shape="poly" id="edge10_Node000009_Node000010" title=" " alt="" coords="868,276,924,266,925,272,868,281"/>
+<area shape="rect" id="Node000011" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="920,315,1107,340"/>
+<area shape="poly" id="edge11_Node000009_Node000011" title=" " alt="" coords="871,301,922,310,921,315,870,307"/>
+<area shape="poly" id="edge12_Node000011_Node000011" title=" " alt="" coords="977,316,969,306,973,296,988,290,1013,288,1044,292,1056,301,1053,305,1042,297,1013,293,990,295,977,300,975,306,981,313"/>
+</map>

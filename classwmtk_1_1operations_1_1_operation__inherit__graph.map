@@ -1,0 +1,43 @@
+<map id="wmtk::operations::Operation" name="wmtk::operations::Operation">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,607,213,633"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1operations_1_1_attributes_update.html" title=" " alt="" coords="273,255,481,295"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="127,595,358,293,363,296,131,598"/>
+<area shape="rect" id="Node000011" href="$classwmtk_1_1operations_1_1_edge_collapse.html" title=" " alt="" coords="261,437,493,462"/>
+<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="126,594,181,532,218,499,260,471,288,460,290,465,263,476,221,503,185,536,130,598"/>
+<area shape="rect" id="Node000012" href="$classwmtk_1_1operations_1_1_edge_split.html" title=" " alt="" coords="275,486,480,511"/>
+<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="136,596,191,558,260,522,299,509,301,514,262,526,194,563,139,601"/>
+<area shape="rect" id="Node000013" href="$classwmtk_1_1operations_1_1_operation_sequence.html" title=" " alt="" coords="273,536,481,576"/>
+<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="176,601,292,573,293,579,177,607"/>
+<area shape="rect" id="Node000017" href="$classwmtk_1_1operations_1_1composite_1_1_tet_cell_split.html" title="TetCellSplit." alt="" coords="271,600,483,640"/>
+<area shape="poly" id="edge16_Node000001_Node000017" title=" " alt="" coords="227,617,271,617,271,623,227,623"/>
+<area shape="rect" id="Node000018" href="$classwmtk_1_1operations_1_1composite_1_1_tet_edge_swap.html" title="Performs an edge swap, implemented as a combination of swap and collapse." alt="" coords="271,664,483,704"/>
+<area shape="poly" id="edge17_Node000001_Node000018" title=" " alt="" coords="177,633,293,661,292,667,176,639"/>
+<area shape="rect" id="Node000019" href="$classwmtk_1_1operations_1_1composite_1_1_tet_face_swap.html" title="A FaceSwap (or a Swap 2&#45;3) performs a swap a face sharing by two tets to an edge split the volume of ..." alt="" coords="271,728,483,768"/>
+<area shape="poly" id="edge18_Node000001_Node000019" title=" " alt="" coords="140,639,195,677,262,714,294,725,292,730,260,718,192,681,137,643"/>
+<area shape="rect" id="Node000020" href="$classwmtk_1_1operations_1_1composite_1_1_tri_edge_swap.html" title="Performs an edge swap, implemented as a combination of swap and collapse." alt="" coords="271,792,483,832"/>
+<area shape="poly" id="edge19_Node000001_Node000020" title=" " alt="" coords="129,642,183,710,221,747,263,778,287,790,285,794,260,782,217,751,179,714,125,646"/>
+<area shape="rect" id="Node000021" href="$classwmtk_1_1operations_1_1composite_1_1_tri_face_split.html" title="The return tuple is the new vertex, pointing to the original vertex." alt="" coords="271,856,483,896"/>
+<area shape="poly" id="edge20_Node000001_Node000021" title=" " alt="" coords="123,645,143,688,173,741,214,796,237,820,263,842,283,854,281,858,260,846,233,824,209,799,169,744,138,690,118,647"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing.html" title=" " alt="" coords="541,5,811,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="392,240,415,198,448,147,490,97,540,55,562,43,565,48,543,60,494,101,452,151,420,200,396,243"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic.html" title=" " alt="" coords="541,69,811,109"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="401,242,460,179,498,146,540,119,567,107,569,112,543,124,501,151,463,183,405,245"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1operations_1_1_attributes_update_with_function.html" title=" " alt="" coords="572,133,780,173"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="419,245,476,213,540,183,577,171,578,176,542,188,478,218,422,250"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_optimization_smoothing.html" title=" " alt="" coords="562,197,790,237"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="494,250,571,235,572,240,495,255"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_rounding.html" title=" " alt="" coords="573,262,779,287"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="495,272,573,272,573,277,495,277"/>
+<area shape="rect" id="Node000008" href="$classwmtk_1_1operations_1_1_tet_wild_tangential_laplacian_smoothing.html" title=" " alt="" coords="565,312,787,352"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="495,294,572,309,571,315,494,300"/>
+<area shape="rect" id="Node000009" href="$classwmtk_1_1operations_1_1composite_1_1_project_operation.html" title=" " alt="" coords="570,376,782,416"/>
+<area shape="poly" id="edge8_Node000002_Node000009" title=" " alt="" coords="422,300,478,332,542,362,578,373,577,378,540,366,476,336,419,304"/>
+<area shape="rect" id="Node000010" href="$classwmtk_1_1operations_1_1utils_1_1_round_rational_to_double.html" title=" " alt="" coords="583,440,769,480"/>
+<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="405,304,463,366,501,399,543,426,584,442,582,447,540,430,498,403,460,370,401,307"/>
+<area shape="rect" id="Node000014" href="$classwmtk_1_1operations_1_1_and_operation_sequence.html" title=" " alt="" coords="559,504,793,544"/>
+<area shape="poly" id="edge13_Node000013_Node000014" title=" " alt="" coords="495,541,559,534,559,539,495,546"/>
+<area shape="rect" id="Node000015" href="$classwmtk_1_1operations_1_1_min_operation_sequence.html" title=" " alt="" coords="560,568,792,608"/>
+<area shape="poly" id="edge14_Node000013_Node000015" title=" " alt="" coords="495,566,560,573,559,578,495,571"/>
+<area shape="rect" id="Node000016" href="$classwmtk_1_1operations_1_1_or_operation_sequence.html" title=" " alt="" coords="565,632,787,672"/>
+<area shape="poly" id="edge15_Node000013_Node000016" title=" " alt="" coords="476,578,495,586,519,602,543,618,575,629,573,634,540,622,516,606,492,590,474,583"/>
+</map>

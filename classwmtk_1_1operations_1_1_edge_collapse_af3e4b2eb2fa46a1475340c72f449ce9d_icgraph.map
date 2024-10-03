@@ -1,0 +1,15 @@
+<map id="wmtk::operations::EdgeCollapse::set_new_attribute_strategy" name="wmtk::operations::EdgeCollapse::set_new_attribute_strategy">
+<area shape="rect" id="Node000001" title=" " alt="" coords="535,69,767,109"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1operations_1_1_attribute_transfer_configuration.html#a2b24abc964e31f0c9c520d3a9e17904c" title=" " alt="" coords="268,5,473,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="548,69,458,48,459,43,550,64"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1components_1_1internal_1_1_regular_space.html#af9adef544fff10ba9257d128fd13393c" title=" " alt="" coords="257,69,484,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="521,92,484,92,484,87,521,87"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_edge_collapse.html#a31e2fd32feacd5705864bda83c55c188" title=" " alt="" coords="255,133,487,173"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="550,115,459,136,458,131,548,110"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="5,12,207,52"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="264,69,198,55,199,49,265,64"/>
+<area shape="rect" id="Node000005" href="$test__component__regular__space_8cpp.html#a728024a1ea7ac078fd93d4035f705520" title=" " alt="" coords="59,77,153,102"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="243,92,154,92,154,87,243,87"/>
+<area shape="rect" id="Node000006" href="$test__component__regular__space_8cpp.html#a5e69783b3ce0c074477e3081ab8cf658" title=" " alt="" coords="59,126,153,151"/>
+<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="250,115,154,133,153,127,249,109"/>
+</map>

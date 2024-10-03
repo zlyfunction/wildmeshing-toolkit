@@ -1,0 +1,26 @@
+<map id="wmtk::function::Tet_AMIPS_energy_aux" name="wmtk::function::Tet_AMIPS_energy_aux">
+<area shape="rect" id="Node000001" title=" " alt="" coords="836,313,989,353"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1function.html#a9e3b11628e6438129ff662e14c320619" title=" " alt="" coords="641,313,788,353"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="822,336,788,336,788,331,822,331"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1function_1_1_a_m_i_p_s.html#af9abca3d72a09a1b5f792fb7f94f7076" title="This function is defined over a simplex (normally a triangle or tetrahedron)." alt="" coords="342,5,511,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="706,301,695,247,674,181,659,147,640,115,618,85,592,59,554,39,511,29,512,23,555,34,595,55,622,81,645,112,664,145,679,179,700,245,712,299"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#adfb3a02b9a933d5913c7e85cd55c063f" title=" " alt="" coords="292,70,561,125"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="700,301,684,263,661,218,630,175,592,138,560,121,563,116,595,134,634,171,666,216,689,261,705,299"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a2877cde3e1e8548d7060a898b8971826" title=" " alt="" coords="282,149,571,203"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="688,304,647,259,621,236,592,217,568,206,571,201,595,212,624,232,650,255,692,301"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#a51a9afb1da894de12d142b715f972ecc" title=" " alt="" coords="292,227,561,282"/>
+<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="643,312,593,296,550,285,551,279,594,291,645,306"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a6181aedd6d0e35b51395da3153b5fef6" title=" " alt="" coords="282,306,571,361"/>
+<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="628,336,572,336,572,331,628,331"/>
+<area shape="rect" id="Node000008" href="$namespacewmtk_1_1components_1_1internal.html#a8890d5e5bb5f11779d4e40e07882253a" title=" " alt="" coords="324,409,529,449"/>
+<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="642,360,489,412,487,407,640,355"/>
+<area shape="rect" id="Node000010" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#ab59d438a581f80e7c225a440c0cfafb6" title=" " alt="" coords="286,473,567,513"/>
+<area shape="poly" id="edge10_Node000002_Node000010" title=" " alt="" coords="695,366,653,417,625,443,595,464,568,476,566,471,592,459,622,438,649,413,691,363"/>
+<area shape="rect" id="Node000011" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a678a1813c9b5d871c22fe6525e074e86" title=" " alt="" coords="260,537,593,577"/>
+<area shape="poly" id="edge11_Node000002_Node000011" title=" " alt="" coords="705,367,689,405,665,449,634,492,595,527,573,540,571,535,592,523,630,488,661,446,684,403,700,365"/>
+<area shape="rect" id="Node000012" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="307,602,546,627"/>
+<area shape="poly" id="edge12_Node000002_Node000012" title=" " alt="" coords="711,368,698,418,677,480,643,541,621,568,595,591,572,605,547,614,545,609,570,600,592,587,617,564,639,538,672,477,693,417,705,366"/>
+<area shape="poly" id="edge9_Node000008_Node000008" title=" " alt="" coords="476,398,459,391,427,388,399,390,382,395,375,401,379,408,374,410,370,400,379,390,398,385,427,383,460,385,478,393"/>
+<area shape="rect" id="Node000009" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="5,409,212,449"/>
+<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="310,432,212,432,212,427,310,427"/>
+</map>

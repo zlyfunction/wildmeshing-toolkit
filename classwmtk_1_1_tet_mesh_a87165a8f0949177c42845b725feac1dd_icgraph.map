@@ -1,0 +1,12 @@
+<map id="wmtk::TetMesh::switch_vertex" name="wmtk::TetMesh::switch_vertex">
+<area shape="rect" id="Node000001" title=" " alt="" coords="451,78,621,118"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1simplex.html#a18647fe3e4b68cc5a6186aa5063fcd53" title=" " alt="" coords="228,5,379,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="467,76,402,53,344,33,346,28,404,47,469,71"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1simplex.html#aead7bf4f261c58bdb33bd0bf7fcd541d" title=" " alt="" coords="5,78,156,118"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="437,97,403,97,204,97,156,98,156,93,204,91,403,91,437,92"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1simplex.html#a428755c0a4c93af10690b6828a3c79f5" title=" " alt="" coords="204,106,403,146"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="437,113,403,117,403,111,436,107"/>
+<area shape="rect" id="Node000005" href="$namespacewmtk_1_1simplex.html#a9c219fd0b4f590bc836d41011761968b" title=" " alt="" coords="228,170,379,210"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="482,127,404,160,371,172,369,167,402,156,480,122"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="190,114,156,110,157,105,191,109"/>
+</map>

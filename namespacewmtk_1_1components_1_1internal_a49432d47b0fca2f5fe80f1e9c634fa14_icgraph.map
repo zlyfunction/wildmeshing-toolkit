@@ -1,0 +1,18 @@
+<map id="wmtk::components::internal::isotropic_remeshing" name="wmtk::components::internal::isotropic_remeshing">
+<area shape="rect" id="Node000001" title=" " alt="" coords="264,161,469,201"/>
+<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="410,150,395,143,367,140,342,142,327,147,321,153,324,160,319,162,316,152,324,142,341,137,367,135,396,138,413,145"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components.html#ae6dfdbd73d7018f6f21bb2396872c796" title=" " alt="" coords="5,5,216,45"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="335,154,282,106,249,81,215,60,188,48,191,43,217,55,252,77,285,101,339,150"/>
+<area shape="rect" id="Node000003" href="$test__component__isotropic__remeshing_8cpp.html#a64dc4992576434e79fdb0838f9092ab8" title=" " alt="" coords="63,70,158,95"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="318,157,269,132,215,109,158,93,159,88,217,104,271,127,320,152"/>
+<area shape="rect" id="Node000004" href="$test__component__isotropic__remeshing_8cpp.html#aae475685ae29b731655dd43137a950d6" title=" " alt="" coords="63,119,158,145"/>
+<area shape="poly" id="edge4_Node000001_Node000004" title=" " alt="" coords="250,162,158,144,159,138,251,156"/>
+<area shape="rect" id="Node000005" href="$test__component__isotropic__remeshing_8cpp.html#ab3fcea88943daf212aeeda03eb0baa8b" title=" " alt="" coords="63,169,158,194"/>
+<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="250,184,158,184,158,179,250,179"/>
+<area shape="rect" id="Node000006" href="$test__component__isotropic__remeshing_8cpp.html#aceca2caa1612565bd919bd8cf0ea0232" title=" " alt="" coords="63,218,158,243"/>
+<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="251,206,159,224,158,219,250,201"/>
+<area shape="rect" id="Node000007" href="$test__component__isotropic__remeshing_8cpp.html#a51ae85bc413e9940267e8a366e0bcc9f" title=" " alt="" coords="63,267,158,293"/>
+<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="320,210,271,235,217,257,159,274,157,268,215,252,269,230,317,205"/>
+<area shape="rect" id="Node000008" href="$test__component__isotropic__remeshing_8cpp.html#a9e0dd9408a6fe42f1fb8e8764f740dda" title=" " alt="" coords="63,317,158,342"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="339,213,285,261,252,286,217,306,188,318,159,325,157,320,186,313,215,302,249,281,282,257,335,209"/>
+</map>

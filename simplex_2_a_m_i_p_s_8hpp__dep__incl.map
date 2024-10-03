@@ -1,0 +1,23 @@
+<map id="src/wmtk/function/simplex/AMIPS.hpp" name="src/wmtk/function/simplex/AMIPS.hpp">
+<area shape="rect" id="Node000001" title=" " alt="" coords="540,5,735,45"/>
+<area shape="rect" id="Node000002" href="$internal_2periodic__optimization_8cpp.html" title=" " alt="" coords="778,196,1014,265"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="749,31,782,39,815,51,846,69,873,92,888,116,897,143,902,196,896,196,892,144,883,118,869,95,843,73,813,56,781,44,748,36"/>
+<area shape="rect" id="Node000003" href="$test__component__wildmeshing_8cpp.html" title=" " alt="" coords="5,211,224,251"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="527,47,440,67,353,96,292,123,234,155,143,213,140,208,231,151,290,119,351,91,439,62,525,42"/>
+<area shape="rect" id="Node000004" href="$wildmeshing_8cpp.html" title=" " alt="" coords="248,203,483,258"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="527,45,437,66,402,79,379,95,365,120,360,148,359,177,362,203,357,203,354,177,354,148,360,118,375,92,399,75,436,61,526,39"/>
+<area shape="rect" id="Node000005" href="$simplex_2_a_m_i_p_s_8cpp.html" title=" " alt="" coords="664,101,859,141"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="675,51,738,98,735,103,672,56"/>
+<area shape="rect" id="Node000006" href="$_a_m_i_p_s_optimization_smoothing_8hpp.html" title=" " alt="" coords="390,101,639,141"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="603,56,541,103,538,98,600,52"/>
+<area shape="rect" id="Node000008" href="$_a_m_i_p_s_optimization_smoothing_periodic_8hpp.html" title=" " alt="" coords="933,93,1155,148"/>
+<area shape="poly" id="edge10_Node000001_Node000008" title=" " alt="" coords="734,46,934,92,933,97,732,51"/>
+<area shape="poly" id="edge6_Node000006_Node000002" title=" " alt="" coords="595,142,779,194,777,199,593,147"/>
+<area shape="poly" id="edge7_Node000006_Node000003" title=" " alt="" coords="431,147,237,199,183,213,182,208,235,193,430,142"/>
+<area shape="poly" id="edge8_Node000006_Node000004" title=" " alt="" coords="479,151,403,205,400,201,476,147"/>
+<area shape="rect" id="Node000007" href="$_a_m_i_p_s_optimization_smoothing_8cpp.html" title=" " alt="" coords="507,211,755,251"/>
+<area shape="poly" id="edge9_Node000006_Node000007" title=" " alt="" coords="547,148,612,209,608,212,543,152"/>
+<area shape="poly" id="edge11_Node000008_Node000002" title=" " alt="" coords="998,158,944,198,941,193,995,154"/>
+<area shape="rect" id="Node000009" href="$_a_m_i_p_s_optimization_smoothing_periodic_8cpp.html" title=" " alt="" coords="1039,203,1260,258"/>
+<area shape="poly" id="edge12_Node000008_Node000009" title=" " alt="" coords="1082,156,1125,201,1122,205,1078,160"/>
+</map>

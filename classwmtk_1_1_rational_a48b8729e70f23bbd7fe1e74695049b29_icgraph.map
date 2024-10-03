@@ -1,0 +1,16 @@
+<map id="wmtk::Rational::to_double" name="wmtk::Rational::to_double">
+<area shape="rect" id="Node000001" title=" " alt="" coords="472,127,615,167"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1_rational.html#a67fc8319386b7b19e595887d0956501e" title=" " alt="" coords="240,5,423,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="514,119,473,80,423,44,396,33,398,28,425,40,477,76,517,115"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1attribute_1_1utils_1_1_hybrid_rational_attribute.html#a7c6e072b4293219aa35b2b89248c8d1e" title=" " alt="" coords="239,55,423,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="464,126,420,112,421,107,465,121"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1attribute_1_1utils_1_1_hybrid_rational_attribute.html#a78b870c6b2c3041a246983590facfe56" title=" " alt="" coords="6,127,190,197"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="459,153,190,162,190,156,458,147"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1_rational.html#aa6a6a0b0814e21535cad5603ea0221f9" title=" " alt="" coords="248,185,415,211"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="459,170,386,188,385,183,458,165"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1attribute_1_1utils_1_1_hybrid_rational_accessor.html#ab6df3182a1d26ab8cc3d98a1c64c911b" title=" " alt="" coords="239,235,424,289"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="504,177,425,226,402,237,400,232,423,221,501,173"/>
+<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="252,232,238,226,177,199,179,194,240,221,254,227"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1utils_1_1_round_rational_to_double.html#abdf0afb7a81efab03ae4894f0816df42" title="returns an empty vector in case of failure" alt="" coords="5,235,191,289"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="225,265,191,265,191,259,225,259"/>
+</map>

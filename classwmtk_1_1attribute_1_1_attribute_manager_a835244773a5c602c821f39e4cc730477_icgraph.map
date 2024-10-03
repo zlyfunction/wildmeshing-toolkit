@@ -1,0 +1,12 @@
+<map id="wmtk::attribute::AttributeManager::clear_attributes" name="wmtk::attribute::AttributeManager::clear_attributes">
+<area shape="rect" id="Node000001" title="Remove all custom attributes besides the one passed in." alt="" coords="515,25,704,65"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1_mesh.html#a0d7627098b83729f1060ec22677450cf" title=" " alt="" coords="255,7,467,33"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="501,37,467,33,467,28,502,32"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1_mesh.html#a1560383e3efd16c50b116642ebf3d6c6" title="Remove all custom attributes besides the one passed in." alt="" coords="255,57,467,82"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="502,58,467,62,467,56,501,53"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="5,5,207,45"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="273,57,207,45,207,40,274,52"/>
+<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#ae22ac68a5d85a281c4aeafa97f5230bc" title=" " alt="" coords="18,93,194,133"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="274,87,195,101,194,96,273,82"/>
+<area shape="poly" id="edge5_Node000005_Node000005" title=" " alt="" coords="149,82,134,75,106,72,81,74,67,79,61,85,64,92,59,94,56,84,64,74,80,69,106,67,135,70,151,77"/>
+</map>

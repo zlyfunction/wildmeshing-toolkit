@@ -1,0 +1,8 @@
+<map id="wmtk::attribute::MeshAttributeHandle::held_type" name="wmtk::attribute::MeshAttributeHandle::held_type">
+<area shape="rect" id="Node000001" title=" " alt="" coords="300,54,523,94"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components.html#a52f9ca12856b67dee17249c6172e2bbe" title=" " alt="" coords="16,29,241,55"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="286,62,241,57,241,52,286,57"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1operations_1_1_vertex_laplacian_smooth.html#afb4d33e216f923cc8df1d718a14adaab" title=" " alt="" coords="5,79,252,133"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="287,91,252,95,252,89,286,85"/>
+<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="179,21,176,16,168,12,129,8,98,10,82,15,79,20,87,27,84,31,74,21,79,11,97,5,129,3,169,7,180,12,184,18"/>
+</map>

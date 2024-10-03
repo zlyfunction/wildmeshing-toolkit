@@ -1,0 +1,17 @@
+<map id="wmtk::components::utils::get_attributes" name="wmtk::components::utils::get_attributes">
+<area shape="rect" id="Node000001" title=" " alt="" coords="541,101,724,141"/>
+<area shape="poly" id="edge6_Node000001_Node000001" title=" " alt="" coords="677,90,661,83,633,80,608,82,592,87,587,93,590,100,585,102,582,92,590,82,607,77,633,75,663,78,679,85"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components.html#a0271fbc50dba277ddd2d1d3e32d1fb3d" title=" " alt="" coords="275,5,473,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="580,98,492,60,456,48,457,43,494,55,582,93"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components.html#a7447d90d4590819b69239d895ea5dc86" title=" " alt="" coords="275,69,473,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="527,111,473,104,473,99,528,106"/>
+<area shape="rect" id="Node000006" href="$namespacewmtk_1_1components.html#ae6dfdbd73d7018f6f21bb2396872c796" title=" " alt="" coords="269,133,479,173"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="528,137,480,143,479,138,527,132"/>
+<area shape="rect" id="Node000007" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="255,198,493,223"/>
+<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="583,150,494,188,448,200,446,195,492,183,580,145"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="5,25,207,65"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="261,74,207,64,207,59,262,68"/>
+<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#ae22ac68a5d85a281c4aeafa97f5230bc" title=" " alt="" coords="18,113,194,153"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="262,110,195,122,194,116,261,105"/>
+<area shape="poly" id="edge5_Node000005_Node000005" title=" " alt="" coords="152,102,136,95,106,92,80,94,64,99,59,105,62,112,57,114,54,104,62,94,79,89,106,87,137,89,154,97"/>
+</map>

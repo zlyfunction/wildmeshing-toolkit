@@ -1,0 +1,9 @@
+<map id="src/wmtk/operations/TetWildTangentialLaplacianSmoothing.hpp" name="src/wmtk/operations/TetWildTangentialLaplacianSmoothing.hpp">
+<area shape="rect" id="Node000001" title=" " alt="" coords="281,5,483,60"/>
+<area shape="rect" id="Node000002" href="$internal_2periodic__optimization_8cpp.html" title=" " alt="" coords="5,108,241,177"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="307,68,205,110,203,105,305,63"/>
+<area shape="rect" id="Node000003" href="$wildmeshing_8cpp.html" title=" " alt="" coords="265,115,499,170"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="385,74,385,115,379,115,379,74"/>
+<area shape="rect" id="Node000004" href="$_tet_wild_tangential_laplacian_smoothing_8cpp.html" title=" " alt="" coords="523,115,726,170"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="455,63,567,113,564,118,453,68"/>
+</map>

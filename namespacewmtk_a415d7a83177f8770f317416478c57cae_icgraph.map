@@ -1,0 +1,25 @@
+<map id="wmtk::abs" name="wmtk::abs">
+<area shape="rect" id="Node000001" title=" " alt="" coords="901,181,992,206"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1function_1_1utils.html#a5566d601b7700a203e925d5eaca49ddd" title=" " alt="" coords="641,77,797,117"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="917,174,887,153,852,134,796,115,798,110,854,130,890,149,920,170"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic.html#a86df18fe3713cb41dca1687487dea61b" title="returns an empty vector in case of failure" alt="" coords="584,144,853,184"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="887,188,853,184,854,179,888,183"/>
+<area shape="rect" id="Node000007" href="$namespacewmtk_1_1components.html#a5a89b6c23c8338b3a90a304b368fb3a8" title=" " alt="" coords="621,209,816,234"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="887,203,816,212,816,207,887,198"/>
+<area shape="rect" id="Node000009" href="$namespacewmtk_1_1components_1_1adaptive__tessellation_1_1image.html#a4a929b5db6236c63dcfa04d4a6316119" title=" " alt="" coords="613,259,825,328"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="915,216,854,248,823,261,821,256,852,243,912,211"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1function_1_1utils.html#a0944a6121ead97b0619f660e5ebda47f" title=" " alt="" coords="352,5,508,45"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="626,77,508,47,509,42,628,72"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1function_1_1_triangle_a_m_i_p_s.html#a9efeeacdc9da3b8000a13d44be7e62b7" title="This function defines a function f(x) where f is defined over a simplex domain and the variables for ..." alt="" coords="341,69,519,109"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="627,97,520,94,520,89,627,92"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1function_1_1_position_map_a_m_i_p_s2_d.html#a3aded6e841b5c5730bcdaf8cedc5da94" title=" " alt="" coords="339,134,521,189"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="628,120,522,144,521,139,627,115"/>
+<area shape="rect" id="Node000008" href="$test__component__fusion_8cpp.html#ad717d3fcca492f6237e8e5f0e3455e4e" title=" " alt="" coords="383,213,477,238"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="608,226,477,227,477,222,607,220"/>
+<area shape="rect" id="Node000010" href="$namespacewmtk_1_1components_1_1adaptive__tessellation_1_1image.html#a7d050dc4705108dbea5c56147710eddd" title=" " alt="" coords="324,266,536,321"/>
+<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="599,296,536,296,536,291,599,291"/>
+<area shape="rect" id="Node000011" href="$classwmtk_1_1components_1_1adaptive__tessellation_1_1image_1_1_image.html#a805fb862148a9d6bacac7674169747c6" title=" " alt="" coords="25,237,257,277"/>
+<area shape="poly" id="edge10_Node000010_Node000011" title=" " alt="" coords="310,281,257,274,257,269,311,276"/>
+<area shape="rect" id="Node000012" href="$classwmtk_1_1components_1_1adaptive__tessellation_1_1image_1_1_sampling_bicubic.html#ad4c8cb374a3db09d362c6b4f14f92edc" title=" " alt="" coords="5,302,276,357"/>
+<area shape="poly" id="edge11_Node000010_Node000012" title=" " alt="" coords="311,311,277,315,276,310,310,306"/>
+</map>

@@ -1,0 +1,30 @@
+<map id="wmtk::Mesh::request_simplex_indices" name="wmtk::Mesh::request_simplex_indices">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,186,164,226"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1_mesh.html#a3e8ff83c4a5526a40d18bb9883c6c6c9" title="read in the m_capacities return the upper bound for the number of entities of the given dimension" alt="" coords="471,5,637,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="93,185,111,153,136,115,170,78,211,48,271,23,336,10,400,5,458,5,458,10,400,10,337,15,273,28,213,52,174,81,141,118,115,156,98,187"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk.html#a5cf45c152e856196bb734c6f48919a24" title="Get a unique integer id corresponding to each primitive type." alt="" coords="705,74,860,114"/>
+<area shape="poly" id="edge7_Node000001_Node000003" title=" " alt="" coords="104,184,150,145,180,126,211,112,273,92,338,79,404,71,469,67,591,68,692,78,692,83,591,74,469,72,404,76,339,84,275,97,213,116,182,131,154,150,108,188"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1_mesh.html#ae0e8f71e9e17a90be9423117efcc4c81" title=" " alt="" coords="226,271,389,311"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="132,224,213,257,233,264,231,269,211,262,130,229"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1attribute_1_1_accessor.html#a2d587e12c47a6d839ab80e9198cf75b5" title=" " alt="" coords="213,157,402,197"/>
+<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="164,193,199,188,200,194,165,198"/>
+<area shape="rect" id="Node000009" href="$namespacewmtk.html#a6a35f11c12436093d26fdd8be6fecc06" title="Retrieves the current logger." alt="" coords="253,221,361,247"/>
+<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="165,213,240,223,240,228,164,219"/>
+<area shape="rect" id="Node000011" href="$namespacewmtk.html#a339897f6efeb23a997750141f12892ee" title=" " alt="" coords="451,107,657,132"/>
+<area shape="poly" id="edge12_Node000001_Node000011" title=" " alt="" coords="117,184,161,161,211,142,268,130,327,121,437,115,437,120,327,127,269,135,213,147,163,166,120,188"/>
+<area shape="rect" id="Node000012" href="$classwmtk_1_1attribute_1_1_accessor_base.html#ada0ffe6f114ed47ad205989d8a6f67da" title=" " alt="" coords="213,335,402,375"/>
+<area shape="poly" id="edge14_Node000001_Node000012" title=" " alt="" coords="105,224,151,273,181,298,213,321,225,327,223,332,211,326,178,303,147,276,101,228"/>
+<area shape="rect" id="Node000013" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#a73f8d78b708406dcd6433398e3954e72" title=" " alt="" coords="212,399,403,439"/>
+<area shape="poly" id="edge15_Node000001_Node000013" title=" " alt="" coords="97,225,114,259,140,303,173,347,214,385,221,390,218,395,210,389,169,350,135,305,110,262,92,227"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="598,28,658,47,714,67,712,72,656,53,596,33"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1_mesh.html#a6dbab927a2ee85f77a87f075fd5c1d94" title=" " alt="" coords="467,271,641,311"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="389,289,453,289,453,294,389,294"/>
+<area shape="poly" id="edge6_Node000005_Node000003" title=" " alt="" coords="635,269,656,257,690,227,720,192,763,125,767,128,724,196,694,231,659,262,637,274"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1_mesh.html#a357182137d99f1e4a7ff536eadfc0e56" title=" " alt="" coords="707,271,858,311"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="641,289,694,289,694,294,641,294"/>
+<area shape="rect" id="Node000008" href="$classwmtk_1_1attribute_1_1_accessor.html#afd97a48ec5d1db975a030428df81f617" title=" " alt="" coords="459,157,649,197"/>
+<area shape="poly" id="edge9_Node000007_Node000008" title=" " alt="" coords="402,174,446,174,446,179,402,179"/>
+<area shape="rect" id="Node000010" href="$namespacewmtk.html#a3daa7951a5f8b78cf4600dc047fcc180" title="Setup a logger object to be used by WildmeshToolkit." alt="" coords="487,221,621,247"/>
+<area shape="poly" id="edge11_Node000009_Node000010" title=" " alt="" coords="362,231,473,231,473,237,362,237"/>
+<area shape="poly" id="edge13_Node000011_Node000003" title=" " alt="" coords="657,105,692,101,692,107,658,111"/>
+</map>

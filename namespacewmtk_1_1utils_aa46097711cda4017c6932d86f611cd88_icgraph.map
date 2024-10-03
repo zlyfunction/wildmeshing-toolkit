@@ -1,0 +1,16 @@
+<map id="wmtk::utils::wmtk_orient2d" name="wmtk::utils::wmtk_orient2d">
+<area shape="rect" id="Node000001" title=" " alt="" coords="660,125,861,150"/>
+<area shape="poly" id="edge7_Node000001_Node000001" title=" " alt="" coords="813,116,811,111,802,107,761,103,729,105,712,110,709,116,717,123,714,127,703,116,709,106,728,100,761,98,803,102,814,107,818,114"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1_simplex_inversion_invariant.html#a1163728175bfbd4dc26f4861019ee591" title="we assume with local vid order (v0,v1,v2,v3) has positive volume (orient3d(v0,v1,v2,..." alt="" coords="348,5,587,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="727,120,674,89,611,60,573,48,575,43,613,55,677,84,730,115"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_1_1_w_m_t_k_a_m_i_p_s_problem.html#a79268f8e41e4113db4f763d8206c5fda" title=" " alt="" coords="333,70,602,125"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="653,125,602,118,603,113,654,120"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic_1_1_w_m_t_k_a_m_i_p_s_problem.html#a4a454562d96a7c0c995d4f2ae607f9b0" title=" " alt="" coords="323,149,612,203"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="651,154,613,160,612,154,650,149"/>
+<area shape="rect" id="Node000007" href="$namespacewmtk_1_1utils.html#ad1c150f31aa82a7cf7cd6ced41202170" title=" " alt="" coords="367,227,568,253"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="730,160,677,190,613,219,569,230,567,225,611,213,674,186,728,155"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing.html#a2c409cd3da46f4360119e142ef3c3682" title="returns an empty vector in case of failure" alt="" coords="5,77,275,117"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="319,100,275,100,275,95,319,95"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic.html#a86df18fe3713cb41dca1687487dea61b" title="returns an empty vector in case of failure" alt="" coords="5,156,275,196"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="309,179,275,179,275,173,309,173"/>
+</map>

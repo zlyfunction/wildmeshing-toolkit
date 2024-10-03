@@ -1,0 +1,7 @@
+<map id="wmtk::operations::CollapseNewAttributeStrategy::mesh" name="wmtk::operations::CollapseNewAttributeStrategy::mesh">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,37,212,77"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1operations_1_1_new_attribute_strategy.html#ad199d32b4a838a4064f3b60bcd4c54fd" title=" " alt="" coords="260,5,491,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="212,42,246,38,247,43,212,48"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1_mesh.html#ac5778c1f8afef3a2b1b1c33a140b3166" title="Evaluate the passed in function inside the parent scope." alt="" coords="299,69,451,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="212,67,286,76,285,81,212,72"/>
+</map>

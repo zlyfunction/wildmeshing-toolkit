@@ -1,0 +1,9 @@
+<map id="wmtk::operations::AMIPSOptimizationSmoothingPeriodic::WMTKAMIPSProblem::is_step_valid" name="wmtk::operations::AMIPSOptimizationSmoothingPeriodic::WMTKAMIPSProblem::is_step_valid">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,52,295,107"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1utils.html#aa46097711cda4017c6932d86f611cd88" title=" " alt="" coords="343,29,544,55"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="295,58,330,54,330,59,295,64"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1utils.html#a76b4d882261cf6aef7affd8b13c71efd" title=" " alt="" coords="343,103,544,128"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="295,94,329,99,329,104,295,100"/>
+<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="396,31,386,21,391,11,411,5,443,3,486,7,497,12,501,18,496,21,494,16,484,12,443,8,412,10,395,15,391,20,400,27"/>
+<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="396,105,386,94,391,84,411,78,443,76,486,80,497,85,501,92,496,94,494,89,484,85,443,81,412,83,395,88,391,94,400,101"/>
+</map>

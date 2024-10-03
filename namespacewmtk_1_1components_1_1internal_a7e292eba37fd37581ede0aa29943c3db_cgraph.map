@@ -1,0 +1,16 @@
+<map id="wmtk::components::internal::mesh_with_tag_from_image" name="wmtk::components::internal::mesh_with_tag_from_image">
+<area shape="rect" id="Node000001" title="Build a tagged triangle mesh from a greyscale image." alt="" coords="5,113,220,153"/>
+<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="65,114,62,104,70,94,87,89,113,87,142,90,159,97,156,102,141,95,113,92,88,94,73,99,67,105,70,112"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1mesh__utils.html#ad92eb4095d516f6a20e25587f9effe80" title=" " alt="" coords="287,69,454,109"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="220,112,273,103,274,108,221,118"/>
+<area shape="rect" id="Node000006" href="$namespacewmtk_1_1components_1_1internal.html#a70f15021ed9c95507dba2c1b3befb91a" title=" " alt="" coords="268,157,473,197"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="221,149,255,155,254,160,220,154"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1attribute_1_1_mesh_attribute_handle.html#a9c02e0fc8ac13ad9f16ce928e7a2c84c" title=" " alt="" coords="521,5,744,45"/>
+<area shape="poly" id="edge3_Node000002_Node000003" title=" " alt="" coords="453,67,536,46,538,51,454,72"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1_mesh.html#a5f7e9ae7268c929db6161af3e2c6eb73" title=" " alt="" coords="557,69,708,109"/>
+<area shape="poly" id="edge4_Node000002_Node000004" title=" " alt="" coords="454,87,544,87,544,92,454,92"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1_mesh.html#a6d2a546c8f661bf6386cf845a1693d2f" title="Generate a vector of Tuples from global vertex/edge/triangle/tetrahedron index." alt="" coords="555,158,710,183"/>
+<area shape="poly" id="edge5_Node000002_Node000005" title=" " alt="" coords="437,107,579,151,577,156,435,112"/>
+<area shape="poly" id="edge6_Node000005_Node000005" title=" " alt="" coords="590,160,581,150,586,140,603,133,633,131,670,135,680,140,684,146,679,149,677,144,669,141,633,137,605,139,590,144,587,149,594,156"/>
+<area shape="poly" id="edge8_Node000006_Node000006" title=" " alt="" coords="323,158,320,148,328,138,345,133,371,131,400,134,417,141,414,146,399,139,371,136,346,138,331,143,325,149,328,156"/>
+</map>

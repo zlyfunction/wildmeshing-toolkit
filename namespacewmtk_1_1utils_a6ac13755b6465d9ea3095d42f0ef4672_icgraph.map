@@ -1,0 +1,8 @@
+<map id="wmtk::utils::wmtk_orient1d" name="wmtk::utils::wmtk_orient1d">
+<area shape="rect" id="Node000001" title=" " alt="" coords="292,42,493,67"/>
+<area shape="poly" id="edge2_Node000001_Node000001" title=" " alt="" coords="440,33,438,28,429,25,393,21,364,23,349,28,346,33,353,40,350,44,340,34,345,24,363,17,393,15,431,19,441,24,445,30"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1_simplex_inversion_invariant.html#a1163728175bfbd4dc26f4861019ee591" title="we assume with local vid order (v0,v1,v2,v3) has positive volume (orient3d(v0,v1,v2,..." alt="" coords="5,5,244,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="278,45,244,41,245,36,279,40"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk_1_1utils.html#a1c5198487b4421eb17ef97f5b8d410a3" title=" " alt="" coords="24,70,225,95"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="279,69,226,75,225,69,278,64"/>
+</map>

@@ -1,0 +1,19 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classwmtk_1_1attribute_1_1_accessor_base.html" title=" " alt="" coords="5,129,195,169"/>
+<area shape="rect" id="Node000001" href="$classwmtk_1_1attribute_1_1_caching_accessor.html" title=" " alt="" coords="243,86,427,141"/>
+<area shape="poly" id="edge37_Node000000_Node000001" title=" " alt="" coords="208,130,242,125,243,130,208,135"/>
+<area shape="rect" id="Node000002" href="$classwmtk_1_1attribute_1_1_caching_accessor.html" title="An accessor for cached attribute values." alt="" coords="243,165,426,205"/>
+<area shape="poly" id="edge38_Node000000_Node000002" title=" " alt="" coords="208,163,244,169,243,174,208,169"/>
+<area shape="rect" id="Node000003" href="$classwmtk_1_1attribute_1_1_accessor.html" title=" " alt="" coords="475,5,692,45"/>
+<area shape="poly" id="edge39_Node000002_Node000003" title=" " alt="" coords="418,156,425,150,442,127,448,104,454,79,473,55,491,43,494,48,476,59,459,82,453,105,446,129,429,154,421,160"/>
+<area shape="rect" id="Node000004" href="$classwmtk_1_1attribute_1_1_accessor.html" title=" " alt="" coords="481,69,685,109"/>
+<area shape="poly" id="edge40_Node000002_Node000004" title=" " alt="" coords="408,158,425,150,449,134,473,119,504,107,506,112,476,124,452,139,428,154,410,163"/>
+<area shape="rect" id="Node000005" href="$classwmtk_1_1attribute_1_1_accessor.html" title=" " alt="" coords="483,133,683,173"/>
+<area shape="poly" id="edge41_Node000002_Node000005" title=" " alt="" coords="439,169,483,164,483,169,440,174"/>
+<area shape="rect" id="Node000006" href="$classwmtk_1_1attribute_1_1_accessor.html" title=" " alt="" coords="489,197,678,237"/>
+<area shape="poly" id="edge42_Node000002_Node000006" title=" " alt="" coords="440,196,489,203,488,208,439,201"/>
+<area shape="rect" id="Node000007" href="$classwmtk_1_1attribute_1_1_accessor.html" title=" " alt="" coords="489,261,678,301"/>
+<area shape="poly" id="edge43_Node000002_Node000007" title=" " alt="" coords="389,209,476,247,510,259,508,264,474,252,386,214"/>
+<area shape="rect" id="Node000008" href="$classwmtk_1_1attribute_1_1_accessor.html" title="A CachingAccessor that uses tuples for accessing attributes instead of indices." alt="" coords="489,325,678,365"/>
+<area shape="poly" id="edge44_Node000002_Node000008" title=" " alt="" coords="364,214,413,264,443,289,476,311,501,323,499,328,473,316,440,294,409,268,360,218"/>
+</map>

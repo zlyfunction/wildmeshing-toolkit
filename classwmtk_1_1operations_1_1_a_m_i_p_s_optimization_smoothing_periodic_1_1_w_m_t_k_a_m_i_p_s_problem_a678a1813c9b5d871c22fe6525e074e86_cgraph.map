@@ -1,0 +1,11 @@
+<map id="wmtk::operations::AMIPSOptimizationSmoothingPeriodic::WMTKAMIPSProblem::value" name="wmtk::operations::AMIPSOptimizationSmoothingPeriodic::WMTKAMIPSProblem::value">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,58,339,98"/>
+<area shape="rect" id="Node000002" href="$namespacewmtk_1_1function.html#a9e3b11628e6438129ff662e14c320619" title=" " alt="" coords="387,26,533,66"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="339,57,372,53,373,58,339,62"/>
+<area shape="rect" id="Node000005" href="$namespacewmtk_1_1function.html#acd1fbbd6c163ab50ae7d2f684690f439" title=" " alt="" coords="389,90,531,130"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="339,94,375,98,374,103,339,99"/>
+<area shape="rect" id="Node000003" href="$namespacewmtk.html#ad12ad5f8ec07682b8da79699a2628b6a" title=" " alt="" coords="611,5,705,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="533,33,596,24,597,29,534,38"/>
+<area shape="rect" id="Node000004" href="$namespacewmtk_1_1function.html#a1b329f7277ad003d215e82a05b95339b" title=" " alt="" coords="581,55,735,95"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="534,54,568,59,567,65,533,59"/>
+</map>
