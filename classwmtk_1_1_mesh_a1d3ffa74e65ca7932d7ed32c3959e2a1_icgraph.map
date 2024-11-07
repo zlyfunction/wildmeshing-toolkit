@@ -1,16 +1,6 @@
 <map id="wmtk::Mesh::custom_attributes" name="wmtk::Mesh::custom_attributes">
-<area shape="rect" id="Node000001" title=" " alt="" coords="535,79,693,119"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_mesh.html#a0d7627098b83729f1060ec22677450cf" title=" " alt="" coords="265,7,477,33"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="557,75,486,48,439,35,440,30,487,43,559,70"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_mesh.html#a1560383e3efd16c50b116642ebf3d6c6" title="Remove all custom attributes besides the one passed in." alt="" coords="265,57,477,82"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="521,90,476,85,476,79,521,85"/>
-<area shape="rect" id="Node000006" href="$classwmtk_1_1operations_1_1_edge_collapse.html#a64450fa42ff00ebaba65ddca6e94c605" title=" " alt="" coords="255,107,487,147"/>
-<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="521,112,487,116,487,111,521,107"/>
-<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_edge_split.html#a81bb31c49a0200610f79af9a5253a11d" title=" " alt="" coords="268,171,473,211"/>
-<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="564,127,488,161,452,173,450,168,486,156,562,122"/>
-<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="5,5,207,45"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="280,57,207,45,208,39,281,52"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#ae22ac68a5d85a281c4aeafa97f5230bc" title=" " alt="" coords="18,93,194,133"/>
-<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="281,87,195,101,194,96,280,82"/>
-<area shape="poly" id="edge5_Node000005_Node000005" title=" " alt="" coords="151,82,135,75,106,72,80,74,65,79,59,85,62,92,57,94,54,84,62,74,79,69,106,67,137,69,153,77"/>
+<area shape="rect" id="node1" title=" " alt="" coords="285,57,444,98"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_mesh.html#a0d7627098b83729f1060ec22677450cf" title=" " alt="" coords="15,5,227,32"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1operations_1_1_edge_collapse.html#a64450fa42ff00ebaba65ddca6e94c605" title=" " alt="" coords="5,57,237,98"/>
+<area shape="rect" id="node4" href="$classwmtk_1_1operations_1_1_edge_split.html#a81bb31c49a0200610f79af9a5253a11d" title=" " alt="" coords="19,122,224,163"/>
 </map>

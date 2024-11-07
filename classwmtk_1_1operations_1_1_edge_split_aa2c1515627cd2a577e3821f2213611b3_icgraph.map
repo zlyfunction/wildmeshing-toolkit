@@ -1,23 +1,13 @@
 <map id="wmtk::operations::EdgeSplit::set_new_attribute_strategy" name="wmtk::operations::EdgeSplit::set_new_attribute_strategy">
-<area shape="rect" id="Node000001" title=" " alt="" coords="687,101,895,141"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1operations_1_1_attribute_transfer_configuration.html#a925a620c457fe7b87785c2dbd0412658" title=" " alt="" coords="423,5,628,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="732,98,638,60,601,48,603,43,640,55,734,93"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1components_1_1_marching.html#a93c8d735afd009d73bfc4700b4f8e3f6" title="Perform the actual marching." alt="" coords="418,69,633,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="673,110,632,105,633,100,674,105"/>
-<area shape="rect" id="Node000007" href="$classwmtk_1_1components_1_1internal_1_1_regular_space.html#af9adef544fff10ba9257d128fd13393c" title=" " alt="" coords="412,133,639,173"/>
-<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="674,138,639,142,639,137,673,133"/>
-<area shape="rect" id="Node000011" href="$classwmtk_1_1operations_1_1_edge_split.html#a9ad8025fa6682135fc5bbbb5fc6cefcf" title=" " alt="" coords="421,197,629,237"/>
-<area shape="poly" id="edge10_Node000001_Node000011" title=" " alt="" coords="734,150,640,188,603,200,601,195,638,183,732,145"/>
-<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a6f27411696c9ba6e294768451f31351f" title="Perform maching tetrahedra/triangles." alt="" coords="148,51,364,77"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="404,81,364,77,365,72,405,75"/>
-<area shape="rect" id="Node000005" href="$tests_2marching_8cpp.html#a74e4ea64dd134ace15ef3292b4eb9753" title=" " alt="" coords="5,27,100,53"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="135,52,100,48,101,43,135,47"/>
-<area shape="rect" id="Node000006" href="$tests_2marching_8cpp.html#af20fbc246d1ad31be8d9ec0011ac52d6" title=" " alt="" coords="5,77,100,102"/>
-<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="141,81,101,86,100,81,140,76"/>
-<area shape="rect" id="Node000008" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="155,101,357,141"/>
-<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="398,141,357,136,357,131,399,136"/>
-<area shape="rect" id="Node000009" href="$test__component__regular__space_8cpp.html#a728024a1ea7ac078fd93d4035f705520" title=" " alt="" coords="209,166,303,191"/>
-<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="398,168,304,177,303,172,398,163"/>
-<area shape="rect" id="Node000010" href="$test__component__regular__space_8cpp.html#a5e69783b3ce0c074477e3081ab8cf658" title=" " alt="" coords="209,215,303,241"/>
-<area shape="poly" id="edge9_Node000007_Node000010" title=" " alt="" coords="438,180,413,188,365,207,304,222,303,217,363,201,411,183,436,175"/>
+<area shape="rect" id="node1" title=" " alt="" coords="687,136,895,177"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1operations_1_1_attribute_transfer_configuration.html#a925a620c457fe7b87785c2dbd0412658" title=" " alt="" coords="423,5,628,47"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components_1_1internal.html#abdf0e65326bccb762e8182f1329f3fe8" title=" " alt="" coords="423,71,628,112"/>
+<area shape="rect" id="node5" href="$classwmtk_1_1components_1_1_marching.html#a93c8d735afd009d73bfc4700b4f8e3f6" title="Perform the actual marching." alt="" coords="418,136,633,177"/>
+<area shape="rect" id="node8" href="$classwmtk_1_1components_1_1internal_1_1_regular_space.html#af9adef544fff10ba9257d128fd13393c" title=" " alt="" coords="412,201,639,243"/>
+<area shape="rect" id="node11" href="$classwmtk_1_1operations_1_1_edge_split.html#a9ad8025fa6682135fc5bbbb5fc6cefcf" title=" " alt="" coords="421,267,629,308"/>
+<area shape="rect" id="node4" href="$namespacewmtk_1_1components.html#a1d95b8c424d645d432babf8ba5765e36" title=" " alt="" coords="163,71,349,112"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components.html#a6f27411696c9ba6e294768451f31351f" title="Perform maching tetrahedra/triangles." alt="" coords="148,143,364,170"/>
+<area shape="rect" id="node7" href="$tests_2_marching_8cpp.html#af20fbc246d1ad31be8d9ec0011ac52d6" title=" " alt="" coords="5,143,100,170"/>
+<area shape="rect" id="node9" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="155,199,357,240"/>
+<area shape="rect" id="node10" href="$test__component__regular__space_8cpp.html#a5e69783b3ce0c074477e3081ab8cf658" title=" " alt="" coords="209,265,303,291"/>
 </map>

@@ -1,9 +1,0 @@
-<map id="wmtk::operations::CollapseNewAttributeStrategy::update" name="wmtk::operations::CollapseNewAttributeStrategy::update">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,37,220,77"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_mesh.html#a5f7e9ae7268c929db6161af3e2c6eb73" title=" " alt="" coords="283,5,433,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="220,41,268,34,269,40,220,46"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1simplex_1_1_simplex.html#a753a9245716f207b57cd92fcab5936e7" title=" " alt="" coords="268,69,448,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="220,69,255,73,254,79,220,74"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1simplex_1_1_simplex.html#ab6d51ca0c220792c1c09824d152bb53a" title=" " alt="" coords="496,69,676,109"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="448,87,482,87,482,92,448,92"/>
-</map>

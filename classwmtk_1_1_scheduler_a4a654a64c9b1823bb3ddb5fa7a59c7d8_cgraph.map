@@ -1,49 +1,19 @@
 <map id="wmtk::Scheduler::run_operation_on_all" name="wmtk::Scheduler::run_operation_on_all">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,411,165,451"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_mesh.html#a5f7e9ae7268c929db6161af3e2c6eb73" title=" " alt="" coords="225,5,376,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="86,410,94,345,114,253,131,203,152,153,178,105,211,62,225,51,228,55,215,66,183,108,156,155,136,205,119,255,99,346,91,411"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_scheduler_stats.html#a4af2233b8bafa0ee528cbef4de10fa1d" title=" " alt="" coords="469,120,633,160"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="96,409,142,343,175,305,212,271,270,233,334,202,397,177,455,159,457,164,399,182,336,207,273,237,215,275,179,309,146,346,101,412"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1_mesh.html#a6d2a546c8f661bf6386cf845a1693d2f" title="Generate a vector of Tuples from global vertex/edge/triangle/tetrahedron index." alt="" coords="474,209,629,234"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="105,408,151,366,212,323,275,292,341,267,464,234,465,239,343,272,277,297,215,328,155,370,108,412"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1utils.html#a3c36f4ea039196043ac93202181d91e1" title=" " alt="" coords="442,282,661,307"/>
-<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="118,408,162,385,212,363,330,329,442,307,443,312,331,334,214,368,164,389,121,413"/>
-<area shape="rect" id="Node000006" href="$classwmtk_1_1_scheduler.html#a08fdc5c05cb68c76ea49e5c56fe07bc2" title=" " alt="" coords="472,331,631,357"/>
-<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="161,408,213,396,341,372,458,354,459,359,342,378,214,401,162,413"/>
-<area shape="rect" id="Node000007" href="$namespacewmtk.html#a6a35f11c12436093d26fdd8be6fecc06" title="Retrieves the current logger." alt="" coords="715,446,823,471"/>
-<area shape="poly" id="edge8_Node000001_Node000007" title=" " alt="" coords="91,409,107,368,133,315,168,259,211,209,268,159,324,116,379,82,435,58,491,46,548,49,607,69,668,106,688,129,705,164,734,257,754,356,767,432,761,433,749,357,729,258,700,166,683,132,665,110,605,73,547,55,491,52,436,63,382,87,327,121,272,163,215,213,172,262,137,318,112,371,96,411"/>
-<area shape="rect" id="Node000009" href="$classwmtk_1_1operations_1_1_operation.html#a741f1c2a8065cf4542ae47f3b6e19c17" title=" " alt="" coords="447,381,655,421"/>
-<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="166,423,433,406,434,411,166,428"/>
-<area shape="rect" id="Node000010" href="$classwmtk_1_1_scheduler_stats.html#ae6e50990c7c4705a810c633755e9c2c0" title="Returns the number of successful operations performed by the scheduler." alt="" coords="213,757,388,811"/>
-<area shape="poly" id="edge11_Node000001_Node000010" title=" " alt="" coords="93,450,105,505,128,580,164,661,188,700,215,736,227,747,223,750,211,739,183,703,160,664,123,582,100,506,88,451"/>
-<area shape="rect" id="Node000011" href="$classwmtk_1_1operations_1_1_operation.html#a55110365dd31bcf41716087c9df8c57d" title=" " alt="" coords="447,560,655,600"/>
-<area shape="poly" id="edge12_Node000001_Node000011" title=" " alt="" coords="126,448,214,488,332,526,444,554,442,559,331,531,212,493,124,453"/>
-<area shape="rect" id="Node000012" href="$classwmtk_1_1operations_1_1_operation.html#a872859aa53451b747c012c161b27ab5d" title=" " alt="" coords="447,624,655,664"/>
-<area shape="poly" id="edge13_Node000001_Node000012" title=" " alt="" coords="105,449,151,498,182,523,214,546,437,609,466,618,464,623,435,615,212,550,178,528,148,501,101,453"/>
-<area shape="rect" id="Node000013" href="$classwmtk_1_1_scheduler.html#a246ccf6605333ebb7c020aa8fae1e959" title=" " alt="" coords="221,439,381,479"/>
-<area shape="poly" id="edge14_Node000001_Node000013" title=" " alt="" coords="166,438,207,444,207,449,166,444"/>
-<area shape="rect" id="Node000015" href="$classwmtk_1_1_scheduler_stats.html#a743d45b86c6ac7d696c26e2cad573ac9" title=" " alt="" coords="469,688,633,728"/>
-<area shape="poly" id="edge28_Node000001_Node000015" title=" " alt="" coords="99,450,117,482,143,522,176,562,215,596,259,619,298,627,339,632,389,647,413,660,437,674,458,681,456,686,435,678,411,665,387,652,338,637,297,632,257,624,212,601,172,566,138,525,112,485,94,452"/>
-<area shape="rect" id="Node000016" href="$namespacewmtk_1_1simplex_1_1utils.html#a358c30268c189fc8f00538b520aab4f8" title=" " alt="" coords="436,753,667,807"/>
-<area shape="poly" id="edge29_Node000001_Node000016" title=" " alt="" coords="95,450,110,492,135,545,170,600,191,625,215,647,237,662,258,670,298,676,340,680,363,686,389,698,404,708,414,718,437,738,450,745,448,749,435,742,410,722,401,712,387,702,362,691,339,686,297,682,257,676,235,667,212,651,187,629,165,603,130,548,105,494,90,452"/>
-<area shape="rect" id="Node000017" href="$classwmtk_1_1operations_1_1_operation.html#ad40213d2f06b2568c2c6de742166b7f9" title=" " alt="" coords="447,832,655,872"/>
-<area shape="poly" id="edge30_Node000001_Node000017" title=" " alt="" coords="93,450,104,501,127,568,143,604,163,638,187,670,215,698,237,712,258,719,300,721,342,722,365,728,390,742,407,761,415,781,422,800,438,818,445,823,442,827,434,822,417,803,410,783,402,764,386,746,363,733,342,727,299,726,257,724,235,717,212,702,183,674,159,641,139,606,122,570,99,502,87,451"/>
-<area shape="poly" id="edge4_Node000004_Node000004" title=" " alt="" coords="516,210,508,200,512,190,527,184,551,182,581,186,593,195,590,199,579,191,551,187,528,189,516,194,514,200,520,207"/>
-<area shape="poly" id="edge6_Node000005_Node000005" title=" " alt="" coords="516,284,508,274,512,264,527,258,551,255,581,259,593,268,590,272,579,264,551,261,528,263,516,268,514,273,520,280"/>
-<area shape="rect" id="Node000008" href="$namespacewmtk.html#a3daa7951a5f8b78cf4600dc047fcc180" title="Setup a logger object to be used by WildmeshToolkit." alt="" coords="871,446,1005,471"/>
-<area shape="poly" id="edge9_Node000007_Node000008" title=" " alt="" coords="823,456,857,456,857,461,823,461"/>
-<area shape="poly" id="edge15_Node000013_Node000003" title=" " alt="" coords="303,438,315,384,340,312,357,274,378,236,404,201,434,170,455,157,458,161,438,174,408,204,383,239,362,276,345,314,321,386,308,439"/>
-<area shape="poly" id="edge16_Node000013_Node000004" title=" " alt="" coords="306,437,322,396,349,343,386,289,409,264,435,243,459,230,462,235,437,248,413,268,390,292,354,346,327,398,311,439"/>
-<area shape="poly" id="edge17_Node000013_Node000005" title=" " alt="" coords="313,437,362,376,396,344,435,316,448,310,451,315,437,321,399,348,366,380,317,440"/>
-<area shape="poly" id="edge18_Node000013_Node000006" title=" " alt="" coords="325,436,374,401,435,367,460,358,462,363,437,372,376,405,328,441"/>
-<area shape="poly" id="edge19_Node000013_Node000007" title=" " alt="" coords="381,456,701,456,701,461,381,461"/>
-<area shape="poly" id="edge20_Node000013_Node000009" title=" " alt="" coords="380,438,449,422,450,427,381,443"/>
-<area shape="poly" id="edge21_Node000013_Node000011" title=" " alt="" coords="357,477,390,495,404,509,414,522,423,534,437,546,449,552,447,557,435,550,419,538,409,525,400,512,386,499,354,481"/>
-<area shape="poly" id="edge24_Node000013_Node000012" title=" " alt="" coords="325,477,390,546,412,581,421,596,438,610,447,616,444,620,434,614,417,599,407,584,386,550,321,481"/>
-<area shape="rect" id="Node000014" href="$classwmtk_1_1_scheduler_stats.html#af4b4bf1f4201cce63753908178a40498" title=" " alt="" coords="469,496,633,536"/>
-<area shape="poly" id="edge22_Node000013_Node000014" title=" " alt="" coords="381,474,457,492,455,497,380,479"/>
-<area shape="poly" id="edge25_Node000013_Node000015" title=" " alt="" coords="317,478,438,674,458,686,455,691,434,678,312,480"/>
-<area shape="poly" id="edge26_Node000013_Node000016" title=" " alt="" coords="314,478,383,628,438,738,443,743,440,747,434,742,378,631,309,480"/>
-<area shape="poly" id="edge27_Node000013_Node000017" title=" " alt="" coords="312,478,383,674,438,818,443,822,440,827,434,822,378,676,307,480"/>
-<area shape="poly" id="edge23_Node000014_Node000007" title=" " alt="" coords="627,493,706,472,707,478,628,499"/>
+<area shape="rect" id="node1" title=" " alt="" coords="5,340,165,381"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_mesh.html#aa2b952c0d3894043f513a86fbbd910ff" title=" " alt="" coords="253,5,404,47"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1_scheduler_stats.html#a4af2233b8bafa0ee528cbef4de10fa1d" title=" " alt="" coords="247,71,411,112"/>
+<area shape="rect" id="node4" href="$classwmtk_1_1_mesh.html#a6d2a546c8f661bf6386cf845a1693d2f" title="Generate a vector of Tuples from global vertex/edge/triangle/tetrahedron index." alt="" coords="251,137,406,163"/>
+<area shape="rect" id="node5" href="$namespacewmtk_1_1utils.html#a3c36f4ea039196043ac93202181d91e1" title=" " alt="" coords="219,187,438,214"/>
+<area shape="rect" id="node8" href="$classwmtk_1_1_scheduler.html#a08fdc5c05cb68c76ea49e5c56fe07bc2" title=" " alt="" coords="249,238,408,265"/>
+<area shape="rect" id="node9" href="$namespacewmtk.html#a6a35f11c12436093d26fdd8be6fecc06" title="Retrieves the current logger." alt="" coords="275,289,383,315"/>
+<area shape="rect" id="node11" href="$classwmtk_1_1operations_1_1_operation.html#a524a78a76bb262cffcaafdd36afa037b" title=" " alt="" coords="225,340,433,381"/>
+<area shape="rect" id="node12" href="$classwmtk_1_1_scheduler_stats.html#ae6e50990c7c4705a810c633755e9c2c0" title="Returns the number of successful operations performed by the scheduler." alt="" coords="241,406,416,462"/>
+<area shape="rect" id="node13" href="$classwmtk_1_1operations_1_1_operation.html#a55110365dd31bcf41716087c9df8c57d" title=" " alt="" coords="225,487,433,528"/>
+<area shape="rect" id="node14" href="$classwmtk_1_1operations_1_1_operation.html#a872859aa53451b747c012c161b27ab5d" title=" " alt="" coords="225,552,433,593"/>
+<area shape="rect" id="node15" href="$classwmtk_1_1_scheduler_stats.html#a743d45b86c6ac7d696c26e2cad573ac9" title=" " alt="" coords="247,617,411,659"/>
+<area shape="rect" id="node16" href="$namespacewmtk_1_1simplex_1_1utils.html#a358c30268c189fc8f00538b520aab4f8" title=" " alt="" coords="213,683,444,739"/>
+<area shape="rect" id="node17" href="$classwmtk_1_1operations_1_1_operation.html#ad40213d2f06b2568c2c6de742166b7f9" title=" " alt="" coords="225,764,433,805"/>
+<area shape="rect" id="node6" href="$classwmtk_1_1utils_1_1_random_seed_singleton.html#a228b21737dcd5423bac9d6900db8785e" title=" " alt="" coords="492,136,743,177"/>
+<area shape="rect" id="node7" href="$classwmtk_1_1utils_1_1_random_seed_singleton.html#a0b3a080bdbf0de29e3e44aa7bea6f648" title=" " alt="" coords="492,201,743,243"/>
+<area shape="rect" id="node10" href="$namespacewmtk.html#a3daa7951a5f8b78cf4600dc047fcc180" title="Setup a logger object to be used by WildmeshToolkit." alt="" coords="550,289,685,315"/>
 </map>

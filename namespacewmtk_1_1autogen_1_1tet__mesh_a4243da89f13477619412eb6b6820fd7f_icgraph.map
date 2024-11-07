@@ -1,24 +1,10 @@
 <map id="wmtk::autogen::tet_mesh::is_ccw" name="wmtk::autogen::tet_mesh::is_ccw">
-<area shape="rect" id="Node000001" title=" " alt="" coords="753,197,900,237"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_tet_mesh.html#a9a30d64d4b874e9bb156e6c771e7f08c" title="returns if a tuple is counterclockwise or not" alt="" coords="533,141,705,166"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="747,196,661,169,662,164,749,191"/>
-<area shape="rect" id="Node000008" href="$namespacewmtk_1_1autogen.html#a365ab61cb89e1b96e57747b7a3a97558" title=" " alt="" coords="534,269,705,294"/>
-<area shape="poly" id="edge10_Node000001_Node000008" title=" " alt="" coords="749,244,662,271,661,266,747,239"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_tet_mesh.html#a68609916210858129ba39958a273e78e" title=" " alt="" coords="270,5,431,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="592,134,544,96,484,60,431,42,432,37,486,55,547,91,596,129"/>
-<area shape="rect" id="Node000005" href="$classwmtk_1_1_tet_mesh.html#a6d216046ac28a11f7d0fd07f9e090ba3" title=" " alt="" coords="272,69,429,109"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="551,140,485,124,429,111,430,105,486,119,552,135"/>
-<area shape="rect" id="Node000006" href="$classwmtk_1_1_tet_mesh.html#a8e0e56365f9c2cb86588a9d7b1874203" title=" " alt="" coords="277,133,424,173"/>
-<area shape="poly" id="edge6_Node000002_Node000006" title=" " alt="" coords="520,156,424,156,424,151,520,151"/>
-<area shape="rect" id="Node000007" href="$classwmtk_1_1_tet_mesh.html#ab247e83a140cafd3d62e06508ba128c7" title=" " alt="" coords="265,197,436,237"/>
-<area shape="poly" id="edge8_Node000002_Node000007" title=" " alt="" coords="552,172,486,188,436,200,435,195,485,183,551,167"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1_tet_mesh.html#a1ac65b024e2d1a8384dcf699297c9028" title="internal function that returns the tuple of requested type, and has the global index cid" alt="" coords="5,101,168,141"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="257,47,217,60,168,81,124,104,122,99,166,76,215,55,256,42"/>
-<area shape="poly" id="edge5_Node000005_Node000004" title=" " alt="" coords="259,103,169,114,168,109,258,98"/>
-<area shape="poly" id="edge7_Node000006_Node000004" title=" " alt="" coords="264,146,168,134,168,128,264,140"/>
-<area shape="poly" id="edge9_Node000007_Node000004" title=" " alt="" coords="251,199,215,188,166,167,122,144,124,139,168,162,217,183,253,194"/>
-<area shape="rect" id="Node000009" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing.html#a2c409cd3da46f4360119e142ef3c3682" title="returns an empty vector in case of failure" alt="" coords="216,261,485,301"/>
-<area shape="poly" id="edge11_Node000008_Node000009" title=" " alt="" coords="520,284,486,284,486,279,520,279"/>
-<area shape="rect" id="Node000010" href="$classwmtk_1_1operations_1_1_a_m_i_p_s_optimization_smoothing_periodic.html#a86df18fe3713cb41dca1687487dea61b" title="returns an empty vector in case of failure" alt="" coords="216,325,485,365"/>
-<area shape="poly" id="edge12_Node000008_Node000010" title=" " alt="" coords="552,300,486,316,436,328,435,323,485,311,551,295"/>
+<area shape="rect" id="node1" title=" " alt="" coords="655,129,801,171"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_tet_mesh.html#a9a30d64d4b874e9bb156e6c771e7f08c" title="TODO this needs dimension?" alt="" coords="435,111,607,138"/>
+<area shape="rect" id="node8" href="$namespacewmtk_1_1autogen.html#a365ab61cb89e1b96e57747b7a3a97558" title=" " alt="" coords="435,162,606,189"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1_tet_mesh.html#a68609916210858129ba39958a273e78e" title=" " alt="" coords="221,5,382,47"/>
+<area shape="rect" id="node5" href="$classwmtk_1_1_tet_mesh.html#a6d216046ac28a11f7d0fd07f9e090ba3" title=" " alt="" coords="223,71,380,112"/>
+<area shape="rect" id="node6" href="$classwmtk_1_1_tet_mesh.html#a8e0e56365f9c2cb86588a9d7b1874203" title=" " alt="" coords="228,136,375,177"/>
+<area shape="rect" id="node7" href="$classwmtk_1_1_tet_mesh.html#ab247e83a140cafd3d62e06508ba128c7" title=" " alt="" coords="216,201,387,243"/>
+<area shape="rect" id="node4" href="$classwmtk_1_1_tet_mesh.html#a1ac65b024e2d1a8384dcf699297c9028" title="internal function that returns the tuple of requested type, and has the global index cid" alt="" coords="5,104,168,145"/>
 </map>

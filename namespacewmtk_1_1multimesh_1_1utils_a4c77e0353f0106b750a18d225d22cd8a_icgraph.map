@@ -1,13 +1,5 @@
 <map id="wmtk::multimesh::utils::extract_and_register_child_mesh_from_tag" name="wmtk::multimesh::utils::extract_and_register_child_mesh_from_tag">
-<area shape="rect" id="Node000001" title="extract a child mesh based on the given tag and tag value, and register it to the input (parent) mesh" alt="" coords="279,143,452,197"/>
-<area shape="rect" id="Node000002" href="$namespacewmtk_1_1utils.html#a4ea0d7c148b4066c6692a8e31c7b7b7a" title=" " alt="" coords="16,29,220,84"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="306,138,230,98,202,86,204,82,232,93,309,133"/>
-<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components.html#a52f9ca12856b67dee17249c6172e2bbe" title=" " alt="" coords="5,132,231,157"/>
-<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="265,162,231,159,231,154,265,157"/>
-<area shape="rect" id="Node000004" href="$test__component__isotropic__remeshing_8cpp.html#aae475685ae29b731655dd43137a950d6" title=" " alt="" coords="71,181,165,207"/>
-<area shape="poly" id="edge5_Node000001_Node000004" title=" " alt="" coords="265,182,166,192,165,187,265,177"/>
-<area shape="rect" id="Node000005" href="$test__component__isotropic__remeshing_8cpp.html#ab3fcea88943daf212aeeda03eb0baa8b" title=" " alt="" coords="71,231,165,256"/>
-<area shape="poly" id="edge6_Node000001_Node000005" title=" " alt="" coords="281,205,231,221,166,237,165,232,230,215,279,199"/>
-<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="159,18,144,11,118,8,96,10,82,15,75,21,76,29,70,29,70,19,79,10,95,5,118,3,146,6,161,14"/>
-<area shape="poly" id="edge4_Node000003_Node000003" title=" " alt="" coords="162,123,159,118,151,114,118,111,92,113,78,118,75,123,82,130,78,134,70,124,74,114,91,108,118,105,153,109,163,114,166,120"/>
+<area shape="rect" id="node1" title="extract a child mesh based on the given tag and tag value, and register it to the input (parent) mesh" alt="" coords="279,27,452,83"/>
+<area shape="rect" id="node2" href="$namespacewmtk_1_1components_1_1multimesh.html#a5af816bd3804ba5430992812b388eb6b" title=" " alt="" coords="5,5,231,47"/>
+<area shape="rect" id="node3" href="$test__component__isotropic__remeshing_8cpp.html#aae475685ae29b731655dd43137a950d6" title=" " alt="" coords="71,71,165,98"/>
 </map>

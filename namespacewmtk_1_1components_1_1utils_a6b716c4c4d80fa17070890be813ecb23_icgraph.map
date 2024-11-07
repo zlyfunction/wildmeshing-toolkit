@@ -1,22 +1,10 @@
 <map id="wmtk::components::utils::get_attribute" name="wmtk::components::utils::get_attribute">
-<area shape="rect" id="Node000001" title="Get an attribute handle only by name." alt="" coords="772,57,955,97"/>
-<area shape="poly" id="edge2_Node000001_Node000001" title=" " alt="" coords="902,46,889,39,863,36,841,38,828,43,823,49,826,56,820,58,818,48,825,38,840,33,863,31,890,34,905,41"/>
-<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components_1_1utils.html#a582e503d9bd8bb51b2ccb8d351367b02" title=" " alt="" coords="541,13,724,53"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="758,60,724,53,725,48,759,55"/>
-<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components_1_1utils.html#af6aefcc543c7737abce06f5f8bad7dbd" title=" " alt="" coords="541,101,724,141"/>
-<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="759,100,725,107,724,101,758,95"/>
-<area shape="poly" id="edge9_Node000003_Node000003" title=" " alt="" coords="672,90,658,83,633,80,611,82,597,87,592,93,595,100,590,102,587,92,594,82,609,77,633,75,659,78,674,85"/>
-<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#a0271fbc50dba277ddd2d1d3e32d1fb3d" title=" " alt="" coords="275,5,473,45"/>
-<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="580,98,492,60,456,48,457,43,494,55,582,93"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#a7447d90d4590819b69239d895ea5dc86" title=" " alt="" coords="275,69,473,109"/>
-<area shape="poly" id="edge5_Node000003_Node000005" title=" " alt="" coords="527,111,473,104,473,99,528,106"/>
-<area shape="rect" id="Node000008" href="$namespacewmtk_1_1components.html#ae6dfdbd73d7018f6f21bb2396872c796" title=" " alt="" coords="269,133,479,173"/>
-<area shape="poly" id="edge10_Node000003_Node000008" title=" " alt="" coords="528,137,480,143,479,138,527,132"/>
-<area shape="rect" id="Node000009" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="255,198,493,223"/>
-<area shape="poly" id="edge11_Node000003_Node000009" title=" " alt="" coords="583,150,494,188,448,200,446,195,492,183,580,145"/>
-<area shape="rect" id="Node000006" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="5,25,207,65"/>
-<area shape="poly" id="edge6_Node000005_Node000006" title=" " alt="" coords="261,74,207,64,207,59,262,68"/>
-<area shape="rect" id="Node000007" href="$namespacewmtk_1_1components.html#ae22ac68a5d85a281c4aeafa97f5230bc" title=" " alt="" coords="18,113,194,153"/>
-<area shape="poly" id="edge7_Node000005_Node000007" title=" " alt="" coords="262,110,195,122,194,116,261,105"/>
-<area shape="poly" id="edge8_Node000007_Node000007" title=" " alt="" coords="152,102,136,95,106,92,80,94,64,99,59,105,62,112,57,114,54,104,62,94,79,89,106,87,137,89,154,97"/>
+<area shape="rect" id="node1" title="Get an attribute handle only by name." alt="" coords="915,39,1097,80"/>
+<area shape="rect" id="node2" href="$namespacewmtk_1_1components_1_1utils.html#a582e503d9bd8bb51b2ccb8d351367b02" title=" " alt="" coords="684,5,867,47"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components_1_1utils.html#af6aefcc543c7737abce06f5f8bad7dbd" title=" " alt="" coords="684,71,867,112"/>
+<area shape="rect" id="node4" href="$namespacewmtk_1_1components.html#a7447d90d4590819b69239d895ea5dc86" title=" " alt="" coords="418,41,615,83"/>
+<area shape="rect" id="node8" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="397,107,636,134"/>
+<area shape="rect" id="node5" href="$namespacewmtk_1_1components.html#a7cec0c38121ddd036af26c760311d0e8" title=" " alt="" coords="148,8,349,49"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components.html#ae22ac68a5d85a281c4aeafa97f5230bc" title=" " alt="" coords="161,73,337,115"/>
+<area shape="rect" id="node7" href="$test__component__tag__intersection_8cpp.html#ab45075e8d350017b73b4910211afe71a" title=" " alt="" coords="5,81,100,107"/>
 </map>

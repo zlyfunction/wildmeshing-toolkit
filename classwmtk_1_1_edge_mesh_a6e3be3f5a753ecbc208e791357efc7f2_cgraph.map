@@ -1,28 +1,14 @@
 <map id="wmtk::EdgeMesh::tuple_from_id" name="wmtk::EdgeMesh::tuple_from_id">
-<area shape="rect" id="Node000001" title="internal function that returns the tuple of requested type, and has the global index cid" alt="" coords="5,153,180,193"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_edge_mesh.html#a72273ee79b910155046cb3ef291fbc49" title=" " alt="" coords="233,78,407,118"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="153,150,245,120,246,125,155,155"/>
-<area shape="rect" id="Node000007" href="$classwmtk_1_1_edge_mesh.html#a830d7c95df87c69a47132c9aa992f128" title=" " alt="" coords="228,185,412,225"/>
-<area shape="poly" id="edge7_Node000001_Node000007" title=" " alt="" coords="181,182,215,187,214,192,180,188"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_edge_mesh.html#acd802c89cf0cba9c312a8e7ecfa11c80" title="check validity of tuple including its hash" alt="" coords="478,34,631,74"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="407,79,464,68,465,73,408,84"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="712,41,872,67"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="632,51,698,51,698,57,632,57"/>
-<area shape="rect" id="Node000005" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="953,5,1103,31"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="872,39,939,29,939,34,873,44"/>
-<area shape="rect" id="Node000006" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="935,79,1121,104"/>
-<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="873,64,935,74,934,79,872,69"/>
-<area shape="poly" id="edge6_Node000006_Node000006" title=" " alt="" coords="990,80,982,70,986,60,1002,54,1028,52,1061,56,1074,65,1070,70,1059,61,1028,57,1003,59,989,64,987,70,994,77"/>
-<area shape="rect" id="Node000008" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#a196b6b32e2495b971113d552be7f45d9" title=" " alt="" coords="463,99,646,153"/>
-<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="380,182,459,155,460,160,381,187"/>
-<area shape="rect" id="Node000009" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#ab850fe07669c7bc92ca6cf6e86c60ee0" title=" " alt="" coords="463,177,646,232"/>
-<area shape="poly" id="edge9_Node000007_Node000009" title=" " alt="" coords="412,202,450,202,450,207,412,207"/>
-<area shape="rect" id="Node000010" href="$classwmtk_1_1_edge_mesh.html#a34530ca80c07ae67ffe601c2b8f22e3e" title=" " alt="" coords="477,256,632,281"/>
-<area shape="poly" id="edge10_Node000007_Node000010" title=" " alt="" coords="394,222,461,241,494,250,492,255,459,246,392,227"/>
-<area shape="rect" id="Node000012" href="$classwmtk_1_1attribute_1_1_accessor.html#a2d587e12c47a6d839ab80e9198cf75b5" title=" " alt="" coords="460,307,649,347"/>
-<area shape="poly" id="edge12_Node000007_Node000012" title=" " alt="" coords="350,223,400,257,461,292,479,300,477,305,459,296,398,261,347,227"/>
-<area shape="rect" id="Node000011" href="$classwmtk_1_1attribute_1_1_accessor.html#a4b89ff4381fe73d4827b663203a964fc" title=" " alt="" coords="697,246,887,286"/>
-<area shape="poly" id="edge11_Node000010_Node000011" title=" " alt="" coords="632,265,683,265,683,270,632,270"/>
-<area shape="rect" id="Node000013" href="$classwmtk_1_1attribute_1_1_accessor.html#afd97a48ec5d1db975a030428df81f617" title=" " alt="" coords="697,310,887,350"/>
-<area shape="poly" id="edge13_Node000012_Node000013" title=" " alt="" coords="649,326,684,326,684,331,649,331"/>
+<area shape="rect" id="node1" title="internal function that returns the tuple of requested type, and has the global index cid" alt="" coords="5,145,180,186"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_edge_mesh.html#a72273ee79b910155046cb3ef291fbc49" title=" " alt="" coords="233,67,407,109"/>
+<area shape="rect" id="node7" href="$classwmtk_1_1_edge_mesh.html#a830d7c95df87c69a47132c9aa992f128" title=" " alt="" coords="228,177,412,218"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1_edge_mesh.html#acd802c89cf0cba9c312a8e7ecfa11c80" title="check validity of tuple including its hash" alt="" coords="492,23,645,65"/>
+<area shape="rect" id="node4" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="740,31,900,57"/>
+<area shape="rect" id="node5" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="981,5,1131,32"/>
+<area shape="rect" id="node6" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="963,56,1149,83"/>
+<area shape="rect" id="node8" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#a196b6b32e2495b971113d552be7f45d9" title=" " alt="" coords="477,89,660,145"/>
+<area shape="rect" id="node9" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#ab7a79d239fdc3d22fbc0c3a83a5c50bc" title=" " alt="" coords="477,169,660,225"/>
+<area shape="rect" id="node10" href="$classwmtk_1_1_mesh_c_r_t_p.html#a58243712dc3e0d258ad645e7b08870db" title="return the global id of the Tuple of the given dimension" alt="" coords="460,250,677,291"/>
+<area shape="rect" id="node11" href="$classwmtk_1_1attribute_1_1_accessor.html#a41f40a73a13789707c117bda177dfc83" title=" " alt="" coords="474,315,663,357"/>
+<area shape="rect" id="node12" href="$classwmtk_1_1attribute_1_1_accessor.html#a9c7d323f50911892c8ea738f97d041d4" title=" " alt="" coords="725,315,915,357"/>
 </map>

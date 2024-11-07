@@ -1,9 +1,5 @@
 <map id="src/wmtk/simplex/boundary.hpp" name="src/wmtk/simplex/boundary.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="233,5,462,31"/>
-<area shape="rect" id="Node000002" href="$_tet_mesh_operation_executor_8cpp.html" title=" " alt="" coords="5,79,209,119"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="300,37,166,81,164,76,299,32"/>
-<area shape="rect" id="Node000003" href="$boundary_8cpp.html" title=" " alt="" coords="233,86,461,111"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="350,44,350,86,345,86,345,44"/>
-<area shape="rect" id="Node000004" href="$faces_8cpp.html" title=" " alt="" coords="485,86,689,111"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="396,32,553,83,552,89,394,37"/>
+<area shape="rect" id="node1" title=" " alt="" coords="125,5,354,32"/>
+<area shape="rect" id="node2" href="$boundary_8cpp.html" title=" " alt="" coords="5,80,233,107"/>
+<area shape="rect" id="node3" href="$faces_8cpp.html" title=" " alt="" coords="257,80,461,107"/>
 </map>

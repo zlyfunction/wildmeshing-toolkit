@@ -1,27 +1,15 @@
 <map id="src/wmtk/simplex/tuples_preserving_primitive_types.hpp" name="src/wmtk/simplex/tuples_preserving_primitive_types.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="27,5,209,60"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="5,255,68,280"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="111,61,48,242,43,240,106,59"/>
-<area shape="rect" id="Node000003" href="$_tuple_8hpp.html" title=" " alt="" coords="266,108,391,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="183,58,289,100,287,105,181,63"/>
-<area shape="rect" id="Node000004" href="$_primitive_type_8hpp.html" title=" " alt="" coords="155,181,294,207"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="313,136,255,175,252,171,310,131"/>
-<area shape="rect" id="Node000007" href="$_tuple_8hxx.html" title=" " alt="" coords="417,181,501,207"/>
-<area shape="poly" id="edge7_Node000003_Node000007" title=" " alt="" coords="344,131,420,173,418,177,342,136"/>
-<area shape="poly" id="edge6_Node000004_Node000002" title=" " alt="" coords="195,209,81,252,79,247,194,204"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="92,255,179,280"/>
-<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="212,209,162,248,159,244,209,205"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="203,255,300,280"/>
-<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="232,206,245,241,240,243,227,208"/>
-<area shape="poly" id="edge13_Node000007_Node000003" title=" " alt="" coords="444,183,367,142,370,137,446,179"/>
-<area shape="rect" id="Node000008" title=" " alt="" coords="324,255,395,280"/>
-<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="445,209,388,249,385,244,442,205"/>
-<area shape="rect" id="Node000009" title=" " alt="" coords="419,255,499,280"/>
-<area shape="poly" id="edge9_Node000007_Node000009" title=" " alt="" coords="462,207,462,241,457,241,457,207"/>
-<area shape="rect" id="Node000010" title=" " alt="" coords="523,255,598,280"/>
-<area shape="poly" id="edge10_Node000007_Node000010" title=" " alt="" coords="477,204,534,244,531,249,474,209"/>
-<area shape="rect" id="Node000011" title=" " alt="" coords="622,255,681,280"/>
-<area shape="poly" id="edge11_Node000007_Node000011" title=" " alt="" coords="491,204,610,248,608,253,489,209"/>
-<area shape="rect" id="Node000012" title=" " alt="" coords="705,255,760,280"/>
-<area shape="poly" id="edge12_Node000007_Node000012" title=" " alt="" coords="502,203,693,252,692,257,501,208"/>
+<area shape="rect" id="node1" title=" " alt="" coords="47,5,229,61"/>
+<area shape="rect" id="node2" title=" " alt="" coords="5,259,68,285"/>
+<area shape="rect" id="node3" href="$_tuple_8hpp.html" title=" " alt="" coords="182,109,307,136"/>
+<area shape="rect" id="node4" title=" " alt="" coords="95,184,151,211"/>
+<area shape="rect" id="node5" href="$_primitive_type_8hpp.html" title=" " alt="" coords="175,184,314,211"/>
+<area shape="rect" id="node8" href="$_tuple_8hxx.html" title=" " alt="" coords="417,184,501,211"/>
+<area shape="rect" id="node6" title=" " alt="" coords="92,259,179,285"/>
+<area shape="rect" id="node7" title=" " alt="" coords="203,259,300,285"/>
+<area shape="rect" id="node9" title=" " alt="" coords="324,259,395,285"/>
+<area shape="rect" id="node10" title=" " alt="" coords="419,259,499,285"/>
+<area shape="rect" id="node11" title=" " alt="" coords="523,259,598,285"/>
+<area shape="rect" id="node12" title=" " alt="" coords="622,259,681,285"/>
+<area shape="rect" id="node13" title=" " alt="" coords="705,259,760,285"/>
 </map>

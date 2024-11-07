@@ -1,23 +1,10 @@
 <map id="wmtk::Mesh::deregister_child_mesh" name="wmtk::Mesh::deregister_child_mesh">
-<area shape="rect" id="Node000001" title="Deregister a child mesh." alt="" coords="719,201,895,241"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1components_1_1internal_1_1_multi_mesh_from_tag.html#a01b37640de0da31a48634f312aed4aa9" title="Remove the substructure soup from the multimesh." alt="" coords="421,201,671,241"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="705,224,671,224,671,219,705,219"/>
-<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components.html#ac309092566399cef68679a1bb8107d1e" title="Generate a multi&#45;mesh from a mesh with a tag that represents the substructure, the mesh is changed." alt="" coords="148,5,373,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="518,192,456,125,416,90,372,60,347,48,349,43,375,55,419,86,460,121,522,188"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="157,69,364,109"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="503,196,442,159,372,124,340,112,342,107,374,119,445,155,506,192"/>
-<area shape="rect" id="Node000006" href="$test__component__multimesh__from__tag_8cpp.html#a2231774bf0d53fb5f6c1b34753afb255" title=" " alt="" coords="213,134,308,159"/>
-<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="468,200,373,173,308,158,309,153,374,168,469,195"/>
-<area shape="rect" id="Node000007" href="$test__component__multimesh__from__tag_8cpp.html#a9a31cb828b93e2ddcf0a5063d4d1c9e6" title=" " alt="" coords="213,183,308,209"/>
-<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="407,212,308,203,308,197,408,206"/>
-<area shape="rect" id="Node000008" href="$test__component__multimesh__from__tag_8cpp.html#a7a8f66a094907f369fa10876691f42f9" title=" " alt="" coords="213,233,308,258"/>
-<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="408,236,308,244,308,239,407,230"/>
-<area shape="rect" id="Node000009" href="$test__component__multimesh__from__tag_8cpp.html#af55ce8249624ce4d6a3feaad760949a6" title=" " alt="" coords="213,282,308,307"/>
-<area shape="poly" id="edge8_Node000002_Node000009" title=" " alt="" coords="464,248,374,272,309,287,308,282,373,267,462,243"/>
-<area shape="rect" id="Node000010" href="$test__component__multimesh__from__tag_8cpp.html#a18cd3d411cfadc472201c20662d62869" title=" " alt="" coords="213,331,308,357"/>
-<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="506,251,445,287,374,321,309,339,308,334,372,316,443,283,503,246"/>
-<area shape="rect" id="Node000011" href="$namespacewmtk_1_1components.html#a9d6d11e3b7ba03911492ecfc79622247" title=" " alt="" coords="158,381,363,421"/>
-<area shape="poly" id="edge10_Node000002_Node000011" title=" " alt="" coords="519,253,457,312,417,343,375,370,345,384,343,379,372,366,414,339,453,308,515,249"/>
-<area shape="rect" id="Node000004" href="$test__component__multimesh__from__tag_8cpp.html#a2b0208caf4b963a36a43604c3e7cf34a" title=" " alt="" coords="5,13,100,38"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="134,28,100,28,100,23,134,23"/>
+<area shape="rect" id="node1" title="Deregister a child mesh." alt="" coords="719,136,895,177"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1components_1_1internal_1_1_multi_mesh_from_tag.html#a01b37640de0da31a48634f312aed4aa9" title="Remove the substructure soup from the multimesh." alt="" coords="421,136,671,177"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components.html#a1d95b8c424d645d432babf8ba5765e36" title=" " alt="" coords="167,5,354,47"/>
+<area shape="rect" id="node4" href="$namespacewmtk_1_1components.html#ac309092566399cef68679a1bb8107d1e" title="Generate a multi&#45;mesh from a mesh with a tag that represents the substructure, the mesh is changed." alt="" coords="148,71,373,112"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="157,136,364,177"/>
+<area shape="rect" id="node7" href="$test__component__multimesh__from__tag_8cpp.html#a18cd3d411cfadc472201c20662d62869" title=" " alt="" coords="213,202,308,229"/>
+<area shape="rect" id="node8" href="$namespacewmtk_1_1components_1_1triangle__insertion.html#a23509bfe845d018ac65e2759fb77c608" title=" " alt="" coords="157,253,365,295"/>
+<area shape="rect" id="node5" href="$test__component__multimesh__from__tag_8cpp.html#a2b0208caf4b963a36a43604c3e7cf34a" title=" " alt="" coords="5,78,100,105"/>
 </map>

@@ -1,4 +1,4 @@
 <map id="wmtk::simplex::link_single_dimension" name="wmtk::simplex::link_single_dimension">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,29,156,69"/>
-<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="105,17,97,11,81,8,67,10,59,14,55,21,57,28,52,29,50,20,55,11,65,5,81,3,99,6,108,13"/>
+<area shape="rect" id="node1" title=" " alt="" coords="204,5,355,47"/>
+<area shape="rect" id="node2" href="$namespacewmtk_1_1simplex.html#a7787f1abe16a9b57db117d6fd53b59d9" title=" " alt="" coords="5,13,156,39"/>
 </map>

@@ -1,25 +1,10 @@
 <map id="wmtk::components::internal::MultiMeshFromTag::compute_substructure_ids" name="wmtk::components::internal::MultiMeshFromTag::compute_substructure_ids">
-<area shape="rect" id="Node000001" title="Compute the ids of the manifold substructure." alt="" coords="688,218,907,273"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1components_1_1internal_1_1_multi_mesh_from_tag.html#a96647e9413f2b7e13dd17f02cf29b12d" title="Create a manifold mesh from the substructure." alt="" coords="421,218,640,273"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="674,248,640,248,640,243,674,243"/>
-<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components.html#ac309092566399cef68679a1bb8107d1e" title="Generate a multi&#45;mesh from a mesh with a tag that represents the substructure, the mesh is changed." alt="" coords="148,5,373,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="505,208,450,132,413,93,372,60,349,48,352,43,375,55,417,89,454,128,509,204"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="157,69,364,109"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="490,211,437,165,372,124,344,112,347,107,375,119,440,161,494,206"/>
-<area shape="rect" id="Node000006" href="$test__component__multimesh__from__tag_8cpp.html#a2231774bf0d53fb5f6c1b34753afb255" title=" " alt="" coords="213,134,308,159"/>
-<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="466,214,421,192,373,173,308,157,309,152,374,168,423,187,469,209"/>
-<area shape="rect" id="Node000007" href="$test__component__multimesh__from__tag_8cpp.html#a9a31cb828b93e2ddcf0a5063d4d1c9e6" title=" " alt="" coords="213,183,308,209"/>
-<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="407,225,308,207,309,202,408,220"/>
-<area shape="rect" id="Node000008" href="$test__component__multimesh__from__tag_8cpp.html#a7a8f66a094907f369fa10876691f42f9" title=" " alt="" coords="213,233,308,258"/>
-<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="408,248,308,248,308,243,408,243"/>
-<area shape="rect" id="Node000009" href="$test__component__multimesh__from__tag_8cpp.html#af55ce8249624ce4d6a3feaad760949a6" title=" " alt="" coords="213,282,308,307"/>
-<area shape="poly" id="edge8_Node000002_Node000009" title=" " alt="" coords="408,270,309,289,308,284,407,265"/>
-<area shape="rect" id="Node000010" href="$test__component__multimesh__from__tag_8cpp.html#a18cd3d411cfadc472201c20662d62869" title=" " alt="" coords="213,331,308,357"/>
-<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="467,281,374,321,309,338,307,333,372,316,465,276"/>
-<area shape="rect" id="Node000011" href="$test__component__multimesh__from__tag_8cpp.html#a4caad3dd8a6355f2ca66fdb0b0af7999" title=" " alt="" coords="213,381,308,406"/>
-<area shape="poly" id="edge10_Node000002_Node000011" title=" " alt="" coords="494,284,440,330,408,352,374,370,342,382,309,390,308,385,340,377,372,366,405,347,437,325,490,280"/>
-<area shape="rect" id="Node000012" href="$namespacewmtk_1_1components.html#a9d6d11e3b7ba03911492ecfc79622247" title=" " alt="" coords="158,431,363,471"/>
-<area shape="poly" id="edge11_Node000002_Node000012" title=" " alt="" coords="506,286,451,354,415,389,375,420,348,433,346,428,372,415,411,385,447,351,502,283"/>
-<area shape="rect" id="Node000004" href="$test__component__multimesh__from__tag_8cpp.html#a2b0208caf4b963a36a43604c3e7cf34a" title=" " alt="" coords="5,13,100,38"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="134,28,100,28,100,23,134,23"/>
+<area shape="rect" id="node1" title="Compute the ids of the manifold substructure." alt="" coords="688,129,907,185"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1components_1_1internal_1_1_multi_mesh_from_tag.html#a96647e9413f2b7e13dd17f02cf29b12d" title="Create a manifold mesh from the substructure." alt="" coords="421,129,640,185"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components.html#a1d95b8c424d645d432babf8ba5765e36" title=" " alt="" coords="167,5,354,47"/>
+<area shape="rect" id="node4" href="$namespacewmtk_1_1components.html#ac309092566399cef68679a1bb8107d1e" title="Generate a multi&#45;mesh from a mesh with a tag that represents the substructure, the mesh is changed." alt="" coords="148,71,373,112"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="157,136,364,177"/>
+<area shape="rect" id="node7" href="$test__component__multimesh__from__tag_8cpp.html#a18cd3d411cfadc472201c20662d62869" title=" " alt="" coords="213,202,308,229"/>
+<area shape="rect" id="node8" href="$namespacewmtk_1_1components_1_1triangle__insertion.html#a23509bfe845d018ac65e2759fb77c608" title=" " alt="" coords="157,253,365,295"/>
+<area shape="rect" id="node5" href="$test__component__multimesh__from__tag_8cpp.html#a2b0208caf4b963a36a43604c3e7cf34a" title=" " alt="" coords="5,78,100,105"/>
 </map>

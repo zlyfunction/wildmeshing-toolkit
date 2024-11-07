@@ -1,12 +1,7 @@
 <map id="wmtk::EdgeMesh::edge_tuple_from_id" name="wmtk::EdgeMesh::edge_tuple_from_id">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,35,180,75"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_edge_mesh.html#acd802c89cf0cba9c312a8e7ecfa11c80" title="check validity of tuple including its hash" alt="" coords="228,35,381,75"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="180,53,214,53,214,58,180,58"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="429,43,589,68"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="382,53,415,53,415,58,382,58"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="655,5,806,31"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="585,40,641,30,642,36,586,45"/>
-<area shape="rect" id="Node000005" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="637,79,824,104"/>
-<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="588,65,639,74,638,79,587,71"/>
-<area shape="poly" id="edge5_Node000005_Node000005" title=" " alt="" coords="695,80,687,70,691,60,706,54,731,52,761,56,774,65,770,69,759,61,731,57,707,59,694,64,692,70,699,77"/>
+<area shape="rect" id="node1" title=" " alt="" coords="5,23,180,65"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_edge_mesh.html#acd802c89cf0cba9c312a8e7ecfa11c80" title="check validity of tuple including its hash" alt="" coords="228,23,381,65"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="429,31,589,57"/>
+<area shape="rect" id="node4" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="655,5,806,32"/>
+<area shape="rect" id="node5" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="637,56,824,83"/>
 </map>

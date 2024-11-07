@@ -1,9 +1,7 @@
 <map id="src/wmtk/invariants/Swap32EnergyBeforeInvariant.hpp" name="src/wmtk/invariants/Swap32EnergyBeforeInvariant.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="240,5,491,45"/>
-<area shape="rect" id="Node000002" href="$test__component__wildmeshing_8cpp.html" title=" " alt="" coords="5,101,224,141"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="303,53,166,103,164,98,301,48"/>
-<area shape="rect" id="Node000003" href="$wildmeshing_8cpp.html" title=" " alt="" coords="248,93,483,148"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="368,59,368,93,363,93,363,59"/>
-<area shape="rect" id="Node000004" href="$_swap32_energy_before_invariant_8cpp.html" title=" " alt="" coords="507,101,757,141"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="433,47,579,98,577,103,431,52"/>
+<area shape="rect" id="node1" title=" " alt="" coords="389,5,640,47"/>
+<area shape="rect" id="node2" href="$_swap32_energy_before_invariant_8cpp.html" title=" " alt="" coords="5,102,256,143"/>
+<area shape="rect" id="node3" href="$test__component__wildmeshing_8cpp.html" title=" " alt="" coords="280,102,499,143"/>
+<area shape="rect" id="node4" href="$wildmeshing3d_8cpp.html" title=" " alt="" coords="523,95,757,151"/>
+<area shape="rect" id="node5" href="$wildmeshing__old_8cpp.html" title=" " alt="" coords="781,95,1016,151"/>
 </map>

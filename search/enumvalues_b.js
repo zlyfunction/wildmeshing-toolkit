@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['rational_0',['Rational',['../classwmtk_1_1attribute_1_1_mesh_attribute_handle.html#ab16f5783132a7a0861b1526fc881dfa6a1987a88c6ff10363e43d25ead3066ad8',1,'wmtk::attribute::MeshAttributeHandle']]],
-  ['repeat_1',['REPEAT',['../namespacewmtk_1_1components_1_1adaptive__tessellation_1_1image.html#a5718de370807d62b030d0d93ed8863a3a5be68175be14dfaa080165456c2e9555',1,'wmtk::components::adaptive_tessellation::image']]]
+  ['openstar_5964',['OpenStar',['../classwmtk_1_1simplex_1_1_closed_star_iterable.html#a548c1204c09a13b31737ab6702144af7a4fe705e433f6bd6dbc22cbdec20a80eb',1,'wmtk::simplex::ClosedStarIterable::OpenStar()'],['../classwmtk_1_1simplex_1_1_half_closed_star_iterable.html#a5e0198e835faf9a3312f55464337b9d8a21f17af45324924ade3e80d8e08cabb1',1,'wmtk::simplex::HalfClosedStarIterable::OpenStar()']]]
 ];

@@ -1,6 +1,5 @@
 <map id="wmtk::components::internal::set_operation_energy_filter" name="wmtk::components::internal::set_operation_energy_filter">
-<area shape="rect" id="Node000001" title=" " alt="" coords="292,29,500,69"/>
-<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="442,18,426,11,396,8,370,10,354,15,348,21,351,28,346,30,343,20,351,10,369,5,396,3,427,5,444,13"/>
-<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="5,37,244,62"/>
-<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="278,52,244,52,244,47,278,47"/>
+<area shape="rect" id="node1" title=" " alt="" coords="545,5,753,47"/>
+<area shape="rect" id="node2" href="$namespacewmtk_1_1components_1_1internal.html#a798951bc2a6b1069a5ae8c946ddfdecd" title=" " alt="" coords="292,5,497,47"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components.html#a7c75b44e67ee059f20849f2ea5e04e49" title=" " alt="" coords="5,13,244,39"/>
 </map>

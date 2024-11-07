@@ -1,32 +1,12 @@
 <map id="src/wmtk/invariants/SimplexInversionInvariant.hpp" name="src/wmtk/invariants/SimplexInversionInvariant.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="455,5,680,45"/>
-<area shape="rect" id="Node000002" href="$_typed_attribute_handle_8hpp.html" title=" " alt="" coords="385,93,603,133"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="553,47,521,85,517,81,549,44"/>
-<area shape="rect" id="Node000014" href="$_invariant_8hpp.html" title=" " alt="" coords="617,181,725,207"/>
-<area shape="poly" id="edge14_Node000001_Node000014" title=" " alt="" coords="584,44,618,92,661,168,657,170,613,95,580,47"/>
-<area shape="rect" id="Node000003" href="$_primitive_type_8hpp.html" title=" " alt="" coords="512,255,692,280"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="515,132,556,180,593,241,588,244,552,183,511,135"/>
-<area shape="rect" id="Node000007" href="$_rational_8hpp.html" title=" " alt="" coords="160,181,337,207"/>
-<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="436,136,298,180,296,175,434,131"/>
-<area shape="rect" id="Node000012" href="$_attribute_handle_8hpp.html" title=" " alt="" coords="388,181,541,207"/>
-<area shape="poly" id="edge11_Node000002_Node000012" title=" " alt="" coords="489,134,476,169,471,167,484,133"/>
-<area shape="rect" id="Node000004" title=" " alt="" coords="448,328,535,353"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="586,282,523,323,520,318,583,278"/>
-<area shape="rect" id="Node000005" title=" " alt="" coords="559,328,656,353"/>
-<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="606,280,608,314,603,315,600,281"/>
-<area shape="rect" id="Node000006" title=" " alt="" coords="692,328,755,353"/>
-<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="623,278,693,319,691,323,620,282"/>
-<area shape="rect" id="Node000008" title=" " alt="" coords="5,255,97,280"/>
-<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="218,209,97,252,96,247,216,204"/>
-<area shape="rect" id="Node000009" title=" " alt="" coords="121,255,184,280"/>
-<area shape="poly" id="edge8_Node000007_Node000009" title=" " alt="" coords="235,209,181,248,178,244,232,205"/>
-<area shape="rect" id="Node000010" title=" " alt="" coords="209,255,289,280"/>
-<area shape="poly" id="edge9_Node000007_Node000010" title=" " alt="" coords="251,207,251,241,246,241,246,207"/>
-<area shape="rect" id="Node000011" title=" " alt="" coords="313,255,371,280"/>
-<area shape="poly" id="edge10_Node000007_Node000011" title=" " alt="" coords="265,205,318,244,314,248,262,209"/>
-<area shape="poly" id="edge13_Node000012_Node000003" title=" " alt="" coords="488,204,569,246,566,251,486,209"/>
-<area shape="rect" id="Node000013" title=" " alt="" coords="396,255,488,280"/>
-<area shape="poly" id="edge12_Node000012_Node000013" title=" " alt="" coords="463,208,452,242,447,241,458,206"/>
-<area shape="poly" id="edge16_Node000014_Node000003" title=" " alt="" coords="662,209,625,247,621,243,658,205"/>
-<area shape="poly" id="edge15_Node000014_Node000006" title=" " alt="" coords="682,206,707,254,722,314,717,315,702,256,677,208"/>
+<area shape="rect" id="node1" title=" " alt="" coords="81,5,307,47"/>
+<area shape="rect" id="node2" href="$_typed_attribute_handle_8hpp.html" title=" " alt="" coords="179,95,398,136"/>
+<area shape="rect" id="node10" href="$_invariant_8hpp.html" title=" " alt="" coords="47,102,155,129"/>
+<area shape="rect" id="node3" href="$_primitive_type_8hpp.html" title=" " alt="" coords="75,184,255,211"/>
+<area shape="rect" id="node7" href="$_attribute_handle_8hpp.html" title=" " alt="" coords="293,184,447,211"/>
+<area shape="rect" id="node4" title=" " alt="" coords="213,259,300,285"/>
+<area shape="rect" id="node5" title=" " alt="" coords="92,259,189,285"/>
+<area shape="rect" id="node6" title=" " alt="" coords="5,259,68,285"/>
+<area shape="rect" id="node8" title=" " alt="" coords="441,259,507,285"/>
+<area shape="rect" id="node9" title=" " alt="" coords="324,259,416,285"/>
 </map>

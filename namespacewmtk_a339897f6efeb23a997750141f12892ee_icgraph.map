@@ -1,27 +1,23 @@
 <map id="wmtk::primitive_type_name" name="wmtk::primitive_type_name">
-<area shape="rect" id="Node000001" title=" " alt="" coords="843,205,1049,230"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1attribute_1_1_typed_attribute_handle.html#abb7e339212d42fd0111f740b003aeb77" title=" " alt="" coords="561,133,788,173"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="877,204,760,176,761,171,878,199"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_mesh.html#ac205d6addf4e76f000c70547253735f0" title=" " alt="" coords="595,197,754,237"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="829,220,754,220,754,215,829,215"/>
-<area shape="rect" id="Node000012" href="$namespacewmtk_1_1components.html#ae3a4b32383fdc9c2eb8334cc8ef947a5" title="Perform shortest&#45;edge collapse on a triangular surface mesh." alt="" coords="555,333,795,373"/>
-<area shape="poly" id="edge11_Node000001_Node000012" title=" " alt="" coords="909,239,717,336,714,331,906,234"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a54ec111e8890281195a6d2449f822f02" title=" " alt="" coords="264,5,503,45"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="581,205,553,187,539,171,532,155,528,122,524,89,518,74,505,59,489,48,492,43,508,55,522,71,529,88,533,121,537,153,544,168,556,183,584,201"/>
-<area shape="rect" id="Node000005" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a3df1e4a6e6de766e419522774d6463d6" title=" " alt="" coords="264,69,503,109"/>
-<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="580,202,553,187,537,171,528,154,520,138,505,123,484,112,486,107,508,119,525,135,533,152,541,168,556,183,583,197"/>
-<area shape="rect" id="Node000006" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a998d9ebaf1507d842fb01db91e044644" title=" " alt="" coords="264,133,503,173"/>
-<area shape="poly" id="edge5_Node000003_Node000006" title=" " alt="" coords="581,200,475,176,476,171,582,194"/>
-<area shape="rect" id="Node000007" href="$classwmtk_1_1operations_1_1_edge_operation_data.html#a80ea6d5059989a2d093179a0dbd2556d" title=" " alt="" coords="263,197,503,237"/>
-<area shape="poly" id="edge6_Node000003_Node000007" title=" " alt="" coords="582,220,504,220,504,215,582,215"/>
-<area shape="rect" id="Node000009" href="$classwmtk_1_1_tet_mesh_1_1_tet_mesh_operation_executor.html#afdafef0c67dc0d9b6f2aef827d638eb6" title="split edge v1&#45;v2" alt="" coords="260,261,507,301"/>
-<area shape="poly" id="edge8_Node000003_Node000009" title=" " alt="" coords="582,240,476,264,475,259,581,235"/>
-<area shape="rect" id="Node000011" href="$classwmtk_1_1_edge_mesh_1_1_edge_mesh_operation_executor.html#acb42aca716850f7017290140eef6d94e" title=" " alt="" coords="279,326,488,381"/>
-<area shape="poly" id="edge10_Node000003_Node000011" title=" " alt="" coords="633,247,575,282,508,316,476,328,474,323,506,311,572,277,630,242"/>
-<area shape="rect" id="Node000008" href="$classwmtk_1_1operations_1_1internal_1_1_split_alternate_facet_data.html#a6d058aa5a832bcf22fd76c0762fe058a" title=" " alt="" coords="11,183,206,238"/>
-<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="250,217,206,216,206,210,250,211"/>
-<area shape="rect" id="Node000010" href="$classwmtk_1_1operations_1_1utils_1_1_multi_mesh_edge_split_functor.html#af010a058e1bd67dbd1019342c0ac8c7d" title=" " alt="" coords="5,262,212,317"/>
-<area shape="poly" id="edge9_Node000009_Node000010" title=" " alt="" coords="246,288,212,289,212,284,246,283"/>
-<area shape="rect" id="Node000013" href="$namespacewmtk_1_1components.html#a3154cdbc6047eee67258b69cc7d5e7cf" title="Perform shortest&#45;edge collapse on a triangular surface mesh." alt="" coords="263,405,503,445"/>
-<area shape="poly" id="edge12_Node000012_Node000013" title=" " alt="" coords="580,379,466,408,465,403,579,374"/>
+<area shape="rect" id="node1" title=" " alt="" coords="1063,192,1269,219"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1multimesh_1_1utils_1_1_map_validator.html#a3904ef0aa73b2aa3b9f6c054686bf17f" title=" " alt="" coords="786,5,1005,61"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components_1_1isotropic__remeshing.html#a5bcab5e634086e092020a2edb03a010b" title=" " alt="" coords="776,86,1015,127"/>
+<area shape="rect" id="node8" href="$namespacewmtk_1_1components_1_1longest__edge__split.html#a0be451c677a35037d6e49f97356604cb" title="Perform longes&#45;edge split on a mesh." alt="" coords="782,151,1009,193"/>
+<area shape="rect" id="node10" href="$classwmtk_1_1attribute_1_1_typed_attribute_handle.html#abb7e339212d42fd0111f740b003aeb77" title=" " alt="" coords="782,217,1009,258"/>
+<area shape="rect" id="node11" href="$classwmtk_1_1_mesh.html#ac205d6addf4e76f000c70547253735f0" title=" " alt="" coords="816,337,975,378"/>
+<area shape="rect" id="node20" href="$namespacewmtk_1_1components_1_1shortest__edge__collapse.html#a13c53b8b70fc1b63e7bdb22318139dd9" title="Perform shortest&#45;edge collapse on a triangular surface mesh." alt="" coords="791,508,999,564"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1multimesh_1_1utils_1_1_map_validator.html#a68f039afe0e44da9486a4d3c38cf5bea" title=" " alt="" coords="514,5,695,61"/>
+<area shape="rect" id="node4" href="$classwmtk_1_1multimesh_1_1utils_1_1_map_validator.html#a7c91255f342becd3f24ffa7bbaebeb3d" title=" " alt="" coords="237,13,423,54"/>
+<area shape="rect" id="node5" href="$namespacewmtk_1_1multimesh_1_1utils.html#abcc3f7f7a25879455cafc8a8f4304c4c" title=" " alt="" coords="5,13,179,54"/>
+<area shape="rect" id="node7" href="$test__component__isotropic__remeshing_8cpp.html#a51ae85bc413e9940267e8a366e0bcc9f" title=" " alt="" coords="557,89,652,116"/>
+<area shape="rect" id="node9" href="$namespacewmtk_1_1components_1_1longest__edge__split.html#a91cd0e6f904d4c6d1e0000504cc0a257" title="Perform longes&#45;edge split on a mesh." alt="" coords="491,141,718,182"/>
+<area shape="rect" id="node12" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a54ec111e8890281195a6d2449f822f02" title=" " alt="" coords="485,206,724,247"/>
+<area shape="rect" id="node13" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a3df1e4a6e6de766e419522774d6463d6" title=" " alt="" coords="485,271,724,313"/>
+<area shape="rect" id="node14" href="$classwmtk_1_1_tri_mesh_1_1_tri_mesh_operation_executor.html#a998d9ebaf1507d842fb01db91e044644" title=" " alt="" coords="485,337,724,378"/>
+<area shape="rect" id="node15" href="$classwmtk_1_1operations_1_1_edge_operation_data.html#a80ea6d5059989a2d093179a0dbd2556d" title=" " alt="" coords="485,402,725,443"/>
+<area shape="rect" id="node17" href="$classwmtk_1_1_tet_mesh_1_1_tet_mesh_operation_executor.html#afdafef0c67dc0d9b6f2aef827d638eb6" title="split edge v1&#45;v2" alt="" coords="481,467,728,509"/>
+<area shape="rect" id="node19" href="$classwmtk_1_1_edge_mesh_1_1_edge_mesh_operation_executor.html#acb42aca716850f7017290140eef6d94e" title=" " alt="" coords="500,533,709,589"/>
+<area shape="rect" id="node16" href="$classwmtk_1_1operations_1_1internal_1_1_split_alternate_facet_data.html#a6d058aa5a832bcf22fd76c0762fe058a" title=" " alt="" coords="233,388,427,444"/>
+<area shape="rect" id="node18" href="$classwmtk_1_1operations_1_1utils_1_1_multi_mesh_edge_split_functor.html#af010a058e1bd67dbd1019342c0ac8c7d" title=" " alt="" coords="227,468,433,524"/>
+<area shape="rect" id="node21" href="$namespacewmtk_1_1components_1_1shortest__edge__collapse.html#a1be5a09251cc55d3030f671a39c7ed47" title="Perform shortest&#45;edge collapse on a triangular surface mesh." alt="" coords="501,613,709,669"/>
 </map>

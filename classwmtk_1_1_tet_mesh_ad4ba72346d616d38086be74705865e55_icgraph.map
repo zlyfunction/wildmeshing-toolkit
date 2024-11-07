@@ -1,84 +1,32 @@
 <map id="wmtk::TetMesh::is_connectivity_valid" name="wmtk::TetMesh::is_connectivity_valid">
-<area shape="rect" id="Node000001" title=" " alt="" coords="1309,483,1536,523"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1components_1_1internal_1_1_multi_mesh_from_tag.html#a96647e9413f2b7e13dd17f02cf29b12d" title="Create a manifold mesh from the substructure." alt="" coords="1043,243,1261,298"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1386,476,1183,300,1187,296,1389,471"/>
-<area shape="rect" id="Node000013" href="$classwmtk_1_1_tet_mesh.html#af07828ce32b19a3d5fc8e1cb6f365029" title="check validity of tuple including its hash" alt="" coords="1063,673,1241,698"/>
-<area shape="poly" id="edge12_Node000001_Node000013" title=" " alt="" coords="1382,533,1173,675,1170,670,1379,528"/>
-<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components.html#ac309092566399cef68679a1bb8107d1e" title="Generate a multi&#45;mesh from a mesh with a tag that represents the substructure, the mesh is changed." alt="" coords="761,5,987,45"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="1130,232,1107,191,1076,144,1038,98,993,60,972,48,974,43,996,55,1042,95,1081,141,1112,188,1135,230"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="771,69,977,109"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="1119,235,1064,177,1030,148,993,124,968,112,970,107,996,119,1033,144,1068,173,1123,231"/>
-<area shape="rect" id="Node000006" href="$test__component__multimesh__from__tag_8cpp.html#a2231774bf0d53fb5f6c1b34753afb255" title=" " alt="" coords="827,134,921,159"/>
-<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="1104,237,1052,203,994,173,957,162,921,155,922,149,959,157,996,168,1055,199,1107,233"/>
-<area shape="rect" id="Node000007" href="$test__component__multimesh__from__tag_8cpp.html#a9a31cb828b93e2ddcf0a5063d4d1c9e6" title=" " alt="" coords="827,183,921,209"/>
-<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="1059,242,994,223,921,207,922,201,995,217,1060,236"/>
-<area shape="rect" id="Node000008" href="$test__component__multimesh__from__tag_8cpp.html#a7a8f66a094907f369fa10876691f42f9" title=" " alt="" coords="827,233,921,258"/>
-<area shape="poly" id="edge7_Node000002_Node000008" title=" " alt="" coords="1029,262,921,252,922,247,1029,257"/>
-<area shape="rect" id="Node000009" href="$test__component__multimesh__from__tag_8cpp.html#af55ce8249624ce4d6a3feaad760949a6" title=" " alt="" coords="827,282,921,307"/>
-<area shape="poly" id="edge8_Node000002_Node000009" title=" " alt="" coords="1029,284,922,293,921,288,1029,279"/>
-<area shape="rect" id="Node000010" href="$test__component__multimesh__from__tag_8cpp.html#a18cd3d411cfadc472201c20662d62869" title=" " alt="" coords="827,331,921,357"/>
-<area shape="poly" id="edge9_Node000002_Node000010" title=" " alt="" coords="1054,305,995,321,922,338,921,333,994,316,1053,300"/>
-<area shape="rect" id="Node000011" href="$test__component__multimesh__from__tag_8cpp.html#a4caad3dd8a6355f2ca66fdb0b0af7999" title=" " alt="" coords="827,381,921,406"/>
-<area shape="poly" id="edge10_Node000002_Node000011" title=" " alt="" coords="1105,308,1054,341,996,370,959,382,922,390,921,385,957,377,994,366,1051,337,1102,304"/>
-<area shape="rect" id="Node000012" href="$namespacewmtk_1_1components.html#a9d6d11e3b7ba03911492ecfc79622247" title=" " alt="" coords="771,431,977,471"/>
-<area shape="poly" id="edge11_Node000002_Node000012" title=" " alt="" coords="1122,310,1067,367,1033,395,996,420,967,433,965,428,993,415,1030,391,1063,363,1118,307"/>
-<area shape="rect" id="Node000004" href="$test__component__multimesh__from__tag_8cpp.html#a2b0208caf4b963a36a43604c3e7cf34a" title=" " alt="" coords="555,13,649,38"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="748,28,650,28,650,23,748,23"/>
-<area shape="rect" id="Node000014" href="$classwmtk_1_1_tet_mesh.html#a68609916210858129ba39958a273e78e" title=" " alt="" coords="521,557,683,597"/>
-<area shape="poly" id="edge13_Node000013_Node000014" title=" " alt="" coords="1125,666,1068,623,1032,602,994,587,913,569,830,563,751,563,683,569,683,563,751,558,830,557,914,564,995,581,1034,597,1071,618,1128,661"/>
-<area shape="rect" id="Node000016" href="$classwmtk_1_1_tet_mesh.html#a6d216046ac28a11f7d0fd07f9e090ba3" title=" " alt="" coords="523,621,681,661"/>
-<area shape="poly" id="edge15_Node000013_Node000016" title=" " alt="" coords="1049,680,680,650,681,645,1049,674"/>
-<area shape="rect" id="Node000017" href="$classwmtk_1_1_tet_mesh.html#a9a30d64d4b874e9bb156e6c771e7f08c" title="returns if a tuple is counterclockwise or not" alt="" coords="788,597,960,622"/>
-<area shape="poly" id="edge17_Node000013_Node000017" title=" " alt="" coords="1093,672,994,644,923,625,924,620,995,639,1094,666"/>
-<area shape="rect" id="Node000018" href="$classwmtk_1_1_tet_mesh.html#a8e0e56365f9c2cb86588a9d7b1874203" title=" " alt="" coords="529,685,675,725"/>
-<area shape="poly" id="edge45_Node000013_Node000018" title=" " alt="" coords="1049,692,676,705,675,700,1048,686"/>
-<area shape="rect" id="Node000019" href="$classwmtk_1_1_tet_mesh.html#ab247e83a140cafd3d62e06508ba128c7" title=" " alt="" coords="517,493,687,533"/>
-<area shape="poly" id="edge46_Node000013_Node000019" title=" " alt="" coords="1130,664,1073,607,1035,579,994,556,916,531,834,517,756,511,687,511,687,505,756,505,835,511,917,526,996,551,1038,574,1076,603,1133,660"/>
-<area shape="rect" id="Node000020" href="$classwmtk_1_1operations_1_1utils_1_1_update_edge_operation_multi_mesh_map_functor.html#a9b36575024b847b2c0367ced7f1c5caa" title=" " alt="" coords="753,749,995,803"/>
-<area shape="poly" id="edge24_Node000013_Node000020" title=" " alt="" coords="1100,705,960,751,958,746,1098,700"/>
-<area shape="rect" id="Node000021" href="$classwmtk_1_1operations_1_1utils_1_1_update_edge_operation_multi_mesh_map_functor.html#a8784cdae3cf7a6f1ad6b5c361dd8fc03" title=" " alt="" coords="753,827,995,882"/>
-<area shape="poly" id="edge25_Node000013_Node000021" title=" " alt="" coords="1131,710,1073,763,1036,792,996,817,970,830,967,825,993,812,1033,787,1069,759,1127,706"/>
-<area shape="rect" id="Node000022" href="$classwmtk_1_1operations_1_1utils_1_1_update_edge_operation_multi_mesh_map_functor.html#a756bab482d580d864f71439794990aac" title=" " alt="" coords="753,906,995,961"/>
-<area shape="poly" id="edge26_Node000013_Node000022" title=" " alt="" coords="1141,712,1118,752,1086,801,1045,852,996,895,975,908,972,904,993,891,1041,848,1082,798,1114,749,1136,709"/>
-<area shape="rect" id="Node000023" href="$classwmtk_1_1_tet_mesh.html#a53d9ec91a1c80da4ae10dea485564f27" title="switch the orientation of the Tuple of the given dimension" alt="" coords="789,985,959,1025"/>
-<area shape="poly" id="edge27_Node000013_Node000023" title=" " alt="" coords="1147,712,1129,767,1099,838,1056,912,1028,946,996,976,961,994,958,990,993,971,1024,942,1051,909,1095,836,1124,765,1142,710"/>
-<area shape="rect" id="Node000015" href="$classwmtk_1_1_tet_mesh.html#a1ac65b024e2d1a8384dcf699297c9028" title="internal function that returns the tuple of requested type, and has the global index cid" alt="" coords="246,589,409,629"/>
-<area shape="poly" id="edge14_Node000014_Node000015" title=" " alt="" coords="508,591,409,603,409,597,507,586"/>
-<area shape="poly" id="edge16_Node000016_Node000015" title=" " alt="" coords="509,633,408,621,409,616,510,628"/>
-<area shape="poly" id="edge18_Node000017_Node000014" title=" " alt="" coords="774,600,682,589,683,584,775,595"/>
-<area shape="poly" id="edge19_Node000017_Node000016" title=" " alt="" coords="775,624,681,635,681,629,774,618"/>
-<area shape="poly" id="edge20_Node000017_Node000018" title=" " alt="" coords="829,630,706,676,670,688,669,683,704,671,827,625"/>
-<area shape="poly" id="edge22_Node000017_Node000019" title=" " alt="" coords="827,594,704,548,669,536,670,531,706,543,829,589"/>
-<area shape="poly" id="edge21_Node000018_Node000015" title=" " alt="" coords="521,684,498,676,379,632,381,627,500,671,522,678"/>
-<area shape="poly" id="edge23_Node000019_Node000015" title=" " alt="" coords="522,540,500,548,381,592,379,587,498,543,521,535"/>
-<area shape="rect" id="Node000024" href="$classwmtk_1_1operations_1_1tet__mesh_1_1_edge_operation_data.html#a0b36950981ccdbd5b04a2d7eccc758a3" title=" " alt="" coords="502,1010,702,1065"/>
-<area shape="poly" id="edge28_Node000023_Node000024" title=" " alt="" coords="775,1020,703,1028,702,1023,775,1014"/>
-<area shape="rect" id="Node000027" href="$namespacewmtk_1_1simplex.html#aead7bf4f261c58bdb33bd0bf7fcd541d" title=" " alt="" coords="5,1187,156,1227"/>
-<area shape="poly" id="edge31_Node000023_Node000027" title=" " alt="" coords="818,1033,706,1080,580,1125,451,1159,294,1186,156,1203,156,1197,293,1181,450,1153,579,1120,704,1075,816,1029"/>
-<area shape="rect" id="Node000028" href="$classwmtk_1_1_tet_mesh.html#a1ff7ac5989c664b7754dd699fa1e9b1a" title=" " alt="" coords="222,833,433,858"/>
-<area shape="poly" id="edge32_Node000023_Node000028" title=" " alt="" coords="774,989,752,975,740,964,733,951,728,926,722,903,715,892,704,882,668,862,630,848,590,838,550,832,470,830,402,835,401,830,470,825,550,827,591,833,632,843,671,858,707,878,719,889,726,900,733,925,738,949,745,960,755,971,777,985"/>
-<area shape="rect" id="Node000029" href="$classwmtk_1_1_tet_mesh.html#a6c405e0d239a6ec627a6b50963c52ea5" title=" " alt="" coords="499,961,705,986"/>
-<area shape="poly" id="edge34_Node000023_Node000029" title=" " alt="" coords="774,996,705,988,706,983,775,991"/>
-<area shape="rect" id="Node000032" href="$classwmtk_1_1_tet_mesh.html#ac89db402ec507958c553e5ed0a26c774" title=" " alt="" coords="517,892,687,932"/>
-<area shape="poly" id="edge37_Node000023_Node000032" title=" " alt="" coords="775,984,752,976,728,963,704,950,664,935,666,930,706,946,730,959,754,971,776,979"/>
-<area shape="rect" id="Node000033" href="$classwmtk_1_1_tet_mesh.html#a87165a8f0949177c42845b725feac1dd" title=" " alt="" coords="517,1269,687,1309"/>
-<area shape="poly" id="edge39_Node000023_Node000033" title=" " alt="" coords="850,1038,787,1114,707,1202,630,1271,626,1267,703,1198,783,1111,846,1035"/>
-<area shape="rect" id="Node000025" href="$classwmtk_1_1operations_1_1tet__mesh_1_1_split_new_attribute_topo_info.html#a89bd25c4ffb57ea07683a822dc5aae05" title=" " alt="" coords="218,1089,437,1143"/>
-<area shape="poly" id="edge29_Node000024_Node000025" title=" " alt="" coords="493,1071,424,1091,423,1086,492,1066"/>
-<area shape="rect" id="Node000026" href="$classwmtk_1_1operations_1_1tet__mesh_1_1_collapse_new_attribute_topo_info.html#a9f0532f826f70f51e8b5a9a2275e426b" title=" " alt="" coords="220,1010,435,1065"/>
-<area shape="poly" id="edge30_Node000024_Node000026" title=" " alt="" coords="488,1040,435,1040,435,1035,488,1035"/>
-<area shape="poly" id="edge33_Node000028_Node000027" title=" " alt="" coords="212,867,206,871,172,907,146,948,125,993,110,1039,92,1125,85,1187,80,1186,87,1124,105,1037,120,991,141,945,168,903,202,867,209,862"/>
-<area shape="rect" id="Node000030" href="$classwmtk_1_1_tet_mesh_1_1_tet_mesh_operation_executor.html#a0300c3eb5b2c02d01b447d69a3958727" title="Get the incident tets and faces for an edge tuple." alt="" coords="204,882,451,937"/>
-<area shape="poly" id="edge35_Node000029_Node000030" title=" " alt="" coords="533,960,445,939,446,934,534,955"/>
-<area shape="rect" id="Node000031" href="$namespacewmtk_1_1simplex.html#ae52e68a7ebacf23d85b0b15c1565dd5a" title=" " alt="" coords="232,961,423,986"/>
-<area shape="poly" id="edge36_Node000029_Node000031" title=" " alt="" coords="485,976,423,976,423,971,485,971"/>
-<area shape="poly" id="edge38_Node000032_Node000030" title=" " alt="" coords="503,914,451,913,451,908,503,908"/>
-<area shape="poly" id="edge41_Node000033_Node000027" title=" " alt="" coords="503,1270,450,1260,293,1236,156,1218,156,1213,294,1230,451,1255,504,1265"/>
-<area shape="rect" id="Node000034" href="$namespacewmtk_1_1simplex.html#a18647fe3e4b68cc5a6186aa5063fcd53" title=" " alt="" coords="252,1334,403,1359"/>
-<area shape="poly" id="edge40_Node000033_Node000034" title=" " alt="" coords="504,1313,451,1324,391,1337,390,1331,450,1319,503,1308"/>
-<area shape="rect" id="Node000035" href="$namespacewmtk_1_1simplex.html#a428755c0a4c93af10690b6828a3c79f5" title=" " alt="" coords="228,1269,427,1309"/>
-<area shape="poly" id="edge42_Node000033_Node000035" title=" " alt="" coords="503,1292,427,1292,427,1287,503,1287"/>
-<area shape="rect" id="Node000036" href="$namespacewmtk_1_1simplex.html#a9c219fd0b4f590bc836d41011761968b" title=" " alt="" coords="252,1384,403,1424"/>
-<area shape="poly" id="edge44_Node000033_Node000036" title=" " alt="" coords="559,1319,509,1348,452,1374,404,1390,402,1385,450,1370,506,1343,557,1314"/>
-<area shape="poly" id="edge43_Node000035_Node000027" title=" " alt="" coords="247,1267,203,1253,136,1229,137,1224,205,1248,248,1262"/>
+<area shape="rect" id="node1" title=" " alt="" coords="1313,332,1540,373"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1components_1_1internal_1_1_multi_mesh_from_tag.html#a96647e9413f2b7e13dd17f02cf29b12d" title="Create a manifold mesh from the substructure." alt="" coords="1047,162,1265,218"/>
+<area shape="rect" id="node9" href="$classwmtk_1_1_tet_mesh.html#af07828ce32b19a3d5fc8e1cb6f365029" title="check validity of tuple including its hash" alt="" coords="1067,445,1245,471"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components.html#a1d95b8c424d645d432babf8ba5765e36" title=" " alt="" coords="785,71,971,112"/>
+<area shape="rect" id="node4" href="$namespacewmtk_1_1components.html#ac309092566399cef68679a1bb8107d1e" title="Generate a multi&#45;mesh from a mesh with a tag that represents the substructure, the mesh is changed." alt="" coords="765,136,991,177"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components.html#a4166e4880553cfacbf79ac3515a637cd" title=" " alt="" coords="775,201,981,243"/>
+<area shape="rect" id="node7" href="$test__component__multimesh__from__tag_8cpp.html#a18cd3d411cfadc472201c20662d62869" title=" " alt="" coords="831,267,925,294"/>
+<area shape="rect" id="node8" href="$namespacewmtk_1_1components_1_1triangle__insertion.html#a23509bfe845d018ac65e2759fb77c608" title=" " alt="" coords="774,5,982,47"/>
+<area shape="rect" id="node5" href="$test__component__multimesh__from__tag_8cpp.html#a2b0208caf4b963a36a43604c3e7cf34a" title=" " alt="" coords="557,143,651,170"/>
+<area shape="rect" id="node10" href="$classwmtk_1_1_tet_mesh.html#a68609916210858129ba39958a273e78e" title=" " alt="" coords="523,303,685,344"/>
+<area shape="rect" id="node12" href="$classwmtk_1_1_tet_mesh.html#a6d216046ac28a11f7d0fd07f9e090ba3" title=" " alt="" coords="525,368,683,409"/>
+<area shape="rect" id="node13" href="$classwmtk_1_1_tet_mesh.html#a9a30d64d4b874e9bb156e6c771e7f08c" title="TODO this needs dimension?" alt="" coords="792,419,964,446"/>
+<area shape="rect" id="node14" href="$classwmtk_1_1_tet_mesh.html#a8e0e56365f9c2cb86588a9d7b1874203" title=" " alt="" coords="531,433,677,475"/>
+<area shape="rect" id="node15" href="$classwmtk_1_1_tet_mesh.html#ab247e83a140cafd3d62e06508ba128c7" title=" " alt="" coords="519,499,689,540"/>
+<area shape="rect" id="node16" href="$classwmtk_1_1operations_1_1utils_1_1_update_edge_operation_multi_mesh_map_functor.html#a9b36575024b847b2c0367ced7f1c5caa" title=" " alt="" coords="757,711,999,767"/>
+<area shape="rect" id="node17" href="$classwmtk_1_1_tet_mesh.html#a53d9ec91a1c80da4ae10dea485564f27" title="switch the orientation of the Tuple of the given dimension" alt="" coords="793,645,963,687"/>
+<area shape="rect" id="node11" href="$classwmtk_1_1_tet_mesh.html#a1ac65b024e2d1a8384dcf699297c9028" title="internal function that returns the tuple of requested type, and has the global index cid" alt="" coords="246,400,409,441"/>
+<area shape="rect" id="node18" href="$classwmtk_1_1operations_1_1tet__mesh_1_1_edge_operation_data.html#a0b36950981ccdbd5b04a2d7eccc758a3" title=" " alt="" coords="504,863,704,919"/>
+<area shape="rect" id="node21" href="$namespacewmtk_1_1simplex.html#aead7bf4f261c58bdb33bd0bf7fcd541d" title=" " alt="" coords="5,645,156,687"/>
+<area shape="rect" id="node22" href="$classwmtk_1_1_tet_mesh.html#a1ff7ac5989c664b7754dd699fa1e9b1a" title=" " alt="" coords="499,565,709,591"/>
+<area shape="rect" id="node23" href="$classwmtk_1_1_tet_mesh.html#a6c405e0d239a6ec627a6b50963c52ea5" title=" " alt="" coords="501,799,707,826"/>
+<area shape="rect" id="node26" href="$classwmtk_1_1_tet_mesh.html#ac89db402ec507958c553e5ed0a26c774" title=" " alt="" coords="519,733,689,775"/>
+<area shape="rect" id="node27" href="$classwmtk_1_1_tet_mesh.html#a87165a8f0949177c42845b725feac1dd" title=" " alt="" coords="519,616,689,657"/>
+<area shape="rect" id="node19" href="$classwmtk_1_1operations_1_1tet__mesh_1_1_split_new_attribute_topo_info.html#a89bd25c4ffb57ea07683a822dc5aae05" title=" " alt="" coords="218,943,437,999"/>
+<area shape="rect" id="node20" href="$classwmtk_1_1operations_1_1tet__mesh_1_1_collapse_new_attribute_topo_info.html#a9f0532f826f70f51e8b5a9a2275e426b" title=" " alt="" coords="220,863,435,919"/>
+<area shape="rect" id="node24" href="$classwmtk_1_1_tet_mesh_1_1_tet_mesh_operation_executor.html#a0300c3eb5b2c02d01b447d69a3958727" title="Get the incident tets and faces for an edge tuple." alt="" coords="204,733,451,789"/>
+<area shape="rect" id="node25" href="$namespacewmtk_1_1simplex.html#ae52e68a7ebacf23d85b0b15c1565dd5a" title=" " alt="" coords="232,813,423,839"/>
+<area shape="rect" id="node28" href="$namespacewmtk_1_1simplex.html#a18647fe3e4b68cc5a6186aa5063fcd53" title=" " alt="" coords="252,499,403,526"/>
+<area shape="rect" id="node29" href="$namespacewmtk_1_1simplex.html#a428755c0a4c93af10690b6828a3c79f5" title=" " alt="" coords="228,616,427,657"/>
+<area shape="rect" id="node30" href="$namespacewmtk_1_1simplex.html#a9c219fd0b4f590bc836d41011761968b" title=" " alt="" coords="252,551,403,592"/>
 </map>

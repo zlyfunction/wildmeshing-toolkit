@@ -1,14 +1,6 @@
 <map id="src/wmtk/invariants/ValenceImprovementInvariant.hpp" name="src/wmtk/invariants/ValenceImprovementInvariant.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="438,5,689,45"/>
-<area shape="rect" id="Node000002" href="$_isotropic_remeshing_8hpp.html" title=" " alt="" coords="287,93,509,163"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="522,55,455,95,452,91,519,50"/>
-<area shape="rect" id="Node000005" href="$test__component__isotropic__remeshing_8cpp.html" title=" " alt="" coords="499,218,665,273"/>
-<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="569,59,582,217,577,218,563,60"/>
-<area shape="rect" id="Node000006" href="$_valence_improvement_invariant_8cpp.html" title=" " alt="" coords="601,108,851,148"/>
-<area shape="poly" id="edge6_Node000001_Node000006" title=" " alt="" coords="607,50,697,106,694,110,604,55"/>
-<area shape="rect" id="Node000003" href="$_isotropic_remeshing_8cpp.html" title=" " alt="" coords="5,211,228,280"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="304,170,200,213,198,208,302,166"/>
-<area shape="rect" id="Node000004" href="$isotropic__remeshing_8cpp.html" title=" " alt="" coords="252,211,475,280"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="386,177,376,211,371,210,381,175"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="465,168,542,216,539,220,462,172"/>
+<area shape="rect" id="node1" title=" " alt="" coords="267,5,517,47"/>
+<area shape="rect" id="node2" href="$_valence_improvement_invariant_8cpp.html" title=" " alt="" coords="5,109,256,151"/>
+<area shape="rect" id="node3" href="$isotropic__remeshing_8cpp.html" title=" " alt="" coords="281,95,503,165"/>
+<area shape="rect" id="node4" href="$test__component__isotropic__remeshing_8cpp.html" title=" " alt="" coords="527,102,694,158"/>
 </map>

@@ -1,6 +1,4 @@
 <map id="wmtk::components::internal::from_json" name="wmtk::components::internal::from_json">
-<area shape="rect" id="Node000001" title=" " alt="" coords="259,29,464,69"/>
-<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="405,18,389,11,361,8,337,10,322,15,317,21,319,28,314,30,311,20,319,10,336,5,361,3,391,6,407,13"/>
-<area shape="rect" id="Node000002" href="$namespacewmtk_1_1components_1_1internal.html#a6e73c503f2bb2babc226368768c71070" title=" " alt="" coords="5,29,211,69"/>
-<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="245,52,211,52,211,47,245,47"/>
+<area shape="rect" id="node1" title=" " alt="" coords="339,13,544,54"/>
+<area shape="rect" id="node2" href="$structwmtk_1_1components_1_1isotropic__remeshing_1_1_isotropic_remeshing_options.html#a63fe32f1624cc537d8f03b521815b265" title=" " alt="" coords="5,5,291,61"/>
 </map>

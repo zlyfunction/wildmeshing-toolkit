@@ -1,12 +1,9 @@
 <map id="wmtk::simplex::k_ring" name="wmtk::simplex::k_ring">
-<area shape="rect" id="Node000001" title=" " alt="" coords="548,101,715,126"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_scheduler.html#a4f7598112b7e77f3432f22427c7fdfb8" title=" " alt="" coords="298,5,494,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="589,97,499,60,464,48,466,43,501,55,591,92"/>
-<area shape="rect" id="Node000003" href="$namespacewmtk_1_1components_1_1internal.html#a19eecddab1770fc126938f03715626b0" title=" " alt="" coords="292,93,500,133"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="534,116,500,116,500,111,534,111"/>
-<area shape="rect" id="Node000005" href="$namespacewmtk_1_1components.html#ad47dd9f4c68a8e70914d5a910e5fc0e4" title=" " alt="" coords="306,157,486,197"/>
-<area shape="poly" id="edge5_Node000001_Node000005" title=" " alt="" coords="571,132,471,160,470,155,570,127"/>
-<area shape="poly" id="edge3_Node000003_Node000003" title=" " alt="" coords="436,82,422,75,396,72,373,74,360,79,355,85,357,92,352,94,350,84,357,74,372,69,396,67,423,70,438,77"/>
-<area shape="rect" id="Node000004" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="5,101,244,126"/>
-<area shape="poly" id="edge4_Node000003_Node000004" title=" " alt="" coords="278,116,244,116,244,111,278,111"/>
+<area shape="rect" id="node1" title=" " alt="" coords="835,78,1001,105"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_scheduler.html#a4f7598112b7e77f3432f22427c7fdfb8" title=" " alt="" coords="585,5,781,47"/>
+<area shape="rect" id="node3" href="$namespacewmtk_1_1components_1_1internal.html#a19eecddab1770fc126938f03715626b0" title=" " alt="" coords="579,71,787,112"/>
+<area shape="rect" id="node6" href="$namespacewmtk_1_1components.html#ad47dd9f4c68a8e70914d5a910e5fc0e4" title=" " alt="" coords="593,136,773,177"/>
+<area shape="rect" id="node4" href="$namespacewmtk_1_1components_1_1internal.html#a798951bc2a6b1069a5ae8c946ddfdecd" title=" " alt="" coords="309,71,514,112"/>
+<area shape="rect" id="node5" href="$namespacewmtk_1_1components.html#a7c75b44e67ee059f20849f2ea5e04e49" title=" " alt="" coords="5,78,244,105"/>
+<area shape="rect" id="node7" href="$namespacewmtk_1_1components.html#ac6ca52668bd22e164d4baf59ec533864" title=" " alt="" coords="292,143,531,170"/>
 </map>

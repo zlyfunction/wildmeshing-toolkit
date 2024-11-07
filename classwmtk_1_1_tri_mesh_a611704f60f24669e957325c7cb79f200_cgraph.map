@@ -1,74 +1,23 @@
 <map id="wmtk::TriMesh::is_valid" name="wmtk::TriMesh::is_valid">
-<area shape="rect" id="Node000001" title="check validity of tuple including its hash" alt="" coords="5,494,180,520"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_tri_mesh.html#a6375662ccb85d7c8868b3c76d708bae5" title=" " alt="" coords="228,246,451,286"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="105,492,306,294,310,298,109,496"/>
-<area shape="rect" id="Node000018" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="1741,646,1901,672"/>
-<area shape="poly" id="edge40_Node000001_Node000018" title=" " alt="" coords="105,518,154,572,189,601,229,625,282,645,327,657,369,663,409,665,493,660,599,656,1378,656,1727,656,1727,662,1378,662,599,662,493,666,409,670,368,669,326,662,280,650,227,629,186,606,150,576,101,521"/>
-<area shape="rect" id="Node000026" href="$namespacewmtk_1_1autogen_1_1tri__mesh.html#a786155d6d2270c482ffd6a96d3211867" title=" " alt="" coords="1977,544,2140,598"/>
-<area shape="poly" id="edge42_Node000001_Node000026" title=" " alt="" coords="124,517,173,536,229,554,331,579,412,595,494,603,599,606,1593,606,1692,603,1791,597,1963,580,1964,586,1792,602,1692,608,1593,611,599,611,494,608,411,600,330,584,227,559,171,541,122,522"/>
-<area shape="rect" id="Node000029" href="$namespacewmtk.html#a6a35f11c12436093d26fdd8be6fecc06" title="Retrieves the current logger." alt="" coords="547,444,655,469"/>
-<area shape="poly" id="edge41_Node000001_Node000029" title=" " alt="" coords="180,492,228,486,532,458,533,464,228,491,180,497"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1_mesh.html#a3e8ff83c4a5526a40d18bb9883c6c6c9" title="read in the m_capacities return the upper bound for the number of entities of the given dimension" alt="" coords="770,17,935,42"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="345,244,365,200,396,143,440,85,467,61,497,41,532,25,568,14,644,4,716,5,780,12,779,17,716,10,644,9,569,19,534,30,500,45,470,65,444,89,401,145,369,202,350,246"/>
-<area shape="rect" id="Node000005" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#a196b6b32e2495b971113d552be7f45d9" title=" " alt="" coords="509,56,692,110"/>
-<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="356,243,415,183,455,149,497,119,506,114,509,119,500,124,458,154,419,187,360,247"/>
-<area shape="rect" id="Node000006" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#ab850fe07669c7bc92ca6cf6e86c60ee0" title=" " alt="" coords="509,134,692,189"/>
-<area shape="poly" id="edge5_Node000002_Node000006" title=" " alt="" coords="389,243,498,199,516,192,518,197,500,204,391,248"/>
-<area shape="rect" id="Node000007" href="$classwmtk_1_1_mesh.html#ae0e8f71e9e17a90be9423117efcc4c81" title=" " alt="" coords="519,214,682,254"/>
-<area shape="poly" id="edge6_Node000002_Node000007" title=" " alt="" coords="450,249,505,243,506,248,451,255"/>
-<area shape="rect" id="Node000010" href="$classwmtk_1_1attribute_1_1_accessor.html#a2d587e12c47a6d839ab80e9198cf75b5" title=" " alt="" coords="506,278,695,318"/>
-<area shape="poly" id="edge10_Node000002_Node000010" title=" " alt="" coords="451,277,492,282,492,287,450,282"/>
-<area shape="rect" id="Node000012" href="$classwmtk_1_1_tri_mesh.html#a2e568aaaffd6e68904c5cecd8256ed93" title="returns if a simplex is on the boundary of hte mesh. For anything but dimension &#45; 1 this checks if th..." alt="" coords="499,342,703,368"/>
-<area shape="poly" id="edge12_Node000002_Node000012" title=" " alt="" coords="386,283,500,327,531,336,529,341,498,332,384,288"/>
-<area shape="poly" id="edge38_Node000002_Node000029" title=" " alt="" coords="369,283,572,433,569,437,366,288"/>
-<area shape="rect" id="Node000004" href="$namespacewmtk.html#a5cf45c152e856196bb734c6f48919a24" title="Get a unique integer id corresponding to each primitive type." alt="" coords="1047,20,1201,60"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="935,30,1033,34,1033,39,935,35"/>
-<area shape="rect" id="Node000008" href="$classwmtk_1_1_mesh.html#a6dbab927a2ee85f77a87f075fd5c1d94" title=" " alt="" coords="766,128,939,168"/>
-<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="662,211,702,198,781,170,783,175,704,203,664,216"/>
-<area shape="poly" id="edge9_Node000008_Node000004" title=" " alt="" coords="903,126,1059,63,1061,68,905,131"/>
-<area shape="rect" id="Node000009" href="$classwmtk_1_1_mesh.html#a357182137d99f1e4a7ff536eadfc0e56" title=" " alt="" coords="1049,128,1199,168"/>
-<area shape="poly" id="edge8_Node000008_Node000009" title=" " alt="" coords="939,146,1035,146,1035,151,939,151"/>
-<area shape="rect" id="Node000011" href="$classwmtk_1_1attribute_1_1_accessor.html#afd97a48ec5d1db975a030428df81f617" title=" " alt="" coords="758,214,947,254"/>
-<area shape="poly" id="edge11_Node000010_Node000011" title=" " alt="" coords="680,275,760,254,761,260,681,280"/>
-<area shape="rect" id="Node000013" href="$classwmtk_1_1_tri_mesh.html#ac603f7969b10c674eb00e007a507a530" title=" " alt="" coords="1003,384,1245,409"/>
-<area shape="poly" id="edge13_Node000012_Node000013" title=" " alt="" coords="703,360,989,383,989,388,703,366"/>
-<area shape="rect" id="Node000014" href="$classwmtk_1_1_tri_mesh.html#a1d5d124897281d6a649098213173fdb5" title=" " alt="" coords="751,278,955,318"/>
-<area shape="poly" id="edge15_Node000012_Node000014" title=" " alt="" coords="657,340,751,318,752,323,658,345"/>
-<area shape="poly" id="edge14_Node000013_Node000001" title=" " alt="" coords="1003,396,847,397,653,405,440,425,333,441,229,462,181,475,137,492,135,487,179,470,227,456,332,436,439,420,652,399,847,391,1003,390"/>
-<area shape="poly" id="edge16_Node000014_Node000013" title=" " alt="" coords="915,315,956,334,980,352,1004,369,1028,377,1026,382,1001,373,977,356,953,339,913,320"/>
-<area shape="rect" id="Node000015" href="$classwmtk_1_1_tri_mesh.html#a79010f8baac63245558c846aafea10d0" title=" " alt="" coords="1021,334,1227,360"/>
-<area shape="poly" id="edge17_Node000014_Node000015" title=" " alt="" coords="955,313,1041,329,1040,334,954,319"/>
-<area shape="rect" id="Node000028" href="$classwmtk_1_1_tri_mesh.html#a0ecb0fd199e840ff9f3d206abc10a64b" title=" " alt="" coords="1023,285,1225,310"/>
-<area shape="poly" id="edge36_Node000014_Node000028" title=" " alt="" coords="955,295,1009,295,1009,300,955,300"/>
-<area shape="rect" id="Node000016" href="$classwmtk_1_1_tri_mesh.html#a17b808a46d1a31efc12d555e6721bd02" title="switch the orientation of the Tuple of the given dimension" alt="" coords="1293,458,1460,498"/>
-<area shape="poly" id="edge18_Node000015_Node000016" title=" " alt="" coords="1216,357,1246,368,1276,385,1303,405,1349,445,1345,449,1300,409,1273,390,1244,373,1214,362"/>
-<area shape="poly" id="edge33_Node000016_Node000001" title=" " alt="" coords="1293,488,1094,502,854,510,599,510,194,510,194,504,599,504,854,504,1093,497,1293,482"/>
-<area shape="rect" id="Node000017" href="$classwmtk_1_1_tri_mesh.html#a9975c25ed665c9c9a7f1ae92818a1b7c" title=" " alt="" coords="1523,493,1661,518"/>
-<area shape="poly" id="edge19_Node000016_Node000017" title=" " alt="" coords="1461,486,1510,492,1509,498,1460,491"/>
-<area shape="rect" id="Node000021" href="$classwmtk_1_1_tri_mesh.html#accbde91fccacdfdfd997e20d9ee9eb22" title="returns if a tuple is counterclockwise or not" alt="" coords="1508,542,1676,568"/>
-<area shape="poly" id="edge24_Node000016_Node000021" title=" " alt="" coords="1425,495,1509,528,1532,536,1530,541,1507,533,1423,500"/>
-<area shape="rect" id="Node000027" href="$namespacewmtk_1_1autogen_1_1tri__mesh.html#a91e6b348f528d93ad6d9031bae1480da" title=" " alt="" coords="1724,435,1917,475"/>
-<area shape="poly" id="edge34_Node000016_Node000027" title=" " alt="" coords="1460,471,1710,458,1710,463,1461,476"/>
-<area shape="poly" id="edge20_Node000017_Node000018" title=" " alt="" coords="1650,516,1677,529,1693,541,1703,553,1726,581,1792,636,1789,640,1722,585,1699,557,1690,545,1675,533,1648,521"/>
-<area shape="rect" id="Node000019" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="2206,628,2357,653"/>
-<area shape="poly" id="edge21_Node000018_Node000019" title=" " alt="" coords="1879,669,1937,679,2005,686,2079,688,2152,682,2197,670,2238,656,2240,661,2198,676,2152,687,2079,693,2005,691,1936,684,1879,674"/>
-<area shape="rect" id="Node000020" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="1965,646,2152,672"/>
-<area shape="poly" id="edge22_Node000018_Node000020" title=" " alt="" coords="1901,656,1952,656,1952,662,1901,662"/>
-<area shape="poly" id="edge23_Node000020_Node000020" title=" " alt="" coords="2023,648,2015,638,2019,628,2034,622,2059,620,2089,623,2102,632,2098,637,2087,628,2059,625,2035,627,2022,632,2020,637,2027,644"/>
-<area shape="poly" id="edge32_Node000021_Node000001" title=" " alt="" coords="1508,558,1125,560,599,560,487,557,375,548,185,524,186,519,376,543,488,551,599,555,1125,555,1508,553"/>
-<area shape="rect" id="Node000022" href="$namespacewmtk_1_1autogen_1_1tri__mesh.html#aaab85f5120a223c29bae0881cd7f2c87" title=" " alt="" coords="1749,531,1892,571"/>
-<area shape="poly" id="edge25_Node000021_Node000022" title=" " alt="" coords="1676,551,1735,550,1735,555,1676,556"/>
-<area shape="rect" id="Node000023" href="$namespacewmtk_1_1autogen_1_1tri__mesh.html#a1c9b651c47ee993e160a8dca570cf35c" title=" " alt="" coords="2200,478,2363,533"/>
-<area shape="poly" id="edge26_Node000022_Node000023" title=" " alt="" coords="1892,538,1965,530,2186,510,2187,515,1966,535,1893,544"/>
-<area shape="poly" id="edge29_Node000022_Node000026" title=" " alt="" coords="1893,554,1964,560,1963,566,1892,560"/>
-<area shape="rect" id="Node000024" href="$classwmtk_1_1utils_1_1_tuple_inspector.html#a3a04acf16e0eff80ade8e0fb8753ac1b" title=" " alt="" coords="2411,454,2608,494"/>
-<area shape="poly" id="edge27_Node000023_Node000024" title=" " alt="" coords="2362,492,2397,487,2397,492,2363,497"/>
-<area shape="rect" id="Node000025" href="$classwmtk_1_1utils_1_1_tuple_inspector.html#a92f5faa08a7f78424f5cd1ec79dcedbb" title=" " alt="" coords="2411,518,2608,558"/>
-<area shape="poly" id="edge28_Node000023_Node000025" title=" " alt="" coords="2363,514,2397,519,2397,524,2362,520"/>
-<area shape="poly" id="edge30_Node000026_Node000019" title=" " alt="" coords="2141,594,2227,621,2225,626,2139,599"/>
-<area shape="poly" id="edge31_Node000026_Node000023" title=" " alt="" coords="2139,545,2186,531,2187,536,2141,550"/>
-<area shape="poly" id="edge35_Node000027_Node000023" title=" " alt="" coords="1918,463,2187,493,2186,498,1917,468"/>
-<area shape="poly" id="edge37_Node000028_Node000016" title=" " alt="" coords="1222,308,1247,319,1283,347,1314,379,1360,444,1355,447,1310,383,1279,351,1244,324,1220,313"/>
-<area shape="rect" id="Node000030" href="$namespacewmtk.html#a3daa7951a5f8b78cf4600dc047fcc180" title="Setup a logger object to be used by WildmeshToolkit." alt="" coords="785,444,920,469"/>
-<area shape="poly" id="edge39_Node000029_Node000030" title=" " alt="" coords="655,454,771,454,771,459,655,459"/>
+<area shape="rect" id="node1" title="check validity of tuple including its hash" alt="" coords="5,420,180,446"/>
+<area shape="rect" id="node2" href="$classwmtk_1_1_tri_mesh.html#a6375662ccb85d7c8868b3c76d708bae5" title=" " alt="" coords="228,246,451,287"/>
+<area shape="rect" id="node13" href="$namespacewmtk.html#a6a35f11c12436093d26fdd8be6fecc06" title="Retrieves the current logger." alt="" coords="547,394,655,421"/>
+<area shape="rect" id="node15" href="$classwmtk_1_1_mesh.html#a8cc8686f0688613806f43720b6db49e7" title="check validity of tuple including its hash" alt="" coords="259,445,419,472"/>
+<area shape="rect" id="node18" href="$namespacewmtk_1_1autogen_1_1tri__mesh.html#a786155d6d2270c482ffd6a96d3211867" title=" " alt="" coords="258,496,421,552"/>
+<area shape="rect" id="node3" href="$classwmtk_1_1_mesh.html#a3e8ff83c4a5526a40d18bb9883c6c6c9" title="read in the m_capacities return the upper bound for the number of entities of the given dimension" alt="" coords="767,21,932,48"/>
+<area shape="rect" id="node5" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#a196b6b32e2495b971113d552be7f45d9" title=" " alt="" coords="509,52,692,108"/>
+<area shape="rect" id="node6" href="$classwmtk_1_1attribute_1_1_caching_accessor.html#ab7a79d239fdc3d22fbc0c3a83a5c50bc" title=" " alt="" coords="509,132,692,188"/>
+<area shape="rect" id="node7" href="$classwmtk_1_1_mesh.html#ae0e8f71e9e17a90be9423117efcc4c81" title=" " alt="" coords="519,212,682,254"/>
+<area shape="rect" id="node10" href="$classwmtk_1_1attribute_1_1_accessor.html#a41f40a73a13789707c117bda177dfc83" title=" " alt="" coords="506,278,695,319"/>
+<area shape="rect" id="node12" href="$classwmtk_1_1_tri_mesh.html#a58bdbbfa0cd7bd9263241f6501db182a" title="check if a simplex lies on a boundary or not" alt="" coords="499,344,703,370"/>
+<area shape="rect" id="node4" href="$namespacewmtk.html#a5cf45c152e856196bb734c6f48919a24" title="Get a unique integer id corresponding to each primitive type." alt="" coords="996,32,1151,74"/>
+<area shape="rect" id="node8" href="$classwmtk_1_1_mesh.html#a6dbab927a2ee85f77a87f075fd5c1d94" title=" " alt="" coords="763,136,936,178"/>
+<area shape="rect" id="node9" href="$classwmtk_1_1_mesh.html#a4a20dcdac339e7a4f6f8a6570114cbe6" title=" " alt="" coords="998,136,1149,178"/>
+<area shape="rect" id="node11" href="$classwmtk_1_1attribute_1_1_accessor.html#a9c7d323f50911892c8ea738f97d041d4" title=" " alt="" coords="755,278,944,319"/>
+<area shape="rect" id="node14" href="$namespacewmtk.html#a3daa7951a5f8b78cf4600dc047fcc180" title="Setup a logger object to be used by WildmeshToolkit." alt="" coords="782,394,917,421"/>
+<area shape="rect" id="node16" href="$classwmtk_1_1_tuple.html#a0023f575be92cd5ceeeaaaa3762ea06d" title="Checks if a tuple is &quot;null&quot;. This merely implies the global index is &#45;1." alt="" coords="525,496,676,522"/>
+<area shape="rect" id="node17" href="$classwmtk_1_1_mesh.html#ade176d345902d97af8c5da04aa3a095b" title=" " alt="" coords="507,445,694,472"/>
+<area shape="rect" id="node19" href="$namespacewmtk_1_1autogen_1_1tri__mesh.html#a1c9b651c47ee993e160a8dca570cf35c" title=" " alt="" coords="519,546,682,602"/>
+<area shape="rect" id="node20" href="$classwmtk_1_1utils_1_1_tuple_inspector.html#a3a04acf16e0eff80ade8e0fb8753ac1b" title=" " alt="" coords="751,520,948,562"/>
+<area shape="rect" id="node21" href="$classwmtk_1_1utils_1_1_tuple_inspector.html#a92f5faa08a7f78424f5cd1ec79dcedbb" title=" " alt="" coords="751,586,948,627"/>
 </map>

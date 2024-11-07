@@ -1,9 +1,0 @@
-<map id="wmtk::operations::SplitNewAttributeStrategy::update" name="wmtk::operations::SplitNewAttributeStrategy::update">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,37,208,77"/>
-<area shape="rect" id="Node000002" href="$classwmtk_1_1_mesh.html#a5f7e9ae7268c929db6161af3e2c6eb73" title=" " alt="" coords="271,5,421,45"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="208,41,257,35,258,40,208,46"/>
-<area shape="rect" id="Node000003" href="$classwmtk_1_1simplex_1_1_simplex.html#a753a9245716f207b57cd92fcab5936e7" title=" " alt="" coords="256,69,436,109"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="208,68,243,73,242,78,208,74"/>
-<area shape="rect" id="Node000004" href="$classwmtk_1_1simplex_1_1_simplex.html#ab6d51ca0c220792c1c09824d152bb53a" title=" " alt="" coords="484,69,664,109"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="436,87,470,87,470,92,436,92"/>
-</map>

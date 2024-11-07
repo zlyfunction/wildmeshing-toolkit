@@ -1,7 +1,7 @@
 <map id="src/wmtk/invariants/CollapseSoftEnergyBeforeInvariant.hpp" name="src/wmtk/invariants/CollapseSoftEnergyBeforeInvariant.hpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="122,5,403,45"/>
-<area shape="rect" id="Node000002" href="$wildmeshing_8cpp.html" title=" " alt="" coords="5,93,240,148"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="224,55,164,95,161,91,222,51"/>
-<area shape="rect" id="Node000003" href="$_collapse_soft_energy_before_invariant_8cpp.html" title=" " alt="" coords="264,101,544,141"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="304,51,377,98,374,103,301,55"/>
+<area shape="rect" id="node1" title=" " alt="" coords="415,5,697,47"/>
+<area shape="rect" id="node2" href="$_collapse_soft_energy_before_invariant_8cpp.html" title=" " alt="" coords="5,102,285,143"/>
+<area shape="rect" id="node3" href="$wildmeshing2d_8cpp.html" title=" " alt="" coords="309,95,544,151"/>
+<area shape="rect" id="node4" href="$wildmeshing3d_8cpp.html" title=" " alt="" coords="568,95,803,151"/>
+<area shape="rect" id="node5" href="$wildmeshing__old_8cpp.html" title=" " alt="" coords="827,95,1061,151"/>
 </map>
