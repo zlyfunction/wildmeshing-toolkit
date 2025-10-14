@@ -54,8 +54,19 @@ std::ostream& operator<<(std::ostream& os, const CurveIntersectionPoint& pt)
     return os;
 }
 
-void clean_up_intersections_array(std::vector<CurveIntersectionPoint>& intersections)
+void clean_up_intersections_array(
+    std::vector<CurveIntersectionPoint>& intersections,
+    bool is_loop = false,
+    int loop_size = 0)
 {
+    if (is_loop && loop_size > 0) {
+        for (auto& intersection : intersections) {
+            if (intersection.seg_order_id == loop_size - 1 && intersection.t == 1.0) {
+                intersection.seg_order_id = 0;
+                intersection.t = 0.0;
+            }
+        }
+    }
     // first sort all the intersections
     std::sort(intersections.begin(), intersections.end());
     std::vector<int> indices_to_keep;
@@ -504,7 +515,7 @@ std::vector<CurveIntersectionPoint> compute_intersections_between_two_curve_new_
         std::cout << "  Face cache size: " << face_to_segments.size() << std::endl;
         std::cout << "  Edge cache size: " << edge_to_segments.size() << std::endl;
     }
-
+    bool is_curve1_loop = false;
     // Step 2: Iterate through curve1 segments following the chain
     int current_seg1_id = 0;
     int seg1_order = 0;
@@ -580,6 +591,7 @@ std::vector<CurveIntersectionPoint> compute_intersections_between_two_curve_new_
 
         // Check if we've returned to the start (closed curve)
         if (current_seg1_id == 0) {
+            is_curve1_loop = true;
             break;
         }
     }
@@ -589,7 +601,7 @@ std::vector<CurveIntersectionPoint> compute_intersections_between_two_curve_new_
         std::cout << "\nTotal intersections found: " << intersections.size() << std::endl;
     }
 
-    clean_up_intersections_array(intersections);
+    clean_up_intersections_array(intersections, is_curve1_loop, curve1.segments.size());
 
     if (verbose) {
         std::cout << "Sorted intersections:\n";
