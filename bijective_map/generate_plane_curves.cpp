@@ -466,6 +466,82 @@ std::vector<query_curve> buildQueryCurvesFromIntersections(
             }
         }
 
+        if (!curve.next_segment_ids.empty()) {
+            const size_t seg_count = curve.next_segment_ids.size();
+            std::vector<int> incoming(seg_count, 0);
+
+            for (const int next_id : curve.next_segment_ids) {
+                if (next_id >= 0 && next_id < static_cast<int>(seg_count)) {
+                    incoming[next_id]++;
+                }
+            }
+
+            std::vector<size_t> root_segments;
+            for (size_t i = 0; i < seg_count; ++i) {
+                if (incoming[i] == 0) {
+                    root_segments.push_back(i);
+                }
+            }
+
+            if (root_segments.size() == 1) {
+                const size_t root_idx = root_segments.front();
+                std::vector<size_t> order;
+                order.reserve(seg_count);
+                std::vector<bool> visited(seg_count, false);
+
+                size_t current = root_idx;
+                while (current < seg_count && !visited[current]) {
+                    order.push_back(current);
+                    visited[current] = true;
+
+                    const int next = curve.next_segment_ids[current];
+                    if (next < 0 || next >= static_cast<int>(seg_count)) {
+                        break;
+                    }
+                    current = static_cast<size_t>(next);
+                }
+
+                for (size_t i = 0; i < seg_count; ++i) {
+                    if (!visited[i]) {
+                        order.push_back(i);
+                        visited[i] = true;
+                    }
+                }
+
+                if (order.size() != seg_count) {
+                    throw std::runtime_error("Failed to order all segments in open curve");
+                }
+
+                std::cout << "Reordering open curve to follow sequential chain starting at segment "
+                          << root_idx << std::endl;
+
+                std::vector<query_segment> reordered_segments(seg_count);
+                std::vector<int> reordered_next(seg_count, -1);
+                std::vector<int> remap(seg_count, -1);
+
+                for (size_t i = 0; i < seg_count; ++i) {
+                    remap[order[i]] = static_cast<int>(i);
+                }
+
+                for (size_t i = 0; i < seg_count; ++i) {
+                    const size_t old_idx = order[i];
+                    reordered_segments[i] = curve.segments[old_idx];
+
+                    const int old_next = curve.next_segment_ids[old_idx];
+                    if (old_next >= 0 && old_next < static_cast<int>(seg_count)) {
+                        reordered_next[i] = remap[static_cast<size_t>(old_next)];
+                    } else {
+                        reordered_next[i] = old_next;
+                    }
+                }
+
+                curve.segments = std::move(reordered_segments);
+                curve.next_segment_ids = std::move(reordered_next);
+            } else if (root_segments.size() > 1) {
+                throw std::runtime_error("Multiple root segments found for curve");
+            }
+        }
+
         std::cout << "Completed curve: " << curve.segments.size() << " segments, next_ids: [";
         for (size_t i = 0; i < curve.next_segment_ids.size(); ++i) {
             std::cout << curve.next_segment_ids[i];
