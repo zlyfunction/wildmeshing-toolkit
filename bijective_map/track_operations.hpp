@@ -50,6 +50,16 @@ struct query_curve_t
         }
         return std::distance(next_segment_ids.begin(), it);
     }
+
+    bool is_loop() const
+    {
+        for (const auto& seg_id : next_segment_ids) {
+            if (seg_id == -1) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
 // Type aliases for convenience

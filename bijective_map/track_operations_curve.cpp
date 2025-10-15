@@ -431,19 +431,25 @@ void classify_boundary_and_interior_query_points(
     std::vector<int>& bd_qps_ids,
     std::vector<std::vector<int>>& all_curve_parts)
 {
+    bool is_curve_loop = curve.is_loop();
+    // for end_point cases:
+
     // check first point and last point
     if (curve.next_segment_ids[all_query_seg_ids.back()] != all_query_seg_ids.front()) {
         // this means the first point and the last point are not connected
         // check 0s explicitly
         const auto& first_qp = all_query_points.front();
-        if (first_qp.bc(0) == 0 || first_qp.bc(1) == 0 || first_qp.bc(2) == 0) {
+
+        if (!(!is_curve_loop && all_query_seg_ids.front() == 0) &&
+            (first_qp.bc(0) == 0 || first_qp.bc(1) == 0 || first_qp.bc(2) == 0)) {
             bd_qps_ids.push_back(0);
         } else {
             non_bd_qps.push_back(first_qp);
             non_bd_qps_ids.push_back(0);
         }
         const auto& last_qp = all_query_points.back();
-        if (last_qp.bc(0) == 0 || last_qp.bc(1) == 0 || last_qp.bc(2) == 0) {
+        if (!(!is_curve_loop && curve.next_segment_ids[all_query_seg_ids.back()] == -1) &&
+            (last_qp.bc(0) == 0 || last_qp.bc(1) == 0 || last_qp.bc(2) == 0)) {
             bd_qps_ids.push_back(all_query_points.size() - 1);
         } else {
             non_bd_qps.push_back(last_qp);
