@@ -15,7 +15,8 @@ bool validate_and_convert_curves_to_edge_mesh(
     const Eigen::MatrixXd& V,
     Eigen::MatrixXd& edge_V,
     Eigen::MatrixXi& edge_E,
-    double tolerance = 1e-8)
+    double tolerance = 1e-8,
+    Eigen::VectorXi* edge_curve_ids = nullptr)
 {
     if (curves.empty()) {
         std::cerr << "No curves provided" << std::endl;
@@ -24,6 +25,14 @@ bool validate_and_convert_curves_to_edge_mesh(
 
     std::vector<Eigen::Vector3d> vertices;
     std::vector<Eigen::Vector2i> edges;
+    std::vector<int> edge_curve_ids_buffer;
+    if (edge_curve_ids != nullptr) {
+        size_t total_segments = 0;
+        for (const auto& curve : curves) {
+            total_segments += curve.segments.size();
+        }
+        edge_curve_ids_buffer.reserve(total_segments);
+    }
 
     for (size_t curve_id = 0; curve_id < curves.size(); ++curve_id) {
         const query_curve& curve = curves[curve_id];
@@ -129,6 +138,9 @@ bool validate_and_convert_curves_to_edge_mesh(
 
             // Add edge
             edges.push_back(Eigen::Vector2i(start_vertex_idx, end_vertex_idx));
+            if (edge_curve_ids != nullptr) {
+                edge_curve_ids_buffer.push_back(static_cast<int>(curve_id));
+            }
 
             // std::cout << "  Segment " << current_seg_id << ": vertices [" << start_vertex_idx
             //           << ", " << end_vertex_idx << "] at (" << p0.transpose() << ") -> ("
@@ -192,6 +204,13 @@ bool validate_and_convert_curves_to_edge_mesh(
         edge_E.row(i) = edges[i].transpose();
     }
 
+    if (edge_curve_ids != nullptr) {
+        *edge_curve_ids = Eigen::VectorXi(edges.size());
+        for (int i = 0; i < static_cast<int>(edges.size()); ++i) {
+            (*edge_curve_ids)(i) = edge_curve_ids_buffer[i];
+        }
+    }
+
     std::cout << "Total edge mesh: " << edge_V.rows() << " vertices, " << edge_E.rows() << " edges"
               << std::endl;
     return true;
@@ -233,14 +252,24 @@ void write_curves_to_vtu(
 
             Eigen::MatrixXd edge_V;
             Eigen::MatrixXi edge_E;
+            Eigen::VectorXi edge_curve_ids;
 
             if (validate_and_convert_curves_to_edge_mesh(
                     single_curve,
                     V,
                     edge_V,
                     edge_E,
-                    tolerance)) {
-                vtu_utils::write_edge_mesh_to_vtu(edge_V, edge_E, individual_filename);
+                    tolerance,
+                    &edge_curve_ids)) {
+                if (edge_curve_ids.size() > 0) {
+                    edge_curve_ids.setConstant(static_cast<int>(i));
+                }
+                vtu_utils::write_edge_mesh_to_vtu(
+                    edge_V,
+                    edge_E,
+                    individual_filename,
+                    edge_curve_ids.size() == edge_E.rows() ? &edge_curve_ids : nullptr,
+                    "curve_id");
                 std::cout << "Successfully wrote curve " << i << " to " << individual_filename
                           << std::endl;
             } else {
@@ -251,9 +280,21 @@ void write_curves_to_vtu(
         // Original combined output
         Eigen::MatrixXd edge_V;
         Eigen::MatrixXi edge_E;
+        Eigen::VectorXi edge_curve_ids;
 
-        if (validate_and_convert_curves_to_edge_mesh(curves, V, edge_V, edge_E, tolerance)) {
-            vtu_utils::write_edge_mesh_to_vtu(edge_V, edge_E, filename);
+        if (validate_and_convert_curves_to_edge_mesh(
+                curves,
+                V,
+                edge_V,
+                edge_E,
+                tolerance,
+                &edge_curve_ids)) {
+            vtu_utils::write_edge_mesh_to_vtu(
+                edge_V,
+                edge_E,
+                filename,
+                edge_curve_ids.size() == edge_E.rows() ? &edge_curve_ids : nullptr,
+                "curve_id");
             std::cout << "Successfully wrote curves to " << filename << std::endl;
         } else {
             std::cerr << "Failed to convert curves to edge mesh" << std::endl;
