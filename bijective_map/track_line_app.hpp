@@ -7,6 +7,12 @@ using path = std::filesystem::path;
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
+struct TrackLinesOptions
+{
+    bool enable_rounding = true;
+    bool enable_merge = true;
+};
+
 /**
  * @brief Tracks multiple operations on a query curve from a directory.
  * This function processes multiple operations from the files in the specified directory and updates
@@ -30,7 +36,8 @@ template <typename CoordType>
 void track_lines_one_operation(
     const json& operation_log,
     std::vector<query_curve_t<CoordType>>& curves,
-    bool do_forward);
+    bool do_forward,
+    const TrackLinesOptions& options = {});
 
 template <typename CoordType>
 void track_line(path dirPath, query_curve_t<CoordType>& curve, bool do_forward = false);
@@ -40,7 +47,8 @@ void track_lines(
     path dirPath,
     std::vector<query_curve_t<CoordType>>& curves,
     bool do_forward = false,
-    bool do_parallel = true);
+    bool do_parallel = true,
+    const TrackLinesOptions& options = {});
 
 
 // demo application on back tracking one curve
@@ -74,7 +82,9 @@ void forward_track_plane_curves_app(
     int N = 5,
     bool do_parallel = true,
     const std::string& model_name = "",
-    bool separate_curve_vtu = false);
+    bool separate_curve_vtu = false,
+    bool enable_rounding = true,
+    bool enable_merge = true);
 
 // check the result of iso-lines
 void check_iso_lines(

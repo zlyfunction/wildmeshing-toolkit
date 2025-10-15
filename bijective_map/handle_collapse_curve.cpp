@@ -447,7 +447,9 @@ void handle_collapse_edge_curves_t(
     const std::vector<int64_t>& id_map_after,
     std::vector<query_curve_t<CoordType>>& curves,
     bool use_rational,
-    bool verbose)
+    bool verbose,
+    bool do_rounding,
+    bool do_merge)
 {
     if constexpr (std::is_same_v<CoordType, double>) {
         igl::parallel_for(curves.size(), [&](int i) {
@@ -471,7 +473,9 @@ void handle_collapse_edge_curves_t(
             id_map_before,
             id_map_after,
             curves,
-            verbose);
+            verbose,
+            do_rounding,
+            do_merge);
     }
 }
 
@@ -706,7 +710,9 @@ void handle_collapse_edge_curves_fast_rational(
     const std::vector<int64_t>& id_map_before,
     const std::vector<int64_t>& id_map_after,
     std::vector<query_curve_t<wmtk::Rational>>& curves,
-    bool verbose)
+    bool verbose,
+    bool do_rounding,
+    bool do_merge)
 {
     int total_segments_before_mapping = 0;
     int total_segments_after_mapping = 0;
@@ -719,8 +725,6 @@ void handle_collapse_edge_curves_fast_rational(
         }
     }
     verbose = false;
-    bool do_rounding = true;
-    bool do_merge = true;
     std::cout << "handle collapse edge curves fast rational" << std::endl;
 
 #ifdef WMTK_ENABLE_COLLAPSE_PATCH_DUMP
@@ -910,7 +914,9 @@ template void handle_collapse_edge_curves_t<double>(
     const std::vector<int64_t>& id_map_after,
     std::vector<query_curve_t<double>>& curves,
     bool use_rational,
-    bool verbose);
+    bool verbose,
+    bool do_rounding,
+    bool do_merge);
 template void handle_collapse_edge_curves_t<wmtk::Rational>(
     const Eigen::MatrixXd& UV_joint,
     const Eigen::MatrixXi& F_before,
@@ -920,7 +926,9 @@ template void handle_collapse_edge_curves_t<wmtk::Rational>(
     const std::vector<int64_t>& id_map_after,
     std::vector<query_curve_t<wmtk::Rational>>& curves,
     bool use_rational,
-    bool verbose);
+    bool verbose,
+    bool do_rounding,
+    bool do_merge);
 
 template void handle_collapse_edge_curve_t<double>(
     const Eigen::MatrixXd& UV_joint,

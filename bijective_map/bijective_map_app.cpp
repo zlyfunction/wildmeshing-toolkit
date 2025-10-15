@@ -49,6 +49,8 @@ int main(int argc, char** argv)
     int N = 5;
     bool no_parallel = false;
     bool separate_curve_vtu = false;
+    bool no_rounding = false;
+    bool no_merge = false;
     app.add_option("--N", N, "Number of isolines to generate (default: 5)");
     app.add_flag(
         "--no_parallel",
@@ -58,6 +60,14 @@ int main(int argc, char** argv)
         "--separate_curve_vtu",
         separate_curve_vtu,
         "Generate separate VTU files for each curve (default: combined)");
+    app.add_flag(
+        "--no-rounding",
+        no_rounding,
+        "Disable rounding after edge collapse when tracking plane curves");
+    app.add_flag(
+        "--no-merge",
+        no_merge,
+        "Disable segment merging after edge collapse when tracking plane curves");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -190,7 +200,9 @@ int main(int argc, char** argv)
             N,
             !no_parallel,
             model_name,
-            separate_curve_vtu);
+            separate_curve_vtu,
+            !no_rounding,
+            !no_merge);
     }
     return 0;
 }

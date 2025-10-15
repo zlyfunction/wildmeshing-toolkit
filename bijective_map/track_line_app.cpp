@@ -470,7 +470,8 @@ template <typename CoordType>
 void track_lines_one_operation(
     const json& operation_log,
     std::vector<query_curve_t<CoordType>>& curves,
-    bool do_forward)
+    bool do_forward,
+    const TrackLinesOptions& options)
 {
     // TODO: this should not be hard coded here
     bool verbose = true;
@@ -589,7 +590,9 @@ void track_lines_one_operation(
                 id_map_before,
                 curves,
                 true,
-                verbose);
+                verbose,
+                options.enable_rounding,
+                options.enable_merge);
         } else {
             handle_collapse_edge_curves_t(
                 UV_joint,
@@ -600,7 +603,9 @@ void track_lines_one_operation(
                 id_map_after,
                 curves,
                 true,
-                verbose);
+                verbose,
+                options.enable_rounding,
+                options.enable_merge);
         }
         t_handle_ms += handle_timer.getElapsedTime() * 1000.0;
     }
@@ -671,7 +676,8 @@ void track_lines(
     path dirPath,
     std::vector<query_curve_t<CoordType>>& curves,
     bool do_forward,
-    bool do_parallel)
+    bool do_parallel,
+    const TrackLinesOptions& options)
 {
     // // use igl parallel_for
     // if (do_parallel) {
@@ -718,7 +724,7 @@ void track_lines(
                 std::cerr << "Failed to read operation " << operation_index << std::endl;
                 continue;
             }
-            track_lines_one_operation<CoordType>(operation_log, curves, do_forward);
+            track_lines_one_operation<CoordType>(operation_log, curves, do_forward, options);
 
             // if (i % 100 == 1) {
             //     for (auto& curve : curves) {
@@ -1043,7 +1049,9 @@ void forward_track_plane_curves_app(
     int N,
     bool do_parallel,
     const std::string& model_name,
-    bool separate_curve_vtu)
+    bool separate_curve_vtu,
+    bool enable_rounding,
+    bool enable_merge)
 {
     if (V_in.cols() == 2) {
         throw std::runtime_error("V_in is 2D, not supported");
@@ -1118,7 +1126,15 @@ void forward_track_plane_curves_app(
         // Save intersection_reference for future use
         save_intersection_reference(intersection_reference, intersection_reference_filename);
     }
-    track_lines<wmtk::Rational>(operation_logs_dir, curves, true, do_parallel);
+    TrackLinesOptions track_options;
+    track_options.enable_rounding = enable_rounding;
+    track_options.enable_merge = enable_merge;
+    track_lines<wmtk::Rational>(
+        operation_logs_dir,
+        curves,
+        true,
+        do_parallel,
+        track_options);
 
     std::cout << "finished track lines" << std::endl;
 
@@ -1220,12 +1236,14 @@ template void track_lines<double>(
     path dirPath,
     std::vector<query_curve_t<double>>& curves,
     bool do_forward,
-    bool do_parallel);
+    bool do_parallel,
+    const TrackLinesOptions& options);
 template void track_lines<wmtk::Rational>(
     path dirPath,
     std::vector<query_curve_t<wmtk::Rational>>& curves,
     bool do_forward,
-    bool do_parallel);
+    bool do_parallel,
+    const TrackLinesOptions& options);
 
 template bool check_curves_topology<double>(
     const std::vector<query_curve_t<double>>& curves,

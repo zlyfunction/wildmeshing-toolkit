@@ -179,7 +179,9 @@ void handle_collapse_edge_curves_t(
     const std::vector<int64_t>& id_map_after,
     std::vector<query_curve_t<CoordType>>& curves,
     bool use_rational,
-    bool verbose);
+    bool verbose,
+    bool do_rounding = true,
+    bool do_merge = true);
 
 // Curve handling functions for different operations - templated versions
 template <typename CoordType>
@@ -202,7 +204,9 @@ void handle_collapse_edge_curves_fast_rational(
     const std::vector<int64_t>& id_map_before,
     const std::vector<int64_t>& id_map_after,
     std::vector<query_curve_t<wmtk::Rational>>& curves,
-    bool verbose);
+    bool verbose,
+    bool do_rounding = true,
+    bool do_merge = true);
 
 
 template <typename CoordType>
