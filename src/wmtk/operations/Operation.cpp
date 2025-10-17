@@ -742,7 +742,7 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                             igl::doublearea(V_before, F_before, dbarea_before);
                             igl::doublearea(V_after, F_after, dbarea_after);
 
-                            if (dbarea_before.minCoeff() < 0) {
+                            if (dbarea_before.minCoeff() <= 0) {
                                 std::cout << "dbarea_before:" << std::endl;
                                 std::cout << dbarea_before.transpose() << std::endl;
                                 visualize_meshes(V_before, F_before, V_after, F_after);
@@ -752,7 +752,7 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                                 return {};
                             }
 
-                            if (dbarea_after.minCoeff() < 0) {
+                            if (dbarea_after.minCoeff() <= 0) {
                                 std::cout << "dbarea_after:" << std::endl;
                                 std::cout << dbarea_after.transpose() << std::endl;
                                 visualize_meshes(V_before, F_before, V_after, F_after);

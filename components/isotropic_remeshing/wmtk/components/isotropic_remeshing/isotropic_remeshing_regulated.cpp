@@ -150,7 +150,13 @@ SchedulerStats run_regulated_edge_operation(
     };
 
     auto attempt_simplex = [&](const simplex::Simplex& simplex) {
-        const Tuple& edge_tuple = simplex.tuple();
+        const Tuple edge_tuple = simplex.tuple();
+        if (!mesh.is_valid(edge_tuple)) {
+            if (options.count_skipped_as_failures) {
+                res.fail();
+            }
+            return;
+        }
         const Tuple v0 = edge_tuple;
         const Tuple v1 = mesh.switch_tuple(edge_tuple, PrimitiveType::Vertex);
 

@@ -137,16 +137,23 @@ void flatten(
     };
 
     // get uv_init
-    igl::harmonic(V_joint_before, F_joint, bnd, bnd_uv, 1, uv_init);
-    // TODO: 1. first, check orientation
-    //       2. then, if fail, find another way to get uv_init
-    {
+    const bool has_interior_vertices = bnd.size() < V_joint_before.rows();
+    uv_init.resize(V_joint_before.rows(), 2);
+    if (has_interior_vertices) {
+        igl::harmonic(V_joint_before, F_joint, bnd, bnd_uv, 1, uv_init);
+        // TODO: 1. first, check orientation
+        //       2. then, if fail, find another way to get uv_init
         if (!check_uv_orientation(uv_init, F_joint)) {
             std::cout << "Use uniform uv init!" << std::endl;
             uniform_uv_init(V_joint_before, F_joint, bnd, bnd_uv, uv_init);
             if (!check_uv_orientation(uv_init, F_joint)) {
                 std::runtime_error("Orientation check failed for uniform uv init!");
             }
+        }
+    } else {
+        uv_init.setZero();
+        for (int i = 0; i < bnd.size(); ++i) {
+            uv_init.row(bnd[i]) = bnd_uv.row(i);
         }
     }
     igl::triangle::SCAFData scaf_data;
