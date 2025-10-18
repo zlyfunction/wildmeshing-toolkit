@@ -14,7 +14,9 @@ namespace vtu_utils {
 void write_triangle_mesh_to_vtu(
     const Eigen::MatrixXd& V,
     const Eigen::MatrixXi& F,
-    const std::string& filename);
+    const std::string& filename,
+    const Eigen::VectorXi* cell_scalar = nullptr,
+    const std::string& cell_scalar_name = "cell_scalar");
 
 /**
  * @brief Write a point mesh to VTU format

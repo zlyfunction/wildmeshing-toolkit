@@ -58,7 +58,9 @@ std::vector<T> extract_binary_data(const std::string& base64_data) {
 void write_triangle_mesh_to_vtu(
     const Eigen::MatrixXd& V,
     const Eigen::MatrixXi& F,
-    const std::string& filename)
+    const std::string& filename,
+    const Eigen::VectorXi* cell_scalar,
+    const std::string& cell_scalar_name)
 {
     Eigen::MatrixXd V3;
     if (V.cols() == 3) {
@@ -88,6 +90,21 @@ void write_triangle_mesh_to_vtu(
     }
     outfile << "        </DataArray>\n";
     outfile << "      </Points>\n";
+
+    if (cell_scalar != nullptr) {
+        if (cell_scalar->size() != F.rows()) {
+            std::cerr << "write_triangle_mesh_to_vtu: cell scalar size (" << cell_scalar->size()
+                      << ") does not match number of faces (" << F.rows() << ").\n";
+        }
+        outfile << "      <CellData>\n";
+        outfile << "        <DataArray type=\"Int32\" Name=\"" << cell_scalar_name
+                << "\" format=\"ascii\">\n";
+        for (int i = 0; i < cell_scalar->size(); ++i) {
+            outfile << "          " << (*cell_scalar)(i) << "\n";
+        }
+        outfile << "        </DataArray>\n";
+        outfile << "      </CellData>\n";
+    }
 
     // Write cells
     outfile << "      <Cells>\n";
