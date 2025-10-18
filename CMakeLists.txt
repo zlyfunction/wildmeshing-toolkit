@@ -99,6 +99,7 @@ include(volume_mesher)
 include(onetbb)
 include(CLI11)
 include(CDT)
+include(cgal)
 
 include(libigl)
 igl_include(restricted triangle)
@@ -165,6 +166,7 @@ target_link_libraries(wildmeshing_toolkit PUBLIC
     igl::core
     igl_restricted::triangle
     TBB::tbb
+    CGAL::CGAL
 )
 
 if(USE_IGL_VIEWER)

@@ -82,3 +82,10 @@ target_compile_features(bijective_map_app_tet PUBLIC cxx_std_17)
 # wmtk::toolkit
 # igl::core
 # )
+
+add_executable(cgal_autorefine_demo cgal_autorefine_demo.cpp vtu_utils.cpp)
+target_link_libraries(cgal_autorefine_demo
+    CGAL::CGAL
+    Eigen3::Eigen
+)
+target_compile_features(cgal_autorefine_demo PUBLIC cxx_std_17)
