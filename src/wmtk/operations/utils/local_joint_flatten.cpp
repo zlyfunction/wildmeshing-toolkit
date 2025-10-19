@@ -9,7 +9,7 @@
 #include <igl/slice_into.h>
 #include <igl/triangle/scaf.h>
 
-// TODO: DEBUG
+
 #ifdef USE_IGL_VIEWER
 #include <igl/opengl/glfw/Viewer.h>
 #endif
@@ -141,6 +141,8 @@ void flatten(
     uv_init.resize(V_joint_before.rows(), 2);
     if (has_interior_vertices) {
         igl::harmonic(V_joint_before, F_joint, bnd, bnd_uv, 1, uv_init);
+
+
         // TODO: 1. first, check orientation
         //       2. then, if fail, find another way to get uv_init
         if (!check_uv_orientation(uv_init, F_joint)) {
@@ -178,7 +180,7 @@ void flatten(
         b_hard);
 
 
-    if (debug_mode) {
+    auto run_debug_viewer = [&]() {
 #ifdef USE_IGL_VIEWER
         int show_option = 1;
         auto key_down_debug = [&](igl::opengl::glfw::Viewer& viewer,
@@ -270,6 +272,10 @@ void flatten(
         viewer.callback_key_down = key_down_debug;
         viewer.launch();
 #endif
+    };
+
+    if (debug_mode) {
+        run_debug_viewer();
     } else {
         igl::triangle::scaf_solve(scaf_data, n_iterations);
     }
@@ -278,6 +284,17 @@ void flatten(
 
     // return UVjoint
     UVjoint = scaf_data.w_uv.topRows(V_joint_before.rows());
+
+
+    // check UVjoint's area and orientation, if not valid, roll back to uv_init
+    {
+        bool valid = check_uv_orientation(UVjoint, F_joint_before);
+        if (!valid) {
+            std::cout << "Roll back UVjoint to uv_init" << std::endl;
+            // roll back UVjoint to uv_init
+            UVjoint = uv_init;
+        }
+    }
 }
 
 // get local_vid_map from V_joint_after to V_joint_before

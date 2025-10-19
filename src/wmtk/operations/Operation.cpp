@@ -336,7 +336,9 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
 
 
                     } else { // for other operations
-
+                        Eigen::VectorXd area_before_input, area_after_input;
+                        igl::doublearea(V_before, F_before, area_before_input);
+                        igl::doublearea(V_after, F_after, area_after_input);
                         // add skip option
                         bool skip = false;
                         if (operation_name == "AttributesUpdate") {
@@ -745,7 +747,11 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                             if (dbarea_before.minCoeff() <= 0) {
                                 std::cout << "dbarea_before:" << std::endl;
                                 std::cout << dbarea_before.transpose() << std::endl;
-                                visualize_meshes(V_before, F_before, V_after, F_after);
+
+                                std::cout << "area_before_input:" << std::endl;
+                                std::cout << area_before_input.transpose() << std::endl;
+
+                                // visualize_meshes(V_before, F_before, V_after, F_after);
                                 // throw std::runtime_error(
                                 //     operation_name + " negative area in F_before detected");
                                 scope.mark_failed();
@@ -755,7 +761,11 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                             if (dbarea_after.minCoeff() <= 0) {
                                 std::cout << "dbarea_after:" << std::endl;
                                 std::cout << dbarea_after.transpose() << std::endl;
-                                visualize_meshes(V_before, F_before, V_after, F_after);
+
+                                std::cout << "area_after_input:" << std::endl;
+                                std::cout << area_after_input.transpose() << std::endl;
+
+                                // visualize_meshes(V_before, F_before, V_after, F_after);
                                 // throw std::runtime_error(
                                 //     operation_name + " negative area in F_after detected");
                                 scope.mark_failed();
