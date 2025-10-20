@@ -103,6 +103,9 @@ public:
     // get the four vertex tuples in the tv matrix with the same order
     std::vector<Tuple> orient_vertices(const Tuple& t) const override;
 
+    // get T, V from mesh
+    std::tuple<Eigen::MatrixXi, Eigen::MatrixXd> get_TV();
+
 
 protected:
     void make_cached_accessors();

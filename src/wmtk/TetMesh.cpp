@@ -560,5 +560,35 @@ std::vector<Tuple> TetMesh::orient_vertices(const Tuple& tuple) const
     return {Tuple(0, 0, 2, cid), Tuple(1, 0, 3, cid), Tuple(2, 1, 1, cid), Tuple(3, 2, 2, cid)};
 }
 
+// get T,V from mesh
+std::tuple<Eigen::MatrixXi, Eigen::MatrixXd> TetMesh::get_TV()
+{
+    // consolidate();
+
+    const auto pos_handle = get_attribute_handle<double>("vertices", PrimitiveType::Vertex);
+    const auto pos = create_const_accessor<double>(pos_handle);
+
+    const attribute::Accessor<int64_t> tv_accessor = create_const_accessor<int64_t>(m_tv_handle);
+
+    const int64_t nT = capacity(PrimitiveType::Tetrahedron);
+    const int64_t nV = capacity(PrimitiveType::Vertex);
+
+    Eigen::MatrixXi T_mat(nT, 4);
+
+    Eigen::MatrixXd V_mat(nV, pos.dimension());
+
+    for (int64_t i = 0; i < nT; ++i) {
+        auto tv = tv_accessor.index_access().const_vector_attribute<4>(i);
+        T_mat.row(i) << (int)tv(0), (int)tv(1), (int)tv(2), (int)tv(3);
+    }
+
+    for (int64_t i = 0; i < nV; ++i) {
+        auto v = pos.index_access().const_vector_attribute<3>(i);
+        V_mat.row(i) << v(0), v(1), v(2);
+    }
+
+    return std::make_tuple(T_mat, V_mat);
+}
+
 
 } // namespace wmtk

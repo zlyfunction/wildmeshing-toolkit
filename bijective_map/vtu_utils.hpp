@@ -63,5 +63,13 @@ bool read_triangle_mesh_from_vtu(
     Eigen::MatrixXd& V,
     Eigen::MatrixXi& F);
 
+/**
+ * @brief Read tetrahedral mesh from VTU file
+ * @param filename VTU filename
+ * @param V Output vertex coordinates matrix (n x 3)
+ * @param T Output tetrahedron indices matrix (m x 4)
+ * @return true if read successful, false otherwise
+ */
+bool read_tet_mesh_from_vtu(const std::string& filename, Eigen::MatrixXd& V, Eigen::MatrixXi& T);
 
 } // namespace vtu_utils
