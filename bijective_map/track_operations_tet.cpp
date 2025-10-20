@@ -1438,3 +1438,299 @@ query_surface_tet read_query_surface_tet_from_file(const std::string& filename)
 
     return surface;
 }
+
+// High-level tracking functions implementation
+#include "batch_operation_log_reader.hpp"
+
+void track_point_one_operation_tet(
+    const json& operation_log,
+    std::vector<query_point_tet>& query_points,
+    bool do_forward,
+    bool use_rational,
+    int operation_id)
+{
+    std::string operation_name;
+    operation_name = operation_log["operation_name"];
+
+    if (operation_name == "MeshConsolidate") {
+        std::cout << "This Operations is Consolidate" << std::endl;
+        std::vector<int64_t> tet_ids_maps;
+        std::vector<int64_t> vertex_ids_maps;
+        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
+
+        handle_consolidate_tet(tet_ids_maps, vertex_ids_maps, query_points, do_forward);
+    } else {
+        std::cout << "This Operations is " << operation_name << std::endl;
+        Eigen::MatrixXi T_after, T_before;
+        Eigen::MatrixXd V_after, V_before;
+        std::vector<int64_t> id_map_after, id_map_before;
+        std::vector<int64_t> v_id_map_after, v_id_map_before;
+        parse_non_collapse_file_tet(
+            operation_log,
+            V_before,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            V_after,
+            T_after,
+            id_map_after,
+            v_id_map_after,
+            operation_id);
+
+        if (do_forward) {
+            handle_local_mapping_tet(
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                query_points);
+        } else {
+            handle_local_mapping_tet(
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                query_points);
+        }
+    }
+}
+
+void track_curve_one_operation_tet(
+    const json& operation_log,
+    query_curve_tet& curve,
+    bool do_forward,
+    bool use_rational,
+    int operation_id)
+{
+    std::string operation_name;
+    operation_name = operation_log["operation_name"];
+
+    if (operation_name == "MeshConsolidate") {
+        std::cout << "This Operations is Consolidate" << std::endl;
+        std::vector<int64_t> tet_ids_maps;
+        std::vector<int64_t> vertex_ids_maps;
+        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
+
+        handle_consolidate_tet_curve(tet_ids_maps, vertex_ids_maps, curve, do_forward);
+    } else {
+        std::cout << "This Operations is " << operation_name << std::endl;
+        Eigen::MatrixXi T_after, T_before;
+        Eigen::MatrixXd V_after, V_before;
+        std::vector<int64_t> id_map_after, id_map_before;
+        std::vector<int64_t> v_id_map_after, v_id_map_before;
+        parse_non_collapse_file_tet(
+            operation_log,
+            V_before,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            V_after,
+            T_after,
+            id_map_after,
+            v_id_map_after,
+            operation_id);
+
+        if (do_forward) {
+            handle_local_mapping_tet_curve(
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                curve);
+        } else {
+            handle_local_mapping_tet_curve(
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                curve);
+        }
+    }
+}
+
+void track_surface_one_operation_tet(
+    const json& operation_log,
+    query_surface_tet& query_surface,
+    bool do_forward,
+    bool use_rational,
+    int operation_id)
+{
+    std::string operation_name = operation_log["operation_name"];
+    if (operation_name == "MeshConsolidate") {
+        std::cout << "This Operations is Consolidate" << std::endl;
+        std::vector<int64_t> tet_ids_maps;
+        std::vector<int64_t> vertex_ids_maps;
+        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
+
+        handle_consolidate_tet_surface(tet_ids_maps, vertex_ids_maps, query_surface, do_forward);
+    } else {
+        std::cout << "This Operations is " << operation_name << std::endl;
+        Eigen::MatrixXi T_after, T_before;
+        Eigen::MatrixXd V_after, V_before;
+        std::vector<int64_t> id_map_after, id_map_before;
+        std::vector<int64_t> v_id_map_after, v_id_map_before;
+        parse_non_collapse_file_tet(
+            operation_log,
+            V_before,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            V_after,
+            T_after,
+            id_map_after,
+            v_id_map_after,
+            operation_id);
+
+        if (do_forward) {
+            handle_local_mapping_tet_surface(
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                query_surface);
+        } else {
+            handle_local_mapping_tet_surface(
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                query_surface);
+        }
+    }
+}
+
+void track_point_tet(
+    const std::filesystem::path& dirPath,
+    std::vector<query_point_tet>& query_points,
+    bool do_forward,
+    bool use_rational)
+{
+    BatchOperationLogReader reader(dirPath);
+    size_t total_ops = reader.get_total_operations();
+
+    if (total_ops == 0) {
+        std::cerr << "No operation logs found in " << dirPath << std::endl;
+        return;
+    }
+
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+
+    for (size_t i = 0; i < total_ops; ++i) {
+        size_t operation_index = i;
+        if (!do_forward) {
+            operation_index = total_ops - 1 - i;
+        }
+
+        json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            continue;
+        }
+
+        std::cout << "Trace Operations number: " << operation_index << std::endl;
+        track_point_one_operation_tet(
+            operation_log,
+            query_points,
+            do_forward,
+            use_rational,
+            static_cast<int>(operation_index));
+    }
+}
+
+void track_curve_tet(
+    const std::filesystem::path& dirPath,
+    query_curve_tet& curve,
+    bool do_forward,
+    bool use_rational)
+{
+    BatchOperationLogReader reader(dirPath);
+    size_t total_ops = reader.get_total_operations();
+
+    if (total_ops == 0) {
+        std::cerr << "No operation logs found in " << dirPath << std::endl;
+        return;
+    }
+
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+
+    for (size_t i = 0; i < total_ops; ++i) {
+        size_t operation_index = i;
+        if (!do_forward) {
+            operation_index = total_ops - 1 - i;
+        }
+
+        json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            continue;
+        }
+
+        std::cout << "Trace Operations number: " << operation_index << std::endl;
+        track_curve_one_operation_tet(operation_log, curve, do_forward, use_rational, static_cast<int>(operation_index));
+    }
+}
+
+void track_surface_tet(
+    const std::filesystem::path& dirPath,
+    query_surface_tet& query_surface,
+    bool do_forward,
+    bool use_rational)
+{
+    BatchOperationLogReader reader(dirPath);
+    size_t total_ops = reader.get_total_operations();
+
+    if (total_ops == 0) {
+        std::cerr << "No operation logs found in " << dirPath << std::endl;
+        return;
+    }
+
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+
+    for (size_t i = 0; i < total_ops; ++i) {
+        size_t operation_index = i;
+        if (!do_forward) {
+            operation_index = total_ops - 1 - i;
+        }
+
+        json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            continue;
+        }
+
+        std::cout << "Trace Operations number: " << operation_index << std::endl;
+        track_surface_one_operation_tet(
+            operation_log,
+            query_surface,
+            do_forward,
+            use_rational,
+            static_cast<int>(operation_index));
+    }
+}

@@ -163,3 +163,45 @@ void parse_non_collapse_file_tet(
 //     std::vector<int64_t>& v_id_map_joint,
 //     std::vector<int64_t>& id_map_before,
 //     std::vector<int64_t>& id_map_after);
+
+// High-level tracking functions
+#include <filesystem>
+
+void track_point_one_operation_tet(
+    const json& operation_log,
+    std::vector<query_point_tet>& query_points,
+    bool do_forward,
+    bool use_rational,
+    int operation_id);
+
+void track_curve_one_operation_tet(
+    const json& operation_log,
+    query_curve_tet& curve,
+    bool do_forward,
+    bool use_rational,
+    int operation_id);
+
+void track_surface_one_operation_tet(
+    const json& operation_log,
+    query_surface_tet& query_surface,
+    bool do_forward,
+    bool use_rational,
+    int operation_id);
+
+void track_point_tet(
+    const std::filesystem::path& dirPath,
+    std::vector<query_point_tet>& query_points,
+    bool do_forward,
+    bool use_rational);
+
+void track_curve_tet(
+    const std::filesystem::path& dirPath,
+    query_curve_tet& curve,
+    bool do_forward,
+    bool use_rational);
+
+void track_surface_tet(
+    const std::filesystem::path& dirPath,
+    query_surface_tet& query_surface,
+    bool do_forward,
+    bool use_rational);

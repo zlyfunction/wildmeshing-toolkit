@@ -47,7 +47,25 @@ endif()
 
 target_compile_features(bijective_map_app PUBLIC cxx_std_17)
 
-add_executable(bijective_map_app_tet bijective_map_app_tet.cpp track_operations_tet.hpp track_operations_tet.cpp FindPointTetMesh.cpp vtu_utils.cpp batch_operation_log_reader.hpp batch_operation_log_reader.cpp)
+add_executable(bijective_map_app_tet
+    bijective_map_app_tet.cpp
+    track_operations_tet.hpp
+    track_operations_tet.cpp
+    FindPointTetMesh.cpp
+    vtu_utils.cpp
+    batch_operation_log_reader.hpp
+    batch_operation_log_reader.cpp
+    csv_io.hpp
+    csv_io.cpp
+    tet_point_tracking.hpp
+    tet_point_tracking.cpp
+    tet_curve_tracking.hpp
+    tet_curve_tracking.cpp
+    tet_surface_tracking.hpp
+    tet_surface_tracking.cpp
+    tet_surface_sampling.hpp
+    tet_surface_sampling.cpp
+)
 target_include_directories(bijective_map_app_tet PUBLIC
     ./InteractiveAndRobustMeshBooleans
     InteractiveAndRobustMeshBooleans/code/
