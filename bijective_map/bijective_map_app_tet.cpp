@@ -36,11 +36,19 @@ int main(int argc, char** argv)
     std::cout << "Application name: " << application_name << std::endl;
     auto init_mesh_ptr = wmtk::read_mesh(initial_mesh_file);
 
+
     // Get T_before and V_before from init_mesh_ptr using get_TV()
     std::cout << "\n=== Reading T_before and V_before from init_mesh_ptr ===" << std::endl;
     auto [T_before, V_before] = static_cast<wmtk::TetMesh&>(*init_mesh_ptr).get_TV();
     std::cout << "T_before: " << T_before.rows() << " x " << T_before.cols() << std::endl;
     std::cout << "V_before: " << V_before.rows() << " x " << V_before.cols() << std::endl;
+
+    // Write init_mesh to VTU file for visualization
+    std::cout << "\n=== Writing init_mesh to VTU file ===" << std::endl;
+    std::filesystem::path init_mesh_vtu = initial_mesh_file.filename();
+    init_mesh_vtu.replace_extension(".vtu");
+    vtu_utils::write_tet_mesh_to_vtu(V_before, T_before, init_mesh_vtu.string());
+    std::cout << "✓ Successfully wrote init_mesh to: " << init_mesh_vtu << std::endl;
 
     // Read mesh data from VTU file
     std::cout << "\n=== Reading T_after and V_after from out vtu file ===" << std::endl;
@@ -74,7 +82,16 @@ int main(int argc, char** argv)
     std::cout << "\n=== Running application ===" << std::endl;
 
     if (application_name == "back") {
-        tet_point_tracking::run_back_tracking(T_after, V_after, V_before, operation_logs_dir);
+        // Generate filenames based on mesh files (without path, only filename)
+        std::string output_points_file = output_mesh_file.stem().string() + "_points.vtu";
+        std::string initial_points_file = initial_mesh_file.stem().string() + "_points.vtu";
+        tet_point_tracking::run_back_tracking(
+            T_after,
+            V_after,
+            V_before,
+            operation_logs_dir,
+            output_points_file,
+            initial_points_file);
     } else if (application_name == "back_curve") {
         tet_curve_tracking::run_back_tracking_curve(T_after, V_after, V_before, operation_logs_dir);
     } else if (application_name == "back_surface") {

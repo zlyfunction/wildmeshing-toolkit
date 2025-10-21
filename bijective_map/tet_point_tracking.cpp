@@ -3,31 +3,40 @@
 #include <iostream>
 #include <unordered_map>
 #include "track_operations_tet.hpp"
+#include "vtu_utils.hpp"
 
 namespace tet_point_tracking {
 
-void write_points_to_file(
+Eigen::MatrixXd write_points_to_file(
     const std::vector<query_point_tet>& query_points,
     const Eigen::MatrixXd& V,
     const std::string& filename)
 {
-    std::ofstream file(filename);
+    // Compute point coordinates and store in Eigen::MatrixXd
+    Eigen::MatrixXd point_coords(query_points.size(), 3);
+
     for (int i = 0; i < query_points.size(); i++) {
         auto& qp = query_points[i];
         Eigen::Vector3d p(0, 0, 0);
         for (int j = 0; j < 4; j++) {
             p += qp.bc(j) * V.row(qp.tv_ids[j]);
         }
-        file << p[0] << "," << p[1] << ", " << p[2] << "\n";
+        point_coords.row(i) = p;
     }
-    file.close();
+
+    // Write to VTU file using vtu_utils
+    vtu_utils::write_point_mesh_to_vtu(point_coords, filename);
+
+    return point_coords;
 }
 
 void run_back_tracking(
     const Eigen::MatrixXi& T_after,
     const Eigen::MatrixXd& V_after,
     const Eigen::MatrixXd& V_before,
-    const std::filesystem::path& operation_logs_dir)
+    const std::filesystem::path& operation_logs_dir,
+    const std::string& points_after_remesh_filename,
+    const std::string& points_after_tracking_filename)
 {
     std::cout << "Back tracking" << std::endl;
 
@@ -45,8 +54,8 @@ void run_back_tracking(
             Eigen::Vector3i face;
             face << tet[j], tet[(j + 1) % 4], tet[(j + 2) % 4];
             std::sort(face.data(), face.data() + 3);
-            std::string face_key = std::to_string(face[0]) + "_" + std::to_string(face[1]) +
-                                   "_" + std::to_string(face[2]);
+            std::string face_key = std::to_string(face[0]) + "_" + std::to_string(face[1]) + "_" +
+                                   std::to_string(face[2]);
             face_count[face_key]++;
         }
     }
@@ -60,8 +69,8 @@ void run_back_tracking(
             Eigen::Vector3i face;
             face << tet[j], tet[(j + 1) % 4], tet[(j + 2) % 4];
             std::sort(face.data(), face.data() + 3);
-            std::string face_key = std::to_string(face[0]) + "_" + std::to_string(face[1]) +
-                                   "_" + std::to_string(face[2]);
+            std::string face_key = std::to_string(face[0]) + "_" + std::to_string(face[1]) + "_" +
+                                   std::to_string(face[2]);
             if (face_count[face_key] == 1) {
                 boundary_face_count++;
             }
@@ -84,11 +93,37 @@ void run_back_tracking(
 
     // compute position and save to file
     std::cout << "Writing points to file after remesh" << std::endl;
-    write_points_to_file(query_points, V_after, "points_after_remesh.csv");
+    auto points_before = write_points_to_file(query_points, V_after, points_after_remesh_filename);
     track_point_tet(operation_logs_dir, query_points, false, false);
 
     std::cout << "Writing points to file after back tracking" << std::endl;
-    write_points_to_file(query_points, V_before, "points_after_back_tracking.csv");
+    auto points_after =
+        write_points_to_file(query_points, V_before, points_after_tracking_filename);
+
+    bool write_diff_edges = true;
+    if (write_diff_edges) { // Create edge mesh connecting corresponding points from before and
+                            // after
+        std::cout << "Creating edge mesh connecting before/after points" << std::endl;
+        int num_points = points_before.rows();
+
+        // Combine vertices: first num_points rows are points_before, next num_points rows are
+        // points_after
+        Eigen::MatrixXd edge_vertices(2 * num_points, 3);
+        edge_vertices.topRows(num_points) = points_before;
+        edge_vertices.bottomRows(num_points) = points_after;
+
+        // Create edges: each edge connects point i from points_before to point i from points_after
+        Eigen::MatrixXi edges(num_points, 2);
+        for (int i = 0; i < num_points; i++) {
+            edges(i, 0) = i; // Index in points_before
+            edges(i, 1) = i + num_points; // Index in points_after
+        }
+
+        // Write edge mesh to VTU file
+        std::string edge_mesh_filename = "tracking_edges.vtu";
+        vtu_utils::write_edge_mesh_to_vtu(edge_vertices, edges, edge_mesh_filename);
+        std::cout << "✓ Successfully wrote edge mesh to: " << edge_mesh_filename << std::endl;
+    }
 }
 
 } // namespace tet_point_tracking
