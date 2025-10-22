@@ -9,7 +9,8 @@
 #include <igl/parallel_for.h>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
-// #include <wmtk/utils/Rational.hpp>
+
+// Data structures for query points, curves, and surfaces in tetrahedral meshes
 
 struct query_point_tet
 {
@@ -43,101 +44,17 @@ struct query_surface_tet
     std::vector<query_triangle_tet> triangles;
     // TODO: embed the connectivity of the triangles here
 };
+
+// Shared utility functions for barycentric coordinate conversions
 Eigen::Vector3d barycentric_to_world_tet(
     const Eigen::Vector4d& bc,
     const Eigen::Matrix<double, 4, 3>& v);
+
 Eigen::Vector4d world_to_barycentric_tet(
     const Eigen::Vector3d& p,
     const Eigen::Matrix<double, 4, 3>& v);
 
-void write_query_surface_tet_to_file(const query_surface_tet& surface, const std::string& filename);
-
-query_surface_tet read_query_surface_tet_from_file(const std::string& filename);
-
-
-void handle_consolidate_tet(
-    const std::vector<int64_t>& tet_ids_maps,
-    const std::vector<int64_t>& vertex_ids_maps,
-    std::vector<query_point_tet>& query_points,
-    bool forward = false);
-
-void handle_consolidate_tet_curve(
-    const std::vector<int64_t>& tet_ids_maps,
-    const std::vector<int64_t>& vertex_ids_maps,
-    query_curve_tet& curve,
-    bool forward = false);
-
-void handle_consolidate_tet_surface(
-    const std::vector<int64_t>& tet_ids_maps,
-    const std::vector<int64_t>& vertex_ids_maps,
-    query_surface_tet& surface,
-    bool forward = false);
-
-// // Rational version of handle_collapse_edge_tet
-// void handle_collapse_edge_tet_r(
-//     const Eigen::MatrixXd& UV_joint,
-//     const Eigen::MatrixXi& F_before,
-//     const Eigen::MatrixXi& F_after,
-//     const std::vector<int64_t>& v_id_map_joint,
-//     const std::vector<int64_t>& id_map_before,
-//     const std::vector<int64_t>& id_map_after,
-//     std::vector<query_point>& query_points);
-
-// void handle_collapse_edge_tet(
-//     const Eigen::MatrixXd& UV_joint,
-//     const Eigen::MatrixXi& F_before,
-//     const Eigen::MatrixXi& F_after,
-//     const std::vector<int64_t>& v_id_map_joint,
-//     const std::vector<int64_t>& id_map_before,
-//     const std::vector<int64_t>& id_map_after,
-//     std::vector<query_point>& query_points,
-//     bool use_rational = false);
-
-// // curve version of the handle_collapse_edge
-// void handle_collapse_edge_tet_curve(
-//     const Eigen::MatrixXd& UV_joint,
-//     const Eigen::MatrixXi& F_before,
-//     const Eigen::MatrixXi& F_after,
-//     const std::vector<int64_t>& v_id_map_joint,
-//     const std::vector<int64_t>& id_map_before,
-//     const std::vector<int64_t>& id_map_after,
-//     query_curve& curve,
-//     bool use_rational = false);
-
-// split/swap/smooth operations
-void handle_local_mapping_tet(
-    const Eigen::MatrixXd& V_before,
-    const Eigen::MatrixXi& T_before,
-    const std::vector<int64_t>& id_map_before,
-    const std::vector<int64_t>& v_id_map_before,
-    const Eigen::MatrixXd& V_after,
-    const Eigen::MatrixXi& T_after,
-    const std::vector<int64_t>& id_map_after,
-    const std::vector<int64_t>& v_id_map_after,
-    std::vector<query_point_tet>& query_points);
-
-void handle_local_mapping_tet_curve(
-    const Eigen::MatrixXd& V_before,
-    const Eigen::MatrixXi& T_before,
-    const std::vector<int64_t>& id_map_before,
-    const std::vector<int64_t>& v_id_map_before,
-    const Eigen::MatrixXd& V_after,
-    const Eigen::MatrixXi& T_after,
-    const std::vector<int64_t>& id_map_after,
-    const std::vector<int64_t>& v_id_map_after,
-    query_curve_tet& curve);
-
-void handle_local_mapping_tet_surface(
-    const Eigen::MatrixXd& V_before,
-    const Eigen::MatrixXi& T_before,
-    const std::vector<int64_t>& id_map_before,
-    const std::vector<int64_t>& v_id_map_before,
-    const Eigen::MatrixXd& V_after,
-    const Eigen::MatrixXi& T_after,
-    const std::vector<int64_t>& id_map_after,
-    const std::vector<int64_t>& v_id_map_after,
-    query_surface_tet& surface);
-
+// Shared file parsing functions
 void parse_consolidate_file_tet(
     const json& operation_log,
     std::vector<int64_t>& tet_ids_maps,
@@ -155,53 +72,7 @@ void parse_non_collapse_file_tet(
     std::vector<int64_t>& v_id_map_after,
     int operation_id = -1);
 
-// void parse_edge_collapse_file_tet(
-//     const json& operation_log,
-//     Eigen::MatrixXd& UV_joint,
-//     Eigen::MatrixXi& F_before,
-//     Eigen::MatrixXi& F_after,
-//     std::vector<int64_t>& v_id_map_joint,
-//     std::vector<int64_t>& id_map_before,
-//     std::vector<int64_t>& id_map_after);
-
-// High-level tracking functions
-#include <filesystem>
-
-void track_point_one_operation_tet(
-    const json& operation_log,
-    std::vector<query_point_tet>& query_points,
-    bool do_forward,
-    bool use_rational,
-    int operation_id);
-
-void track_curve_one_operation_tet(
-    const json& operation_log,
-    query_curve_tet& curve,
-    bool do_forward,
-    bool use_rational,
-    int operation_id);
-
-void track_surface_one_operation_tet(
-    const json& operation_log,
-    query_surface_tet& query_surface,
-    bool do_forward,
-    bool use_rational,
-    int operation_id);
-
-void track_point_tet(
-    const std::filesystem::path& dirPath,
-    std::vector<query_point_tet>& query_points,
-    bool do_forward,
-    bool use_rational);
-
-void track_curve_tet(
-    const std::filesystem::path& dirPath,
-    query_curve_tet& curve,
-    bool do_forward,
-    bool use_rational);
-
-void track_surface_tet(
-    const std::filesystem::path& dirPath,
-    query_surface_tet& query_surface,
-    bool do_forward,
-    bool use_rational);
+// Note: Point, curve, and surface tracking functions have been moved to:
+// - tet_point_tracking.hpp/cpp
+// - tet_curve_tracking.hpp/cpp
+// - tet_surface_tracking.hpp/cpp
