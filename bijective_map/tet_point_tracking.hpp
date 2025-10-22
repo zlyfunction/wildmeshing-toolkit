@@ -3,7 +3,7 @@
 #include <Eigen/Core>
 #include <filesystem>
 #include <vector>
-#include "track_operations_tet.hpp"
+#include "tet_track_operations.hpp"
 
 namespace tet_point_tracking {
 

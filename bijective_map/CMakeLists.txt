@@ -49,8 +49,8 @@ target_compile_features(bijective_map_app PUBLIC cxx_std_17)
 
 add_executable(bijective_map_app_tet
     bijective_map_app_tet.cpp
-    track_operations_tet.hpp
-    track_operations_tet.cpp
+    tet_track_operations.hpp
+    tet_track_operations.cpp
     FindPointTetMesh.cpp
     vtu_utils.cpp
     batch_operation_log_reader.hpp

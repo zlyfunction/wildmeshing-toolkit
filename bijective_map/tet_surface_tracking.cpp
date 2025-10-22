@@ -5,7 +5,7 @@
 #include <set>
 #include <cmath>
 #include <limits>
-#include "track_operations_tet.hpp"
+#include "tet_track_operations.hpp"
 #include "vtu_utils.hpp"
 
 namespace tet_surface_tracking {

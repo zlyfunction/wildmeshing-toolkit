@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Eigen/Core>
-#include "track_operations_tet.hpp"
+#include "tet_track_operations.hpp"
 
 namespace tet_surface_sampling {
 

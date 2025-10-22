@@ -2,7 +2,7 @@
 
 #include <Eigen/Core>
 #include <filesystem>
-#include "track_operations_tet.hpp"
+#include "tet_track_operations.hpp"
 
 namespace tet_curve_tracking {
 

@@ -2,7 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <unordered_map>
-#include "track_operations_tet.hpp"
+#include "tet_track_operations.hpp"
 #include "vtu_utils.hpp"
 
 namespace tet_point_tracking {

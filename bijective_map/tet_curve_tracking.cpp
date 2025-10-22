@@ -4,7 +4,7 @@
 #include <unordered_set>
 #include <random>
 #include <igl/tet_tet_adjacency.h>
-#include "track_operations_tet.hpp"
+#include "tet_track_operations.hpp"
 
 namespace tet_curve_tracking {
 
