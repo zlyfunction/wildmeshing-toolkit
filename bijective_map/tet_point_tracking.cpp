@@ -192,6 +192,30 @@ void handle_local_mapping_tet(
     const std::vector<int64_t>& v_id_map_after,
     std::vector<query_point_tet_t<CoordType>>& query_points)
 {
+    // If CoordType is wmtk::Rational, convert matrices and call exact version
+    if constexpr (std::is_same_v<CoordType, wmtk::Rational>) {
+        std::cout << "Handling Local Mapping (converting to rational exact version)" << std::endl;
+
+        // Convert double matrices to rational
+        auto V_before_rational = toRationalMatrix(V_before);
+        auto V_after_rational = toRationalMatrix(V_after);
+
+        // Call the exact version
+        handle_local_mapping_tet_exact(
+            V_before_rational,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            V_after_rational,
+            T_after,
+            id_map_after,
+            v_id_map_after,
+            query_points,
+            true);  // verbose = true
+
+        return;
+    }
+
     std::cout << "Handling Local Mapping" << std::endl;
     for (int id = 0; id < query_points.size(); id++) {
         auto& qp = query_points[id];
@@ -428,10 +452,44 @@ void handle_local_mapping_tet_exact(
         if (verbose) {
             std::cout << "Input qp" << id << ": \n" << qp << std::endl;
         }
-    }
 
 
-    // TODO::
+        // TODO:: qp to world coordinates
+        Eigen::Matrix<wmtk::Rational, 3, 1> p = Eigen::Matrix<wmtk::Rational, 3, 1>::Zero();
+        for (int i = 0; i < 4; i++) {
+            int v_id = qp.tv_ids[i];
+            auto it_v = std::find(v_id_map_after.begin(), v_id_map_after.end(), v_id);
+            if (it_v == v_id_map_after.end()) {
+                std::cout << "Error: vertex not found" << std::endl;
+                continue;
+            }
+            int local_index_in_v_after = std::distance(v_id_map_after.begin(), it_v);
+            p += qp.bc(i) * V_after.row(local_index_in_v_after).transpose();
+        }
+
+        // compute bc of the p in (V, T)_before
+        auto result = findTetContainingPointRational(V_before, T_before, p);
+        auto [t_id_before, bc_before] = result;
+
+        if (t_id_before == -1) {
+            std::cout << "Error: Point not in T_before" << std::endl;
+            throw std::runtime_error("Error: Point not in T_before in exact version");
+        }
+
+        if (verbose) {
+            // write out the change
+            std::cout << "Change: " << qp.t_id << "->" << id_map_before[t_id_before] << std::endl;
+            std::cout << "BC:" << to_double_vector(qp.bc).transpose() << "->"
+                      << to_double_vector(bc_before).transpose() << std::endl;
+        }
+
+        // update the query point
+        qp.t_id = id_map_before[t_id_before];
+        for (int i = 0; i < 4; i++) {
+            qp.tv_ids[i] = v_id_map_before[T_before(t_id_before, i)];
+            qp.bc(i) = bc_before(i);
+        }
+    } // for loop of query_points
 }
 
 // Explicit instantiations
