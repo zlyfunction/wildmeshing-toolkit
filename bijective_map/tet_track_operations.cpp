@@ -24,29 +24,70 @@ Matrix json_to_matrix(const json& js)
 }
 
 // Barycentric coordinate conversion functions
-Eigen::Vector3d barycentric_to_world_tet(
-    const Eigen::Vector4d& bc,
-    const Eigen::Matrix<double, 4, 3>& v)
+template <typename Scalar>
+Eigen::Matrix<Scalar, 3, 1> barycentric_to_world_tet(
+    const Eigen::Matrix<Scalar, 4, 1>& bc,
+    const Eigen::Matrix<Scalar, 4, 3>& v)
 {
-    std::cout << "bc: " << bc.transpose() << std::endl;
-    std::cout << "v: \n" << v << std::endl;
-    return bc[0] * v.row(0) + bc[1] * v.row(1) + bc[2] * v.row(2) + bc[3] * v.row(3);
+    // std::cout << "bc: " << bc.transpose() << std::endl;
+    // std::cout << "v: \n" << v << std::endl;
+    return bc[0] * v.row(0).transpose() + bc[1] * v.row(1).transpose() +
+           bc[2] * v.row(2).transpose() + bc[3] * v.row(3).transpose();
 }
 
-Eigen::Vector4d world_to_barycentric_tet(
-    const Eigen::Vector3d& p,
-    const Eigen::Matrix<double, 4, 3>& v)
+template <typename Scalar>
+Eigen::Matrix<Scalar, 4, 1> world_to_barycentric_tet(
+    const Eigen::Matrix<Scalar, 3, 1>& p,
+    const Eigen::Matrix<Scalar, 4, 3>& v)
 {
-    Eigen::MatrixXd p_mat = p.transpose();
-    Eigen::MatrixXd v0_mat = v.row(0);
-    Eigen::MatrixXd v1_mat = v.row(1);
-    Eigen::MatrixXd v2_mat = v.row(2);
-    Eigen::MatrixXd v3_mat = v.row(3);
-    Eigen::MatrixXd bc_mat;
-    igl::barycentric_coordinates(p_mat, v0_mat, v1_mat, v2_mat, v3_mat, bc_mat);
-    Eigen::Vector4d bc = bc_mat.row(0);
+    // Use volume ratio method for barycentric coordinates
+    // bc[i] = volume(p, v[j], v[k], v[l]) / volume(v[0], v[1], v[2], v[3])
+    // where j, k, l are the other three vertices
+
+    // Compute signed volume using determinant
+    auto signed_volume = [](const Eigen::Matrix<Scalar, 3, 1>& a,
+                            const Eigen::Matrix<Scalar, 3, 1>& b,
+                            const Eigen::Matrix<Scalar, 3, 1>& c,
+                            const Eigen::Matrix<Scalar, 3, 1>& d) -> Scalar {
+        Eigen::Matrix<Scalar, 3, 3> mat;
+        mat.col(0) = b - a;
+        mat.col(1) = c - a;
+        mat.col(2) = d - a;
+        return mat.determinant();
+    };
+
+    Eigen::Matrix<Scalar, 3, 1> v0 = v.row(0).transpose();
+    Eigen::Matrix<Scalar, 3, 1> v1 = v.row(1).transpose();
+    Eigen::Matrix<Scalar, 3, 1> v2 = v.row(2).transpose();
+    Eigen::Matrix<Scalar, 3, 1> v3 = v.row(3).transpose();
+
+    // Total volume
+    Scalar total_vol = signed_volume(v0, v1, v2, v3);
+
+    // Barycentric coordinates
+    Eigen::Matrix<Scalar, 4, 1> bc;
+    bc[0] = signed_volume(p, v1, v2, v3) / total_vol;
+    bc[1] = signed_volume(v0, p, v2, v3) / total_vol;
+    bc[2] = signed_volume(v0, v1, p, v3) / total_vol;
+    bc[3] = signed_volume(v0, v1, v2, p) / total_vol;
+
     return bc;
 }
+
+// Explicit template instantiations
+template Eigen::Matrix<double, 3, 1> barycentric_to_world_tet<double>(
+    const Eigen::Matrix<double, 4, 1>&,
+    const Eigen::Matrix<double, 4, 3>&);
+template Eigen::Matrix<wmtk::Rational, 3, 1> barycentric_to_world_tet<wmtk::Rational>(
+    const Eigen::Matrix<wmtk::Rational, 4, 1>&,
+    const Eigen::Matrix<wmtk::Rational, 4, 3>&);
+
+template Eigen::Matrix<double, 4, 1> world_to_barycentric_tet<double>(
+    const Eigen::Matrix<double, 3, 1>&,
+    const Eigen::Matrix<double, 4, 3>&);
+template Eigen::Matrix<wmtk::Rational, 4, 1> world_to_barycentric_tet<wmtk::Rational>(
+    const Eigen::Matrix<wmtk::Rational, 3, 1>&,
+    const Eigen::Matrix<wmtk::Rational, 4, 3>&);
 
 // File parsing functions
 void parse_consolidate_file_tet(

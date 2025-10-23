@@ -92,6 +92,17 @@ int main(int argc, char** argv)
             operation_logs_dir,
             output_points_file,
             initial_points_file);
+    } else if (application_name == "back_r") {
+        // Generate filenames for rational version
+        std::string output_points_file = output_mesh_file.stem().string() + "_points_rational.vtu";
+        std::string initial_points_file = initial_mesh_file.stem().string() + "_points_rational.vtu";
+        tet_point_tracking::run_back_tracking_rational(
+            T_after,
+            V_after,
+            V_before,
+            operation_logs_dir,
+            output_points_file,
+            initial_points_file);
     } else if (application_name == "back_curve") {
         tet_curve_tracking::run_back_tracking_curve(T_after, V_after, V_before, operation_logs_dir);
     } else if (application_name == "back_surface") {

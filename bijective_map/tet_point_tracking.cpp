@@ -414,8 +414,25 @@ void handle_local_mapping_tet_exact(
     const Eigen::MatrixXi& T_after,
     const std::vector<int64_t>& id_map_after,
     const std::vector<int64_t>& v_id_map_after,
-    std::vector<query_point_tet_t<wmtk::Rational>>& query_points)
-{}
+    std::vector<query_point_tet_t<wmtk::Rational>>& query_points,
+    bool verbose)
+{
+    std::cout << "Handling Local Mapping Exact(wmtk::Rational)" << std::endl;
+    for (int id = 0; id < query_points.size(); id++) {
+        auto& qp = query_points[id];
+        if (qp.t_id < 0) continue;
+        auto it = std::find(id_map_after.begin(), id_map_after.end(), qp.t_id);
+        if (it == id_map_after.end()) continue; // not found
+
+        int local_index_in_t_after = std::distance(id_map_after.begin(), it);
+        if (verbose) {
+            std::cout << "Input qp" << id << ": \n" << qp << std::endl;
+        }
+    }
+
+
+    // TODO::
+}
 
 // Explicit instantiations
 template void track_point_tet<double>(

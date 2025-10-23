@@ -68,7 +68,8 @@ void handle_local_mapping_tet_exact(
     const Eigen::MatrixXi& T_after,
     const std::vector<int64_t>& id_map_after,
     const std::vector<int64_t>& v_id_map_after,
-    std::vector<query_point_tet_t<wmtk::Rational>>& query_points);
+    std::vector<query_point_tet_t<wmtk::Rational>>& query_points,
+    bool verbose = false);
 
 
 template <typename CoordType = double>

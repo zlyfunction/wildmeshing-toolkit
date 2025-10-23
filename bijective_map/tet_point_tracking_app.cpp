@@ -134,6 +134,64 @@ void run_back_tracking(
     }
 }
 
+
+void run_back_tracking_rational(
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const Eigen::MatrixXd& V_before,
+    const std::filesystem::path& operation_logs_dir,
+    const std::string& points_after_remesh_filename,
+    const std::string& points_after_tracking_filename)
+{
+    std::cout << "Back tracking (rational version)" << std::endl;
+
+    // Sample some points on boundary tetrahedrons (double version)
+    std::vector<query_point_tet> query_points_double = sample_boundary_tet_points(T_after);
+
+    // Convert to rational
+    std::vector<query_point_tet_r> query_points_rational;
+    query_points_rational.reserve(query_points_double.size());
+    for (const auto& qp : query_points_double) {
+        query_points_rational.push_back(
+            tet_tracking_utils::convert_query_point_tet_to_rational(qp));
+    }
+
+    // Compute position and save to file (before tracking)
+    std::cout << "Writing points to file after remesh (rational)" << std::endl;
+    auto points_before = write_points_to_file(query_points_rational, V_after, points_after_remesh_filename);
+
+    // Track points using rational arithmetic
+    track_point_tet(operation_logs_dir, query_points_rational, false, true);
+
+    // Write points after tracking
+    std::cout << "Writing points to file after back tracking (rational)" << std::endl;
+    auto points_after =
+        write_points_to_file(query_points_rational, V_before, points_after_tracking_filename);
+
+    bool write_diff_edges = true;
+    if (write_diff_edges) {
+        std::cout << "Creating edge mesh connecting before/after points (rational)" << std::endl;
+        int num_points = points_before.rows();
+
+        // Combine vertices
+        Eigen::MatrixXd edge_vertices(2 * num_points, 3);
+        edge_vertices.topRows(num_points) = points_before;
+        edge_vertices.bottomRows(num_points) = points_after;
+
+        // Create edges
+        Eigen::MatrixXi edges(num_points, 2);
+        for (int i = 0; i < num_points; i++) {
+            edges(i, 0) = i;
+            edges(i, 1) = i + num_points;
+        }
+
+        // Write edge mesh to VTU file
+        std::string edge_mesh_filename = "tracking_edges_rational.vtu";
+        vtu_utils::write_edge_mesh_to_vtu(edge_vertices, edges, edge_mesh_filename);
+        std::cout << "✓ Successfully wrote edge mesh to: " << edge_mesh_filename << std::endl;
+    }
+}
+
 // Explicit instantiations
 template Eigen::MatrixXd write_points_to_file<double>(
     const std::vector<query_point_tet_t<double>>&,

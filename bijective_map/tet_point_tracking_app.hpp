@@ -33,4 +33,13 @@ void run_back_tracking(
     const std::string& points_after_remesh_filename = "points_after_remesh.vtu",
     const std::string& points_after_tracking_filename = "points_after_back_tracking.vtu");
 
+// Run back-tracking point application with rational arithmetic
+void run_back_tracking_rational(
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const Eigen::MatrixXd& V_before,
+    const std::filesystem::path& operation_logs_dir,
+    const std::string& points_after_remesh_filename = "points_after_remesh_rational.vtu",
+    const std::string& points_after_tracking_filename = "points_after_back_tracking_rational.vtu");
+
 } // namespace tet_point_tracking

@@ -155,13 +155,30 @@ struct query_surface_tet
 };
 
 // Shared utility functions for barycentric coordinate conversions
-Eigen::Vector3d barycentric_to_world_tet(
-    const Eigen::Vector4d& bc,
-    const Eigen::Matrix<double, 4, 3>& v);
+template <typename Scalar = double>
+Eigen::Matrix<Scalar, 3, 1> barycentric_to_world_tet(
+    const Eigen::Matrix<Scalar, 4, 1>& bc,
+    const Eigen::Matrix<Scalar, 4, 3>& v);
 
-Eigen::Vector4d world_to_barycentric_tet(
-    const Eigen::Vector3d& p,
-    const Eigen::Matrix<double, 4, 3>& v);
+template <typename Scalar = double>
+Eigen::Matrix<Scalar, 4, 1> world_to_barycentric_tet(
+    const Eigen::Matrix<Scalar, 3, 1>& p,
+    const Eigen::Matrix<Scalar, 4, 3>& v);
+
+// Explicit instantiations
+extern template Eigen::Matrix<double, 3, 1> barycentric_to_world_tet<double>(
+    const Eigen::Matrix<double, 4, 1>&,
+    const Eigen::Matrix<double, 4, 3>&);
+extern template Eigen::Matrix<wmtk::Rational, 3, 1> barycentric_to_world_tet<wmtk::Rational>(
+    const Eigen::Matrix<wmtk::Rational, 4, 1>&,
+    const Eigen::Matrix<wmtk::Rational, 4, 3>&);
+
+extern template Eigen::Matrix<double, 4, 1> world_to_barycentric_tet<double>(
+    const Eigen::Matrix<double, 3, 1>&,
+    const Eigen::Matrix<double, 4, 3>&);
+extern template Eigen::Matrix<wmtk::Rational, 4, 1> world_to_barycentric_tet<wmtk::Rational>(
+    const Eigen::Matrix<wmtk::Rational, 3, 1>&,
+    const Eigen::Matrix<wmtk::Rational, 4, 3>&);
 
 // Shared file parsing functions
 void parse_consolidate_file_tet(
