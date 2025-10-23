@@ -9,7 +9,7 @@
 // Application modules
 #include "csv_io.hpp"
 #include "tet_curve_tracking.hpp"
-#include "tet_point_tracking.hpp"
+#include "tet_point_tracking_app.hpp"
 #include "tet_surface_sampling.hpp"
 #include "tet_surface_tracking.hpp"
 #include "vtu_utils.hpp"

@@ -59,6 +59,8 @@ add_executable(bijective_map_app_tet
     csv_io.cpp
     tet_point_tracking.hpp
     tet_point_tracking.cpp
+    tet_point_tracking_app.hpp
+    tet_point_tracking_app.cpp
     tet_curve_tracking.hpp
     tet_curve_tracking.cpp
     tet_surface_tracking.hpp
