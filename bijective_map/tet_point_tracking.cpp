@@ -1,19 +1,29 @@
 #include "tet_point_tracking.hpp"
 #include <fstream>
-#include <iostream>
 #include <iomanip>
+#include <iostream>
+#include <type_traits>
 #include <unordered_map>
-#include "tet_track_operations.hpp"
-#include "vtu_utils.hpp"
-#include "tet_track_operations_internal.hpp"
-#include "batch_operation_log_reader.hpp"
-#include "FindPointTetMesh.hpp"
 #include <wmtk/utils/Rational.hpp>
+#include "FindPointTetMesh.hpp"
+#include "batch_operation_log_reader.hpp"
+#include "tet_track_operations.hpp"
+#include "tet_track_operations_internal.hpp"
+#include "vtu_utils.hpp"
 
 namespace tet_point_tracking {
 
+using tet_tracking_utils::clamp_coord;
+using tet_tracking_utils::to_double_scalar;
+using tet_tracking_utils::to_double_vector;
+
+
+////////////////////////////////////////////////////////////
+// Application Functions
+////////////////////////////////////////////////////////////
+template <typename CoordType>
 Eigen::MatrixXd write_points_to_file(
-    const std::vector<query_point_tet>& query_points,
+    const std::vector<query_point_tet_t<CoordType>>& query_points,
     const Eigen::MatrixXd& V,
     const std::string& filename)
 {
@@ -21,10 +31,10 @@ Eigen::MatrixXd write_points_to_file(
     Eigen::MatrixXd point_coords(query_points.size(), 3);
 
     for (int i = 0; i < query_points.size(); i++) {
-        auto& qp = query_points[i];
+        const auto& qp = query_points[i];
         Eigen::Vector3d p(0, 0, 0);
         for (int j = 0; j < 4; j++) {
-            p += qp.bc(j) * V.row(qp.tv_ids[j]);
+            p += to_double_scalar(qp.bc(j)) * V.row(qp.tv_ids[j]).transpose();
         }
         point_coords.row(i) = p;
     }
@@ -35,20 +45,10 @@ Eigen::MatrixXd write_points_to_file(
     return point_coords;
 }
 
-void run_back_tracking(
-    const Eigen::MatrixXi& T_after,
-    const Eigen::MatrixXd& V_after,
-    const Eigen::MatrixXd& V_before,
-    const std::filesystem::path& operation_logs_dir,
-    const std::string& points_after_remesh_filename,
-    const std::string& points_after_tracking_filename)
+
+// Sample points on boundary tetrahedrons (internal function)
+static std::vector<query_point_tet> sample_boundary_tet_points(const Eigen::MatrixXi& T_after)
 {
-    std::cout << "Back tracking" << std::endl;
-
-    // Sample points in T_after, V_after
-    std::vector<query_point_tet> query_points;
-
-    // Sample some points on boundary tetrahedrons
     std::vector<query_point_tet> boundary_query_points;
     std::unordered_map<std::string, int> face_count;
 
@@ -90,11 +90,23 @@ void run_back_tracking(
         }
     }
 
-    // Add sampled points from boundary tetrahedrons to the total query points
-    query_points.insert(
-        query_points.end(),
-        boundary_query_points.begin(),
-        boundary_query_points.end());
+    return boundary_query_points;
+}
+
+
+void run_back_tracking(
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const Eigen::MatrixXd& V_before,
+    const std::filesystem::path& operation_logs_dir,
+    const std::string& points_after_remesh_filename,
+    const std::string& points_after_tracking_filename)
+{
+    std::cout << "Back tracking" << std::endl;
+
+    // Sample some points on boundary tetrahedrons
+    std::vector<query_point_tet> query_points = sample_boundary_tet_points(T_after);
+
 
     // compute position and save to file
     std::cout << "Writing points to file after remesh" << std::endl;
@@ -131,20 +143,134 @@ void run_back_tracking(
     }
 }
 
-// Point-tracking specific functions extracted from tet_track_operations.cpp
+
+////////////////////////////////////////////////////////////
+// Interface for applications
+////////////////////////////////////////////////////////////
+
+// parse one operation and call the corresponding handling function
+template <typename CoordType>
+void track_point_one_operation_tet(
+    const json& operation_log,
+    std::vector<query_point_tet_t<CoordType>>& query_points,
+    bool do_forward,
+    bool use_rational,
+    int operation_id)
+{
+    std::string operation_name;
+    operation_name = operation_log["operation_name"];
+
+    if (operation_name == "MeshConsolidate") {
+        std::cout << "This Operations is Consolidate" << std::endl;
+        std::vector<int64_t> tet_ids_maps;
+        std::vector<int64_t> vertex_ids_maps;
+        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
+
+        handle_consolidate_tet(tet_ids_maps, vertex_ids_maps, query_points, do_forward);
+    } else {
+        std::cout << "This Operations is " << operation_name << std::endl;
+        Eigen::MatrixXi T_after, T_before;
+        Eigen::MatrixXd V_after, V_before;
+        std::vector<int64_t> id_map_after, id_map_before;
+        std::vector<int64_t> v_id_map_after, v_id_map_before;
+        parse_non_collapse_file_tet(
+            operation_log,
+            V_before,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            V_after,
+            T_after,
+            id_map_after,
+            v_id_map_after,
+            operation_id);
+
+        if (do_forward) {
+            handle_local_mapping_tet(
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                query_points);
+        } else {
+            handle_local_mapping_tet(
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                query_points);
+        }
+    }
+}
+
+
+// parse all the operation logs
+template <typename CoordType>
+void track_point_tet(
+    const std::filesystem::path& dirPath,
+    std::vector<query_point_tet_t<CoordType>>& query_points,
+    bool do_forward,
+    bool use_rational)
+{
+    BatchOperationLogReader reader(dirPath);
+    size_t total_ops = reader.get_total_operations();
+
+    if (total_ops == 0) {
+        std::cerr << "No operation logs found in " << dirPath << std::endl;
+        return;
+    }
+
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+
+    for (size_t i = 0; i < total_ops; ++i) {
+        size_t operation_index = i;
+        if (!do_forward) {
+            operation_index = total_ops - 1 - i;
+        }
+
+        json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            continue;
+        }
+
+        std::cout << "Trace Operations number: " << operation_index << std::endl;
+        track_point_one_operation_tet(
+            operation_log,
+            query_points,
+            do_forward,
+            use_rational,
+            static_cast<int>(operation_index));
+    }
+}
+
+
+////////////////////////////////////////////////////////////
+// Real Handling Functions
+////////////////////////////////////////////////////////////
 
 // handle consolidate point version
+template <typename CoordType>
 void handle_consolidate_tet(
     const std::vector<int64_t>& tet_ids_maps,
     const std::vector<int64_t>& vertex_ids_maps,
-    std::vector<query_point_tet>& query_points,
+    std::vector<query_point_tet_t<CoordType>>& query_points,
     bool forward)
 {
     std::cout << "Handling Consolidate" << std::endl;
     if (!forward) {
         // backward
         igl::parallel_for(query_points.size(), [&](int id) {
-            query_point_tet& qp = query_points[id];
+            auto& qp = query_points[id];
             if (qp.t_id >= 0) {
                 if (tet_ids_maps[qp.t_id] != qp.t_id) {
                     qp.t_id = tet_ids_maps[qp.t_id];
@@ -159,7 +285,7 @@ void handle_consolidate_tet(
     } else {
         // forward
         igl::parallel_for(query_points.size(), [&](int id) {
-            query_point_tet& qp = query_points[id];
+            auto& qp = query_points[id];
             if (qp.t_id >= 0) {
                 auto it = std::find(tet_ids_maps.begin(), tet_ids_maps.end(), qp.t_id);
                 if (it != tet_ids_maps.end()) {
@@ -179,6 +305,8 @@ void handle_consolidate_tet(
     }
 }
 
+
+template <typename CoordType>
 void handle_local_mapping_tet(
     const Eigen::MatrixXd& V_before,
     const Eigen::MatrixXi& T_before,
@@ -188,11 +316,11 @@ void handle_local_mapping_tet(
     const Eigen::MatrixXi& T_after,
     const std::vector<int64_t>& id_map_after,
     const std::vector<int64_t>& v_id_map_after,
-    std::vector<query_point_tet>& query_points)
+    std::vector<query_point_tet_t<CoordType>>& query_points)
 {
     std::cout << "Handling Local Mapping" << std::endl;
     for (int id = 0; id < query_points.size(); id++) {
-        query_point_tet& qp = query_points[id];
+        auto& qp = query_points[id];
         // TODO: maybe for here is not needed
         if (qp.t_id < 0) continue;
         auto it = std::find(id_map_after.begin(), id_map_after.end(), qp.t_id);
@@ -201,7 +329,7 @@ void handle_local_mapping_tet(
         int local_index_in_t_after = std::distance(id_map_after.begin(), it);
         std::cout << "Input barycentric coordinates: ";
         for (int i = 0; i < qp.bc.size(); ++i) {
-            std::cout << std::setprecision(16) << qp.bc(i);
+            std::cout << std::setprecision(16) << to_double_scalar(qp.bc(i));
             if (i < qp.bc.size() - 1) std::cout << " ";
         }
         std::cout << std::endl;
@@ -218,7 +346,7 @@ void handle_local_mapping_tet(
             }
 
             int local_index_in_v_after = std::distance(v_id_map_after.begin(), it_v);
-            p += V_after.row(local_index_in_v_after) * qp.bc(i);
+            p += to_double_scalar(qp.bc(i)) * V_after.row(local_index_in_v_after).transpose();
         }
 
         // compute bc of the p in (V, T)_before
@@ -239,7 +367,11 @@ void handle_local_mapping_tet(
 
             // Convert barycentric coordinates to rational
             for (int i = 0; i < 4; ++i) {
-                bc_rational(i) = wmtk::Rational(qp.bc(i));
+                if constexpr (std::is_same_v<CoordType, wmtk::Rational>) {
+                    bc_rational(i) = qp.bc(i);
+                } else {
+                    bc_rational(i) = wmtk::Rational(qp.bc(i));
+                }
             }
 
             // Get tetrahedron vertices and convert to rational
@@ -385,116 +517,92 @@ void handle_local_mapping_tet(
 
         // write out the change
         std::cout << "Change: " << qp.t_id << "->" << id_map_before[t_id_before] << std::endl;
-        std::cout << "BC:" << qp.bc.transpose() << "->" << bc_before.transpose() << std::endl;
+        std::cout << "BC:" << to_double_vector(qp.bc).transpose() << "->" << bc_before.transpose()
+                  << std::endl;
 
         // update the query point
         qp.t_id = id_map_before[t_id_before];
         for (int i = 0; i < 4; i++) {
             qp.tv_ids[i] = v_id_map_before[T_before(t_id_before, i)];
-            qp.bc(i) = std::max(0.0, std::min(1.0, bc_before(i)));
+            qp.bc(i) = clamp_coord<CoordType>(bc_before(i));
         }
         qp.bc /= qp.bc.sum(); // normalize
     }
 }
 
-void track_point_one_operation_tet(
-    const json& operation_log,
-    std::vector<query_point_tet>& query_points,
-    bool do_forward,
-    bool use_rational,
-    int operation_id)
-{
-    std::string operation_name;
-    operation_name = operation_log["operation_name"];
 
-    if (operation_name == "MeshConsolidate") {
-        std::cout << "This Operations is Consolidate" << std::endl;
-        std::vector<int64_t> tet_ids_maps;
-        std::vector<int64_t> vertex_ids_maps;
-        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
+void handle_local_mapping_tet_exact(
+    const Eigen::MatrixX<wmtk::Rational>& V_before,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before,
+    const Eigen::MatrixX<wmtk::Rational>& V_after,
+    const Eigen::MatrixXi& T_after,
+    const std::vector<int64_t>& id_map_after,
+    const std::vector<int64_t>& v_id_map_after,
+    std::vector<query_point_tet_t<wmtk::Rational>>& query_points)
+{}
 
-        handle_consolidate_tet(tet_ids_maps, vertex_ids_maps, query_points, do_forward);
-    } else {
-        std::cout << "This Operations is " << operation_name << std::endl;
-        Eigen::MatrixXi T_after, T_before;
-        Eigen::MatrixXd V_after, V_before;
-        std::vector<int64_t> id_map_after, id_map_before;
-        std::vector<int64_t> v_id_map_after, v_id_map_before;
-        parse_non_collapse_file_tet(
-            operation_log,
-            V_before,
-            T_before,
-            id_map_before,
-            v_id_map_before,
-            V_after,
-            T_after,
-            id_map_after,
-            v_id_map_after,
-            operation_id);
-
-        if (do_forward) {
-            handle_local_mapping_tet(
-                V_after,
-                T_after,
-                id_map_after,
-                v_id_map_after,
-                V_before,
-                T_before,
-                id_map_before,
-                v_id_map_before,
-                query_points);
-        } else {
-            handle_local_mapping_tet(
-                V_before,
-                T_before,
-                id_map_before,
-                v_id_map_before,
-                V_after,
-                T_after,
-                id_map_after,
-                v_id_map_after,
-                query_points);
-        }
-    }
-}
-
-void track_point_tet(
-    const std::filesystem::path& dirPath,
-    std::vector<query_point_tet>& query_points,
-    bool do_forward,
-    bool use_rational)
-{
-    BatchOperationLogReader reader(dirPath);
-    size_t total_ops = reader.get_total_operations();
-
-    if (total_ops == 0) {
-        std::cerr << "No operation logs found in " << dirPath << std::endl;
-        return;
-    }
-
-    std::cout << "Found " << total_ops << " operations in "
-              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
-
-    for (size_t i = 0; i < total_ops; ++i) {
-        size_t operation_index = i;
-        if (!do_forward) {
-            operation_index = total_ops - 1 - i;
-        }
-
-        json operation_log = reader.get_operation(operation_index);
-        if (operation_log.empty()) {
-            std::cerr << "Failed to read operation " << operation_index << std::endl;
-            continue;
-        }
-
-        std::cout << "Trace Operations number: " << operation_index << std::endl;
-        track_point_one_operation_tet(
-            operation_log,
-            query_points,
-            do_forward,
-            use_rational,
-            static_cast<int>(operation_index));
-    }
-}
+// Explicit instantiations
+template void track_point_tet<double>(
+    const std::filesystem::path&,
+    std::vector<query_point_tet_t<double>>&,
+    bool,
+    bool);
+template void track_point_tet<wmtk::Rational>(
+    const std::filesystem::path&,
+    std::vector<query_point_tet_t<wmtk::Rational>>&,
+    bool,
+    bool);
+template Eigen::MatrixXd write_points_to_file<double>(
+    const std::vector<query_point_tet_t<double>>&,
+    const Eigen::MatrixXd&,
+    const std::string&);
+template Eigen::MatrixXd write_points_to_file<wmtk::Rational>(
+    const std::vector<query_point_tet_t<wmtk::Rational>>&,
+    const Eigen::MatrixXd&,
+    const std::string&);
+template void handle_consolidate_tet<double>(
+    const std::vector<int64_t>&,
+    const std::vector<int64_t>&,
+    std::vector<query_point_tet_t<double>>&,
+    bool);
+template void handle_consolidate_tet<wmtk::Rational>(
+    const std::vector<int64_t>&,
+    const std::vector<int64_t>&,
+    std::vector<query_point_tet_t<wmtk::Rational>>&,
+    bool);
+template void track_point_one_operation_tet<double>(
+    const json&,
+    std::vector<query_point_tet_t<double>>&,
+    bool,
+    bool,
+    int);
+template void track_point_one_operation_tet<wmtk::Rational>(
+    const json&,
+    std::vector<query_point_tet_t<wmtk::Rational>>&,
+    bool,
+    bool,
+    int);
+template void handle_local_mapping_tet<double>(
+    const Eigen::MatrixXd&,
+    const Eigen::MatrixXi&,
+    const std::vector<int64_t>&,
+    const std::vector<int64_t>&,
+    const Eigen::MatrixXd&,
+    const Eigen::MatrixXi&,
+    const std::vector<int64_t>&,
+    const std::vector<int64_t>&,
+    std::vector<query_point_tet_t<double>>&);
+template void handle_local_mapping_tet<wmtk::Rational>(
+    const Eigen::MatrixXd&,
+    const Eigen::MatrixXi&,
+    const std::vector<int64_t>&,
+    const std::vector<int64_t>&,
+    const Eigen::MatrixXd&,
+    const Eigen::MatrixXi&,
+    const std::vector<int64_t>&,
+    const std::vector<int64_t>&,
+    std::vector<query_point_tet_t<wmtk::Rational>>&);
 
 } // namespace tet_point_tracking
