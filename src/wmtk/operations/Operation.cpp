@@ -42,6 +42,8 @@ using json = nlohmann::json;
 #include <igl/slice_into.h>
 #include <igl/triangle/scaf.h>
 #include <igl/writeOBJ.h>
+
+#define EPS_TET_DEGEN 0
 // #define WMTK_DEBUG_VISUALIZE
 namespace wmtk::operations {
 
@@ -837,6 +839,7 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                             },
                             simplex);
 
+
                     // EdgeCollapse operation
                     if (operation_name == "EdgeCollapse") {
                         // check if there is a edge connected from interior to a boundary
@@ -899,29 +902,81 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
 
                             if (T_after.rows() == 0) {
                                 std::cout << "T_after is empty" << std::endl;
+                                // TODO: THIS COULD BE A PROBLEM
+                                // throw std::runtime_error("T_after is empty");
                                 scope.mark_failed();
                                 return {};
                             }
-                            std::cout << "v_id_map_before:" << std::endl;
-                            for (int id = 0; id < v_id_map_before.size(); id++) {
-                                std::cout << "id: " << id << " : " << v_id_map_before[id]
-                                          << std::endl;
+
+
+                            {
+                                // Check for negative or degenerate tets in T_before
+                                for (int i = 0; i < T_before.rows(); i++) {
+                                    Eigen::Matrix<double, 4, 3> tet_vertices;
+                                    tet_vertices.row(0) = V_before.row(T_before(i, 0));
+                                    tet_vertices.row(1) = V_before.row(T_before(i, 1));
+                                    tet_vertices.row(2) = V_before.row(T_before(i, 2));
+                                    tet_vertices.row(3) = V_before.row(T_before(i, 3));
+
+                                    Eigen::Matrix3d mat;
+                                    mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
+                                    mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
+                                    mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
+                                    double vol = mat.determinant() / 6.0;
+
+                                    if (vol <= EPS_TET_DEGEN) {
+                                        std::cout << "Found negative/degenerate tet in T_before"
+                                                  << std::endl;
+                                        scope.mark_failed();
+                                        return {};
+                                    }
+                                }
+
+                                // Check for negative or degenerate tets in T_after
+                                for (int i = 0; i < T_after.rows(); i++) {
+                                    Eigen::Matrix<double, 4, 3> tet_vertices;
+                                    tet_vertices.row(0) = V_after.row(T_after(i, 0));
+                                    tet_vertices.row(1) = V_after.row(T_after(i, 1));
+                                    tet_vertices.row(2) = V_after.row(T_after(i, 2));
+                                    tet_vertices.row(3) = V_after.row(T_after(i, 3));
+
+                                    Eigen::Matrix3d mat;
+                                    mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
+                                    mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
+                                    mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
+                                    double vol = mat.determinant() / 6.0;
+
+                                    if (vol <= EPS_TET_DEGEN) {
+                                        std::cout << "Found negative/degenerate tet in T_after"
+                                                  << std::endl;
+                                        scope.mark_failed();
+                                        return {};
+                                    }
+                                }
+                            }
+                            // DEBUG: print out the v_id_map_before and v_id_map_after
+                            {
+                                std::cout << "v_id_map_before:" << std::endl;
+                                for (int id = 0; id < v_id_map_before.size(); id++) {
+                                    std::cout << "id: " << id << " : " << v_id_map_before[id]
+                                              << std::endl;
+                                }
+
+                                std::cout << "v_id_map_after:" << std::endl;
+                                for (int id = 0; id < v_id_map_after.size(); id++) {
+                                    std::cout << "id: " << id << " : " << v_id_map_after[id]
+                                              << std::endl;
+                                }
+                                // DEBUG: visualize the mesh before and after embedding
+                                // utils::visualize_tet_mesh(V_before, T_before);
+                                // utils::visualize_tet_mesh(V_after, T_after);
+                                std::cout << "T_before:" << std::endl;
+                                std::cout << T_before << std::endl;
+
+                                std::cout << "T_after:" << std::endl;
+                                std::cout << T_after << std::endl;
                             }
 
-                            std::cout << "v_id_map_after:" << std::endl;
-                            for (int id = 0; id < v_id_map_after.size(); id++) {
-                                std::cout << "id: " << id << " : " << v_id_map_after[id]
-                                          << std::endl;
-                            }
-
-                            // DEBUG: visualize the mesh before and after embedding
-                            // utils::visualize_tet_mesh(V_before, T_before);
-                            // utils::visualize_tet_mesh(V_after, T_after);
-                            std::cout << "T_before:" << std::endl;
-                            std::cout << T_before << std::endl;
-
-                            std::cout << "T_after:" << std::endl;
-                            std::cout << T_after << std::endl;
 
                             // TODO: find v1, so v0-v1 is the edge to collapse in before
                             int v1 = std::find(
@@ -939,6 +994,7 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                             auto V_before_param = utils::embed_mesh_lift(T_before, V_before, 0, v1);
 
                             if (V_before_param.rows() == 0) {
+                                std::cout << "Failed to embed the mesh" << std::endl;
                                 scope.mark_failed();
                                 return {};
                             } else {
@@ -984,6 +1040,54 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                                 // update the mesh to store in json
                                 V_before = V_before_param;
                                 V_after = V_after_param;
+
+                                {
+                                    // Check for negative or degenerate tets in T_before
+                                    for (int i = 0; i < T_before.rows(); i++) {
+                                        Eigen::Matrix<double, 4, 3> tet_vertices;
+                                        tet_vertices.row(0) = V_before.row(T_before(i, 0));
+                                        tet_vertices.row(1) = V_before.row(T_before(i, 1));
+                                        tet_vertices.row(2) = V_before.row(T_before(i, 2));
+                                        tet_vertices.row(3) = V_before.row(T_before(i, 3));
+
+                                        Eigen::Matrix3d mat;
+                                        mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
+                                        mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
+                                        mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
+                                        double vol = mat.determinant() / 6.0;
+
+                                        if (vol <= EPS_TET_DEGEN) {
+                                            std::cout << "Found negative/degenerate tet in "
+                                                         "T_before embedding"
+                                                      << std::endl;
+                                            scope.mark_failed();
+                                            return {};
+                                        }
+                                    }
+
+                                    // Check for negative or degenerate tets in T_after
+                                    for (int i = 0; i < T_after.rows(); i++) {
+                                        Eigen::Matrix<double, 4, 3> tet_vertices;
+                                        tet_vertices.row(0) = V_after.row(T_after(i, 0));
+                                        tet_vertices.row(1) = V_after.row(T_after(i, 1));
+                                        tet_vertices.row(2) = V_after.row(T_after(i, 2));
+                                        tet_vertices.row(3) = V_after.row(T_after(i, 3));
+
+                                        Eigen::Matrix3d mat;
+                                        mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
+                                        mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
+                                        mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
+                                        double vol = mat.determinant() / 6.0;
+
+                                        if (vol <= EPS_TET_DEGEN) {
+                                            std::cout << "Found negative/degenerate tet in T_after "
+                                                         "embedding"
+                                                      << std::endl;
+                                            scope.mark_failed();
+                                            return {};
+                                        }
+                                    }
+                                }
                                 // utils::visualize_tet_mesh(V_after_param, T_after);
                             } // end if (embedding is successful)
 
