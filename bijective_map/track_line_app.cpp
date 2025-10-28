@@ -1115,10 +1115,7 @@ void forward_track_plane_curves_app(
 
 
                 for (const auto& info : intersections_infos) {
-                    std::cout << "Intersection: other_curve_id=" << info.other_curve_id
-                              << ", type=" << static_cast<int>(info.type)
-                              << ", seg_order_id=" << info.seg_order_id << ", t=" << info.t
-                              << std::endl;
+                    std::cout << info << std::endl;
                 }
                 std::cout << std::endl;
             }
@@ -1129,12 +1126,7 @@ void forward_track_plane_curves_app(
     TrackLinesOptions track_options;
     track_options.enable_rounding = enable_rounding;
     track_options.enable_merge = enable_merge;
-    track_lines<wmtk::Rational>(
-        operation_logs_dir,
-        curves,
-        true,
-        do_parallel,
-        track_options);
+    track_lines<wmtk::Rational>(operation_logs_dir, curves, true, do_parallel, track_options);
 
     std::cout << "finished track lines" << std::endl;
 

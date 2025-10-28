@@ -9,14 +9,12 @@
 
 bool CurveIntersectionPoint::operator<(const CurveIntersectionPoint& other) const
 {
-    double rate = double(seg_order_id) + t;
-    double other_rate = double(other.seg_order_id) + other.t;
+    // Use operator== for equality check first; if equal, further compare type
+    if (*this == other) {
+        if (other_curve_id != other.other_curve_id) {
+            return other_curve_id < other.other_curve_id;
+        }
 
-    if (rate != other_rate)
-        return rate < other_rate;
-    else if (other_curve_id != other.other_curve_id)
-        return other_curve_id < other.other_curve_id;
-    else {
         // left > right > point
         auto type_order = [](IntersectionType t) {
             switch (t) {
@@ -28,14 +26,32 @@ bool CurveIntersectionPoint::operator<(const CurveIntersectionPoint& other) cons
         };
         return type_order(type) < type_order(other.type);
     }
+    // Otherwise use lex order: (seg_order_id, t, other_curve_id)
+    if (seg_order_id != other.seg_order_id) {
+        return seg_order_id < other.seg_order_id;
+    } else if (t != other.t) {
+        return t < other.t;
+    } else {
+        return other_curve_id < other.other_curve_id;
+    }
 }
 
 bool CurveIntersectionPoint::operator==(const CurveIntersectionPoint& other) const
 {
-    double rate = double(seg_order_id) + t;
-    double other_rate = double(other.seg_order_id) + other.t;
-
-    return rate == other_rate;
+    // Two points are equal if:
+    // 1. (seg_order_id == other.seg_order_id && t == other.t)
+    // 2. (seg_order_id == other.seg_order_id - 1 && t == 1.0 && other.t == 0.0)
+    // 3. (other.seg_order_id == seg_order_id - 1 && other.t == 1.0 && t == 0.0)
+    if (seg_order_id == other.seg_order_id && t == other.t) {
+        return true;
+    }
+    if (seg_order_id + 1 == other.seg_order_id && t == 1.0 && other.t == 0.0) {
+        return true;
+    }
+    if (other.seg_order_id + 1 == seg_order_id && other.t == 1.0 && t == 0.0) {
+        return true;
+    }
+    return false;
 }
 
 std::ostream& operator<<(std::ostream& os, const CurveIntersectionPoint& pt)
@@ -49,7 +65,7 @@ std::ostream& operator<<(std::ostream& os, const CurveIntersectionPoint& pt)
     case IntersectionType::SEGMENT_RIGHT: os << "SEGMENT_RIGHT"; break;
     }
     os << ", seg_order=" << pt.seg_order_id;
-    os << ", t=" << std::fixed << std::setprecision(6) << pt.t;
+    os << ", t=" << std::fixed << std::setprecision(16) << pt.t;
     os << "}";
     return os;
 }
