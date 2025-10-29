@@ -153,12 +153,13 @@ void run_back_tracking_rational(
     query_points_rational.reserve(query_points_double.size());
     for (const auto& qp : query_points_double) {
         query_points_rational.push_back(
-            tet_tracking_utils::convert_query_point_tet_to_rational(qp));
+            tet_tracking_utils::convert_query_point_tet_to_rational(qp, true));
     }
 
     // Compute position and save to file (before tracking)
     std::cout << "Writing points to file after remesh (rational)" << std::endl;
-    auto points_before = write_points_to_file(query_points_rational, V_after, points_after_remesh_filename);
+    auto points_before =
+        write_points_to_file(query_points_rational, V_after, points_after_remesh_filename);
 
     // Track points using rational arithmetic
     track_point_tet(operation_logs_dir, query_points_rational, false, true);
