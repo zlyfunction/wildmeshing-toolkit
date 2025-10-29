@@ -61,7 +61,14 @@ int main(int argc, char* argv[])
         }
     }
 #ifdef WMTK_RECORD_OPERATIONS
-    OperationLogPath = generatePathNameWithCurrentTime();
+    std::string model_name = "default";
+    if (j["input"].is_string()) {
+        fs::path input_path = j["input"].get<std::string>();
+        if (input_path.has_filename()) {
+            model_name = input_path.stem().string();
+        }
+    }
+    OperationLogPath = generatePathNameWithModelName(model_name);
     initializeBatchLogging();
 #endif
     const fs::path input_file = resolve_paths(json_input_file, {j["input_path"], j["input"]});
