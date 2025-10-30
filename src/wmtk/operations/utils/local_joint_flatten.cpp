@@ -288,9 +288,15 @@ void flatten(
 
     // check UVjoint's area and orientation, if not valid, roll back to uv_init
     {
-        bool valid = check_uv_orientation(UVjoint, F_joint_before);
-        if (!valid) {
+        bool valid = true;
+        if (!UVjoint.allFinite()) {
+            std::cout << "UVjoint contains invalid values, roll back UVjoint to uv_init" << std::endl;
+            valid = false;
+        } else if (!check_uv_orientation(UVjoint, F_joint_before)) {
             std::cout << "Roll back UVjoint to uv_init" << std::endl;
+            valid = false;
+        }
+        if (!valid) {
             // roll back UVjoint to uv_init
             UVjoint = uv_init;
         }
