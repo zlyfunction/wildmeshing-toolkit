@@ -10,7 +10,7 @@ namespace wmtk::utils {
  * For 2D planar meshes, checking boundary loop self-intersection is sufficient
  * @param V Vertex matrix (n x 2)
  * @param F Face matrix (m x 3)
- * @param eps Numerical tolerance for intersection test
+ * @param eps Reserved for compatibility; ignored by the exact-predicate implementation
  * @return True if mesh has self-intersections, false otherwise
  */
 bool hasSelfIntersection2D(
@@ -35,7 +35,7 @@ bool hasSelfIntersection3D(
  * @brief Check if two 2D line segments intersect (used internally)
  * @param p1, q1 First line segment endpoints
  * @param p2, q2 Second line segment endpoints  
- * @param eps Numerical tolerance for intersection test
+ * @param eps Reserved for compatibility; ignored by the exact-predicate implementation
  * @return True if segments intersect, false otherwise
  */
 bool doSegmentsIntersect2D(

@@ -2,23 +2,25 @@
 #include <igl/boundary_loop.h>
 #include <cmath>
 #include <algorithm>
+#include <wmtk/utils/orient.hpp>
 
 namespace wmtk::utils {
 
 namespace {
     // Helper function for point-on-segment test
-    bool onSegment(const Eigen::RowVector2d& p, const Eigen::RowVector2d& q, const Eigen::RowVector2d& r, double eps) {
-        return q[0] <= std::max(p[0], r[0]) + eps &&
-               q[0] >= std::min(p[0], r[0]) - eps &&
-               q[1] <= std::max(p[1], r[1]) + eps &&
-               q[1] >= std::min(p[1], r[1]) - eps;
+    bool onSegment(const Eigen::RowVector2d& p, const Eigen::RowVector2d& q, const Eigen::RowVector2d& r) {
+        return q[0] <= std::max(p[0], r[0]) &&
+               q[0] >= std::min(p[0], r[0]) &&
+               q[1] <= std::max(p[1], r[1]) &&
+               q[1] >= std::min(p[1], r[1]);
     }
 
     // Helper function for orientation test
-    int orientation(const Eigen::RowVector2d& p, const Eigen::RowVector2d& q, const Eigen::RowVector2d& r, double eps) {
-        double val = (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1]);
-        if (std::abs(val) < eps) return 0; // collinear
-        return (val > 0) ? 1 : 2; // clock or counterclock wise
+    int orientation(const Eigen::RowVector2d& p, const Eigen::RowVector2d& q, const Eigen::RowVector2d& r) {
+        const Eigen::Vector2d pv = p.transpose();
+        const Eigen::Vector2d qv = q.transpose();
+        const Eigen::Vector2d rv = r.transpose();
+        return wmtk_orient2d(pv, qv, rv);
     }
 
     // Helper function to test if point is inside triangle (2D projection)
@@ -237,21 +239,21 @@ bool doSegmentsIntersect2D(
     const Eigen::RowVector2d& q1, 
     const Eigen::RowVector2d& p2,
     const Eigen::RowVector2d& q2,
-    double eps) {
+    double /*eps*/) {
     
-    int o1 = orientation(p1, q1, p2, eps);
-    int o2 = orientation(p1, q1, q2, eps);
-    int o3 = orientation(p2, q2, p1, eps);
-    int o4 = orientation(p2, q2, q1, eps);
+    const int o1 = orientation(p1, q1, p2);
+    const int o2 = orientation(p1, q1, q2);
+    const int o3 = orientation(p2, q2, p1);
+    const int o4 = orientation(p2, q2, q1);
 
     // General case
     if (o1 != o2 && o3 != o4) return true;
 
     // Special Cases - collinear points
-    if (o1 == 0 && onSegment(p1, p2, q1, eps)) return true;
-    if (o2 == 0 && onSegment(p1, q2, q1, eps)) return true;
-    if (o3 == 0 && onSegment(p2, p1, q2, eps)) return true;
-    if (o4 == 0 && onSegment(p2, q1, q2, eps)) return true;
+    if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+    if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+    if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+    if (o4 == 0 && onSegment(p2, q1, q2)) return true;
 
     return false; // No intersection
 }
