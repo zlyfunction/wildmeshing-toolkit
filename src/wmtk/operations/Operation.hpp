@@ -3,6 +3,9 @@
 #include "attribute_new/NewAttributeStrategy.hpp"
 #include "attribute_update/AttributeTransferStrategyBase.hpp"
 
+#include <nlohmann/json_fwd.hpp>
+#include <vector>
+
 #include <wmtk/Tuple.hpp>
 #include <wmtk/attribute/Accessor.hpp>
 #include <wmtk/invariants/InvariantCollection.hpp>
@@ -10,6 +13,10 @@
 
 namespace wmtk {
 class Mesh;
+
+namespace multimesh::attribute {
+class AttributeScopeHandle;
+} // namespace multimesh::attribute
 
 namespace operations {
 
@@ -89,6 +96,11 @@ protected:
 
 
     void apply_attribute_transfer(const std::vector<simplex::Simplex>& direct_mods);
+
+    bool record_tetrahedron_operation(
+        const simplex::Simplex& simplex,
+        const std::vector<simplex::Simplex>& mods,
+        nlohmann::json& operation_log);
 
     virtual void record_operation() {}
 

@@ -41,6 +41,7 @@ using json = nlohmann::json;
 #include <igl/slice.h>
 #include <igl/slice_into.h>
 #include <igl/triangle/scaf.h>
+#include <igl/volume.h>
 #include <igl/writeOBJ.h>
 
 #define EPS_TET_DEGEN 0
@@ -807,318 +808,10 @@ std::vector<simplex::Simplex> Operation::operator()(const simplex::Simplex& simp
                     }
 
                 } else if (mesh().top_simplex_type() == PrimitiveType::Tetrahedron) {
-                    // Prepare the mesh for the operation
-                    bool is_simplex_boundary = mesh().parent_scope(
-                        [&](const simplex::Simplex& s) { return mesh().is_boundary(s); },
-                        simplex);
-
-                    // TODO: what about swap operation
-                    Eigen::MatrixXi T_after, T_before, F_bd_after, F_bd_before;
-                    Eigen::MatrixXd V_after, V_before;
-
-                    std::vector<int64_t> id_map_after, id_map_before, v_id_map_after,
-                        v_id_map_before;
-
-                    std::tie(T_after, V_after, F_bd_after, id_map_after, v_id_map_after) =
-                        utils::get_local_tetmesh(
-                            static_cast<const TetMesh&>(mesh()),
-                            mods[0],
-                            is_simplex_boundary && operation_name == "EdgeCollapse");
-
-                    std::tie(T_before, V_before, F_bd_before, id_map_before, v_id_map_before) =
-                        mesh().parent_scope(
-                            [&](const simplex::Simplex& s) {
-                                if (operation_name == "EdgeCollapse")
-                                    return utils::get_local_tetmesh_before_collapse(
-                                        static_cast<const TetMesh&>(mesh()),
-                                        s);
-                                return utils::get_local_tetmesh(
-                                    static_cast<const TetMesh&>(mesh()),
-                                    s,
-                                    is_simplex_boundary && operation_name == "EdgeCollapse");
-                            },
-                            simplex);
-
-
-                    // EdgeCollapse operation
-                    if (operation_name == "EdgeCollapse") {
-                        // check if there is a edge connected from interior to a boundary
-                        // vertex
-                        auto [is_bd_v0, is_bd_v1] = mesh().parent_scope(
-                            [&](const simplex::Simplex& s) {
-                                return std::make_tuple(
-                                    mesh().is_boundary(simplex::Simplex::vertex(mesh(), s.tuple())),
-                                    mesh().is_boundary(simplex::Simplex::vertex(
-                                        mesh(),
-                                        mesh().switch_tuple(s.tuple(), PrimitiveType::Vertex))));
-                            },
-                            simplex);
-
-
-                        if (is_simplex_boundary) {
-                            // TODO: Figure out which vertex is collapse towards which vertex
-                            // For now, let's assume it's simplex -> simplex.switch_vertex()
-                            // re-obtain all the local mesh
-                            // step1: get all the tet connect to vertex(simplex) before collapse
-                            auto all_tets_before = mesh().parent_scope(
-                                [&](const simplex::Simplex& s) {
-                                    return simplex::top_dimension_cofaces(
-                                               mesh(),
-                                               simplex::Simplex::vertex(mesh(), s.tuple()))
-                                        .simplex_vector(PrimitiveType::Tetrahedron);
-                                },
-                                simplex);
-
-                            // step2: get all_tets_after, which is is all tets in
-                            // all_tets_before which is still valid
-                            std::vector<simplex::Simplex> all_tets_after;
-                            for (const auto& tet : all_tets_before) {
-                                if (mesh().is_valid(tet)) {
-                                    all_tets_after.push_back(tet);
-                                }
-                            }
-
-                            // DEBUG: print out size of all_tets_before and all_tets_after
-                            std::cout << "size of all_tets_before: " << all_tets_before.size()
-                                      << std::endl;
-                            std::cout << "size of all_tets_after: " << all_tets_after.size()
-                                      << std::endl;
-
-                            // step3: build TV_before and TV_after based on these tets
-                            std::tie(T_before, V_before, id_map_before, v_id_map_before) =
-                                mesh().parent_scope(
-                                    [&](const simplex::Simplex& s) {
-                                        return utils::build_local_TV_matrix(
-                                            static_cast<const TetMesh&>(mesh()),
-                                            all_tets_before,
-                                            simplex::Simplex::vertex(mesh(), s.tuple()));
-                                    },
-                                    simplex);
-                            std::tie(T_after, V_after, id_map_after, v_id_map_after) =
-                                utils::build_local_TV_matrix(
-                                    static_cast<const TetMesh&>(mesh()),
-                                    all_tets_after,
-                                    simplex::Simplex::vertex(mesh(), mods[0].tuple()));
-
-                            if (T_after.rows() == 0) {
-                                std::cout << "T_after is empty" << std::endl;
-                                // TODO: THIS COULD BE A PROBLEM
-                                // throw std::runtime_error("T_after is empty");
-                                scope.mark_failed();
-                                return {};
-                            }
-
-
-                            {
-                                // Check for negative or degenerate tets in T_before
-                                for (int i = 0; i < T_before.rows(); i++) {
-                                    Eigen::Matrix<double, 4, 3> tet_vertices;
-                                    tet_vertices.row(0) = V_before.row(T_before(i, 0));
-                                    tet_vertices.row(1) = V_before.row(T_before(i, 1));
-                                    tet_vertices.row(2) = V_before.row(T_before(i, 2));
-                                    tet_vertices.row(3) = V_before.row(T_before(i, 3));
-
-                                    Eigen::Matrix3d mat;
-                                    mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
-                                    mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
-                                    mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
-                                    double vol = mat.determinant() / 6.0;
-
-                                    if (vol <= EPS_TET_DEGEN) {
-                                        std::cout << "Found negative/degenerate tet in T_before"
-                                                  << std::endl;
-                                        scope.mark_failed();
-                                        return {};
-                                    }
-                                }
-
-                                // Check for negative or degenerate tets in T_after
-                                for (int i = 0; i < T_after.rows(); i++) {
-                                    Eigen::Matrix<double, 4, 3> tet_vertices;
-                                    tet_vertices.row(0) = V_after.row(T_after(i, 0));
-                                    tet_vertices.row(1) = V_after.row(T_after(i, 1));
-                                    tet_vertices.row(2) = V_after.row(T_after(i, 2));
-                                    tet_vertices.row(3) = V_after.row(T_after(i, 3));
-
-                                    Eigen::Matrix3d mat;
-                                    mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
-                                    mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
-                                    mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
-                                    double vol = mat.determinant() / 6.0;
-
-                                    if (vol <= EPS_TET_DEGEN) {
-                                        std::cout << "Found negative/degenerate tet in T_after"
-                                                  << std::endl;
-                                        scope.mark_failed();
-                                        return {};
-                                    }
-                                }
-                            }
-                            // DEBUG: print out the v_id_map_before and v_id_map_after
-                            {
-                                std::cout << "v_id_map_before:" << std::endl;
-                                for (int id = 0; id < v_id_map_before.size(); id++) {
-                                    std::cout << "id: " << id << " : " << v_id_map_before[id]
-                                              << std::endl;
-                                }
-
-                                std::cout << "v_id_map_after:" << std::endl;
-                                for (int id = 0; id < v_id_map_after.size(); id++) {
-                                    std::cout << "id: " << id << " : " << v_id_map_after[id]
-                                              << std::endl;
-                                }
-                                // DEBUG: visualize the mesh before and after embedding
-                                // utils::visualize_tet_mesh(V_before, T_before);
-                                // utils::visualize_tet_mesh(V_after, T_after);
-                                std::cout << "T_before:" << std::endl;
-                                std::cout << T_before << std::endl;
-
-                                std::cout << "T_after:" << std::endl;
-                                std::cout << T_after << std::endl;
-                            }
-
-
-                            // TODO: find v1, so v0-v1 is the edge to collapse in before
-                            int v1 = std::find(
-                                         v_id_map_before.begin(),
-                                         v_id_map_before.end(),
-                                         v_id_map_after[0]) -
-                                     v_id_map_before.begin();
-                            if (v1 == 0 || v1 == v_id_map_before.size()) {
-                                throw std::runtime_error(
-                                    "can't find v1, which is the edge to collapse in before");
-                            }
-                            std::cout << "edge to collapse in before: " << 0 << " " << v1
-                                      << std::endl;
-                            // embed the mesh!!!
-                            auto V_before_param = utils::embed_mesh_lift(T_before, V_before, 0, v1);
-
-                            if (V_before_param.rows() == 0) {
-                                std::cout << "Failed to embed the mesh" << std::endl;
-                                scope.mark_failed();
-                                return {};
-                            } else {
-                                Eigen::MatrixXd V_after_param(V_after.rows(), V_after.cols());
-                                int element_in_before_not_after = -1;
-                                for (int i = 0; i < v_id_map_before.size(); i++) {
-                                    if (std::find(
-                                            v_id_map_after.begin(),
-                                            v_id_map_after.end(),
-                                            v_id_map_before[i]) == v_id_map_after.end()) {
-                                        element_in_before_not_after = i;
-                                        break;
-                                    }
-                                }
-
-
-                                // v0
-                                if (v_id_map_before[0] == v_id_map_after[0]) {
-                                    V_after_param.row(0) =
-                                        V_before_param.row(element_in_before_not_after);
-                                } else {
-                                    auto it = std::find(
-                                        v_id_map_before.begin(),
-                                        v_id_map_before.end(),
-                                        v_id_map_after[0]);
-                                    if (it != v_id_map_before.end()) {
-                                        int index = std::distance(v_id_map_before.begin(), it);
-                                        V_after_param.row(0) = V_before_param.row(index);
-                                    }
-                                }
-                                // other vertices
-                                for (int i = 1; i < v_id_map_after.size(); i++) {
-                                    auto it = std::find(
-                                        v_id_map_before.begin(),
-                                        v_id_map_before.end(),
-                                        v_id_map_after[i]);
-                                    if (it != v_id_map_before.end()) {
-                                        int index = std::distance(v_id_map_before.begin(), it);
-                                        V_after_param.row(i) = V_before_param.row(index);
-                                    }
-                                }
-
-                                // update the mesh to store in json
-                                V_before = V_before_param;
-                                V_after = V_after_param;
-
-                                {
-                                    // Check for negative or degenerate tets in T_before
-                                    for (int i = 0; i < T_before.rows(); i++) {
-                                        Eigen::Matrix<double, 4, 3> tet_vertices;
-                                        tet_vertices.row(0) = V_before.row(T_before(i, 0));
-                                        tet_vertices.row(1) = V_before.row(T_before(i, 1));
-                                        tet_vertices.row(2) = V_before.row(T_before(i, 2));
-                                        tet_vertices.row(3) = V_before.row(T_before(i, 3));
-
-                                        Eigen::Matrix3d mat;
-                                        mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
-                                        mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
-                                        mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
-                                        double vol = mat.determinant() / 6.0;
-
-                                        if (vol <= EPS_TET_DEGEN) {
-                                            std::cout << "Found negative/degenerate tet in "
-                                                         "T_before embedding"
-                                                      << std::endl;
-                                            scope.mark_failed();
-                                            return {};
-                                        }
-                                    }
-
-                                    // Check for negative or degenerate tets in T_after
-                                    for (int i = 0; i < T_after.rows(); i++) {
-                                        Eigen::Matrix<double, 4, 3> tet_vertices;
-                                        tet_vertices.row(0) = V_after.row(T_after(i, 0));
-                                        tet_vertices.row(1) = V_after.row(T_after(i, 1));
-                                        tet_vertices.row(2) = V_after.row(T_after(i, 2));
-                                        tet_vertices.row(3) = V_after.row(T_after(i, 3));
-
-                                        Eigen::Matrix3d mat;
-                                        mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
-                                        mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
-                                        mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
-                                        double vol = mat.determinant() / 6.0;
-
-                                        if (vol <= EPS_TET_DEGEN) {
-                                            std::cout << "Found negative/degenerate tet in T_after "
-                                                         "embedding"
-                                                      << std::endl;
-                                            scope.mark_failed();
-                                            return {};
-                                        }
-                                    }
-                                }
-                                // utils::visualize_tet_mesh(V_after_param, T_after);
-                            } // end if (embedding is successful)
-
-                        } // end if (is_simplex_boundary)
-                    } // end if (operation_name == "EdgeCollapse")
-                    // operation_log["success"] = true;
-                    // STORE information to logfile
-                    operation_log["T_after"]["rows"] = T_after.rows();
-                    operation_log["T_after"]["values"] = matrix_to_json(T_after);
-                    operation_log["V_after"]["rows"] = V_after.rows();
-                    operation_log["V_after"]["values"] = matrix_to_json(V_after);
-                    operation_log["F_bd_after"]["rows"] = F_bd_after.rows();
-                    operation_log["F_bd_after"]["values"] = matrix_to_json(F_bd_after);
-                    operation_log["T_id_map_after"] = id_map_after;
-                    operation_log["V_id_map_after"] = v_id_map_after;
-
-                    operation_log["T_before"]["rows"] = T_before.rows();
-                    operation_log["T_before"]["values"] = matrix_to_json(T_before);
-                    operation_log["V_before"]["rows"] = V_before.rows();
-                    operation_log["V_before"]["values"] = matrix_to_json(V_before);
-                    operation_log["F_bd_before"]["rows"] = F_bd_before.rows();
-                    operation_log["F_bd_before"]["values"] = matrix_to_json(F_bd_before);
-                    operation_log["T_id_map_before"] = id_map_before;
-                    operation_log["V_id_map_before"] = v_id_map_before;
-
-                    // operation_log["T_before_all"]["rows"] = T_before_all.rows();
-                    // operation_log["T_before_all"]["values"] = matrix_to_json(T_before_all);
-                    // operation_log["V_before_all"]["rows"] = V_before_all.rows();
-                    // operation_log["V_before_all"]["values"] = matrix_to_json(V_before_all);
-                    // operation_log["T_after_all"]["rows"] = T_after_all.rows();
-                    // operation_log["T_after_all"]["values"] = matrix_to_json(T_after_all);
+                    if (!record_tetrahedron_operation(simplex, mods, operation_log)) {
+                        scope.mark_failed();
+                        return {};
+                    }
                 }
 
                 // Use batch logging system instead of individual files
@@ -1231,6 +924,248 @@ void Operation::apply_attribute_transfer(const std::vector<simplex::Simplex>& di
             }
         }
     }
+}
+
+bool Operation::record_tetrahedron_operation(
+    const simplex::Simplex& simplex,
+    const std::vector<simplex::Simplex>& mods,
+    json& operation_log)
+{
+    const bool is_simplex_boundary = mesh().parent_scope(
+        [&](const simplex::Simplex& s) { return mesh().is_boundary(s); },
+        simplex);
+
+    Eigen::MatrixXi T_after, T_before, F_bd_after, F_bd_before;
+    Eigen::MatrixXd V_after, V_before;
+
+    std::vector<int64_t> id_map_after, id_map_before, v_id_map_after, v_id_map_before;
+
+    auto matrix_to_json = [](const auto& matrix) {
+        json result = json::array();
+        for (int i = 0; i < matrix.rows(); ++i) {
+            json row = json::array();
+            for (int j = 0; j < matrix.cols(); ++j) {
+                row.push_back(matrix(i, j));
+            }
+            result.push_back(row);
+        }
+        return result;
+    };
+
+    std::tie(T_after, V_after, F_bd_after, id_map_after, v_id_map_after) = utils::get_local_tetmesh(
+        static_cast<const TetMesh&>(mesh()),
+        mods[0],
+        is_simplex_boundary && operation_name == "EdgeCollapse");
+
+    std::tie(T_before, V_before, F_bd_before, id_map_before, v_id_map_before) = mesh().parent_scope(
+        [&](const simplex::Simplex& s) {
+            if (operation_name == "EdgeCollapse") {
+                return utils::get_local_tetmesh_before_collapse(
+                    static_cast<const TetMesh&>(mesh()),
+                    s);
+            }
+            return utils::get_local_tetmesh(
+                static_cast<const TetMesh&>(mesh()),
+                s,
+                is_simplex_boundary && operation_name == "EdgeCollapse");
+        },
+        simplex);
+
+
+    {
+        Eigen::VectorXd vols_before, vols_after;
+        double min_vol_before = std::numeric_limits<double>::max();
+        double min_vol_after = std::numeric_limits<double>::max();
+        if (T_before.rows() > 0) {
+            igl::volume(V_before, T_before, vols_before);
+            min_vol_before = vols_before.array().abs().minCoeff();
+        }
+        if (T_after.rows() > 0) {
+            igl::volume(V_after, T_after, vols_after);
+            min_vol_after = vols_after.array().abs().minCoeff();
+        }
+        std::cout << "min vol before = " << min_vol_before << ", min vol after = " << min_vol_after
+                  << std::endl;
+    }
+
+    if (operation_name == "EdgeCollapse") {
+        auto [is_bd_v0, is_bd_v1] = mesh().parent_scope(
+            [&](const simplex::Simplex& s) {
+                return std::make_tuple(
+                    mesh().is_boundary(simplex::Simplex::vertex(mesh(), s.tuple())),
+                    mesh().is_boundary(simplex::Simplex::vertex(
+                        mesh(),
+                        mesh().switch_tuple(s.tuple(), PrimitiveType::Vertex))));
+            },
+            simplex);
+
+        if (is_simplex_boundary) {
+            auto all_tets_before = mesh().parent_scope(
+                [&](const simplex::Simplex& s) {
+                    return simplex::top_dimension_cofaces(
+                               mesh(),
+                               simplex::Simplex::vertex(mesh(), s.tuple()))
+                        .simplex_vector(PrimitiveType::Tetrahedron);
+                },
+                simplex);
+
+            std::vector<simplex::Simplex> all_tets_after;
+            for (const auto& tet : all_tets_before) {
+                if (mesh().is_valid(tet)) {
+                    all_tets_after.push_back(tet);
+                }
+            }
+
+            std::tie(T_before, V_before, id_map_before, v_id_map_before) = mesh().parent_scope(
+                [&](const simplex::Simplex& s) {
+                    return utils::build_local_TV_matrix(
+                        static_cast<const TetMesh&>(mesh()),
+                        all_tets_before,
+                        simplex::Simplex::vertex(mesh(), s.tuple()));
+                },
+                simplex);
+            std::tie(T_after, V_after, id_map_after, v_id_map_after) = utils::build_local_TV_matrix(
+                static_cast<const TetMesh&>(mesh()),
+                all_tets_after,
+                simplex::Simplex::vertex(mesh(), mods[0].tuple()));
+
+            if (T_after.rows() == 0) {
+                std::cout << "T_after is empty" << std::endl;
+                return false;
+            }
+
+
+            // Volume check
+            {
+                Eigen::VectorXd volumes_before;
+                igl::volume(V_before, T_before, volumes_before);
+                for (int i = 0; i < volumes_before.size(); ++i) {
+                    if (volumes_before[i] <= EPS_TET_DEGEN) {
+                        std::cout << "Found negative/degenerate tet in T_before" << std::endl;
+                        return false;
+                    }
+                }
+                Eigen::VectorXd volumes_after;
+                igl::volume(V_after, T_after, volumes_after);
+                for (int i = 0; i < volumes_after.size(); ++i) {
+                    if (volumes_after[i] <= EPS_TET_DEGEN) {
+                        std::cout << "Found negative/degenerate tet in T_after" << std::endl;
+                        return false;
+                    }
+                }
+            }
+
+            const int v1 =
+                std::find(v_id_map_before.begin(), v_id_map_before.end(), v_id_map_after[0]) -
+                v_id_map_before.begin();
+            if (v1 == 0 || v1 == v_id_map_before.size()) {
+                throw std::runtime_error("can't find v1, which is the edge to collapse in before");
+            }
+            std::cout << "edge to collapse in before: " << 0 << " " << v1 << std::endl;
+
+            auto V_before_param = utils::embed_mesh_lift(T_before, V_before, 0, v1);
+
+            if (V_before_param.rows() == 0) {
+                std::cout << "Failed to embed the mesh" << std::endl;
+                return false;
+            }
+
+            Eigen::MatrixXd V_after_param(V_after.rows(), V_after.cols());
+            int element_in_before_not_after = -1;
+            for (int i = 0; i < v_id_map_before.size(); ++i) {
+                if (std::find(v_id_map_after.begin(), v_id_map_after.end(), v_id_map_before[i]) ==
+                    v_id_map_after.end()) {
+                    element_in_before_not_after = i;
+                    break;
+                }
+            }
+
+            if (v_id_map_before[0] == v_id_map_after[0]) {
+                V_after_param.row(0) = V_before_param.row(element_in_before_not_after);
+            } else {
+                const auto it =
+                    std::find(v_id_map_before.begin(), v_id_map_before.end(), v_id_map_after[0]);
+                if (it != v_id_map_before.end()) {
+                    const int index = std::distance(v_id_map_before.begin(), it);
+                    V_after_param.row(0) = V_before_param.row(index);
+                }
+            }
+
+            for (int i = 1; i < v_id_map_after.size(); ++i) {
+                const auto it =
+                    std::find(v_id_map_before.begin(), v_id_map_before.end(), v_id_map_after[i]);
+                if (it != v_id_map_before.end()) {
+                    const int index = std::distance(v_id_map_before.begin(), it);
+                    V_after_param.row(i) = V_before_param.row(index);
+                }
+            }
+
+            V_before = V_before_param;
+            V_after = V_after_param;
+
+            for (int i = 0; i < T_before.rows(); ++i) {
+                Eigen::Matrix<double, 4, 3> tet_vertices;
+                tet_vertices.row(0) = V_before.row(T_before(i, 0));
+                tet_vertices.row(1) = V_before.row(T_before(i, 1));
+                tet_vertices.row(2) = V_before.row(T_before(i, 2));
+                tet_vertices.row(3) = V_before.row(T_before(i, 3));
+
+                Eigen::Matrix3d mat;
+                mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
+                mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
+                mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
+                const double vol = mat.determinant() / 6.0;
+
+                if (vol <= EPS_TET_DEGEN) {
+                    std::cout << "Found negative/degenerate tet in T_before embedding" << std::endl;
+                    return false;
+                }
+            }
+
+            for (int i = 0; i < T_after.rows(); ++i) {
+                Eigen::Matrix<double, 4, 3> tet_vertices;
+                tet_vertices.row(0) = V_after.row(T_after(i, 0));
+                tet_vertices.row(1) = V_after.row(T_after(i, 1));
+                tet_vertices.row(2) = V_after.row(T_after(i, 2));
+                tet_vertices.row(3) = V_after.row(T_after(i, 3));
+
+                Eigen::Matrix3d mat;
+                mat.col(0) = tet_vertices.row(1) - tet_vertices.row(0);
+                mat.col(1) = tet_vertices.row(2) - tet_vertices.row(0);
+                mat.col(2) = tet_vertices.row(3) - tet_vertices.row(0);
+                const double vol = mat.determinant() / 6.0;
+
+                if (vol <= EPS_TET_DEGEN) {
+                    std::cout << "Found negative/degenerate tet in T_after embedding" << std::endl;
+                    return false;
+                }
+            }
+
+            operation_log["is_boundary_simplex"] = true;
+        } else {
+            operation_log["is_boundary_simplex"] = false;
+        }
+    }
+
+    operation_log["T_after"]["rows"] = T_after.rows();
+    operation_log["T_after"]["values"] = matrix_to_json(T_after);
+    operation_log["V_after"]["rows"] = V_after.rows();
+    operation_log["V_after"]["values"] = matrix_to_json(V_after);
+    operation_log["F_bd_after"]["rows"] = F_bd_after.rows();
+    operation_log["F_bd_after"]["values"] = matrix_to_json(F_bd_after);
+    operation_log["T_id_map_after"] = id_map_after;
+    operation_log["V_id_map_after"] = v_id_map_after;
+
+    operation_log["T_before"]["rows"] = T_before.rows();
+    operation_log["T_before"]["values"] = matrix_to_json(T_before);
+    operation_log["V_before"]["rows"] = V_before.rows();
+    operation_log["V_before"]["values"] = matrix_to_json(V_before);
+    operation_log["F_bd_before"]["rows"] = F_bd_before.rows();
+    operation_log["F_bd_before"]["values"] = matrix_to_json(F_bd_before);
+    operation_log["T_id_map_before"] = id_map_before;
+    operation_log["V_id_map_before"] = v_id_map_before;
+
+    return true;
 }
 
 
