@@ -247,6 +247,18 @@ void build_segment_spatial_cache(
     }
 }
 
+template <typename CoordType>
+int is_land_on_point(const Eigen::Vector3<CoordType>& bc, const Eigen::Vector3i& fv_ids)
+{
+    CoordType one(1);
+    for (int i = 0; i < 3; i++) {
+        if (bc[i] == one) {
+            return fv_ids[i];
+        }
+    }
+    return -1;
+}
+
 // CHECKED
 // Get candidate segments from curve2 that could intersect with seg_on_curve1
 template <typename CoordType>
@@ -278,9 +290,23 @@ std::pair<bool, std::vector<int>> get_candidate_segments(
         }
     }
 
+    for (int i = 0; i < 2; i++) {
+        int vid = is_land_on_point(seg_on_curve1.bcs[i], seg_on_curve1.fv_ids);
+        if (vid == -1) continue;
+        // find all keys of edge_to_segments, if it contains vid, then put all seg_id of it to
+        // candidates
+        for (const auto& [edge, seg_ids] : edge_to_segments) {
+            if (edge.first == vid || edge.second == vid) {
+                for (int seg_id : seg_ids) {
+                    candidates.insert(seg_id);
+                }
+            }
+        }
+    }
+
+
     return {is_on_edge, std::vector<int>(candidates.begin(), candidates.end())};
 }
-
 
 // Helper: Check if two points are the same based on bc and vertex IDs
 template <typename CoordType>
@@ -617,15 +643,8 @@ std::vector<CurveIntersectionPoint> compute_intersections_between_two_curve_new_
         std::cout << "\nTotal intersections found: " << intersections.size() << std::endl;
     }
 
+
     clean_up_intersections_array(intersections, is_curve1_loop, curve1.segments.size());
-
-    if (verbose) {
-        std::cout << "Sorted intersections:\n";
-        for (const auto& intersection : intersections) {
-            std::cout << "  " << intersection << '\n';
-        }
-    }
-
 
     return intersections;
 }

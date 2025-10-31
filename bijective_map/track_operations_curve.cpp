@@ -982,7 +982,8 @@ void merge_segments(
 
                     bool same = true;
                     for (size_t k = 0; k < inter_before.size(); ++k) {
-                        if (inter_before[k].other_curve_id != inter_after[k].other_curve_id) {
+                        if (inter_before[k].other_curve_id != inter_after[k].other_curve_id ||
+                            inter_before[k].type != inter_after[k].type) {
                             same = false;
                             break;
                         }
