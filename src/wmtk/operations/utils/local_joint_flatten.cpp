@@ -295,6 +295,17 @@ void flatten(
         } else if (!check_uv_orientation(UVjoint, F_joint_before)) {
             std::cout << "Roll back UVjoint to uv_init" << std::endl;
             valid = false;
+        } else {
+            // Check for negative areas using libigl's doublearea
+            Eigen::VectorXd areas;
+            igl::doublearea(UVjoint, F_joint_before, areas);
+            for (int i = 0; i < areas.size(); i++) {
+                if (areas(i) < 0) {
+                    std::cout << "UVjoint contains negative area (triangle " << i << "), roll back UVjoint to uv_init" << std::endl;
+                    valid = false;
+                    break;
+                }
+            }
         }
         if (!valid) {
             // roll back UVjoint to uv_init
