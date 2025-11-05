@@ -739,7 +739,13 @@ void track_lines(
                 std::cerr << "Failed to read operation " << operation_index << std::endl;
                 continue;
             }
-            track_lines_one_operation<CoordType>(operation_log, curves, do_forward, options, operation_index, model_name);
+            track_lines_one_operation<CoordType>(
+                operation_log,
+                curves,
+                do_forward,
+                options,
+                operation_index,
+                model_name);
 
             // if (i % 100 == 1) {
             //     for (auto& curve : curves) {
@@ -747,7 +753,9 @@ void track_lines(
             //     }
             // }
         }
-
+        for (auto& curve : curves) {
+            clean_up_curve_t(curve);
+        }
         total_timer.stop();
         std::cout << "total time: " << total_timer.getElapsedTime() << " seconds" << std::endl;
     }
@@ -1142,7 +1150,13 @@ void forward_track_plane_curves_app(
     TrackLinesOptions track_options;
     track_options.enable_rounding = enable_rounding;
     track_options.enable_merge = enable_merge;
-    track_lines<wmtk::Rational>(operation_logs_dir, curves, true, do_parallel, track_options, model_name);
+    track_lines<wmtk::Rational>(
+        operation_logs_dir,
+        curves,
+        true,
+        do_parallel,
+        track_options,
+        model_name);
 
     std::cout << "finished track lines" << std::endl;
 

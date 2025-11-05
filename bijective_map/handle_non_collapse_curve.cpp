@@ -416,6 +416,51 @@ void handle_non_collapse_operation_curve_rational(
     }
 }
 
+// Utils function to get all local curve parts prior to remapping
+std::vector<std::vector<std::vector<int>>> get_all_curve_parts(
+    const std::vector<int64_t>& id_map_after,
+    const std::vector<query_curve_t<wmtk::Rational>>& curves)
+{
+    std::vector<std::vector<std::vector<int>>> all_curves_parts(curves.size());
+
+    for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
+        const auto& curve = curves[curve_id];
+
+        std::vector<query_point_r> all_query_points;
+        std::vector<int> all_query_seg_ids;
+        std::vector<int> bc0_places;
+        get_all_query_points_for_one_curve_rational(
+            id_map_after,
+            curve,
+            all_query_points,
+            all_query_seg_ids,
+            bc0_places);
+
+        if (all_query_points.empty()) {
+            all_curves_parts[curve_id] = {};
+            continue;
+        }
+
+        std::vector<query_point_r> non_bd_qps;
+        std::vector<int> non_bd_qps_ids;
+        std::vector<int> bd_qps_ids;
+        std::vector<std::vector<int>> curve_parts;
+        classify_boundary_and_interior_query_points(
+            all_query_points,
+            all_query_seg_ids,
+            bc0_places,
+            curve,
+            non_bd_qps,
+            non_bd_qps_ids,
+            bd_qps_ids,
+            curve_parts);
+
+        all_curves_parts[curve_id] = std::move(curve_parts);
+    }
+
+    return all_curves_parts;
+}
+
 void handle_non_collapse_operation_curves_fast_rational(
     const Eigen::MatrixXd& V_before,
     const Eigen::MatrixXi& F_before,
@@ -441,7 +486,8 @@ void handle_non_collapse_operation_curves_fast_rational(
 
     verbose = false;
     std::cout << "handle " << operation_name << " curves fast rational" << std::endl;
-
+    std::cout << "F_before size: " << F_before.rows() << "x" << F_before.cols() << std::endl;
+    std::cout << "F_after size: " << F_after.rows() << "x" << F_after.cols() << std::endl;
     double convert_V_to_rational_time = 0.0;
     // convert V_before and V_after to rational
     Eigen::MatrixX<wmtk::Rational> V_before_r(V_before.rows(), V_before.cols());
@@ -467,6 +513,48 @@ void handle_non_collapse_operation_curves_fast_rational(
     std::vector<BarycentricPrecompute2D> bc_cache_non =
         build_barycentric_cache_2d(V_before_r, F_before);
 
+
+    std::vector<std::vector<std::vector<CurveIntersectionPoint>>> intersection_sequences_before;
+    std::vector<std::set<int>> dummy_removed_segments;
+    double time_capture_before_ms = 0.0;
+    if (do_rounding) {
+        dummy_removed_segments.resize(curves.size());
+        intersection_sequences_before.resize(curves.size());
+        auto all_curve_parts_before_mapping = get_all_curve_parts(id_map_after, curves);
+
+
+        {
+            igl::Timer timer;
+            timer.start();
+            for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
+                const auto& curve_parts = all_curve_parts_before_mapping[curve_id];
+                intersection_sequences_before[curve_id].resize(curve_parts.size());
+                for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
+                    const auto& curve_part = curve_parts[part_id];
+                    if (curve_part.empty()) {
+                        continue;
+                    }
+
+                    std::vector<query_segment_r> segments_to_check;
+                    segments_to_check.reserve(curve_part.size());
+                    for (int seg_id : curve_part) {
+                        segments_to_check.push_back(curves[curve_id].segments[seg_id]);
+                    }
+
+                    intersection_sequences_before[curve_id][part_id] = get_intersections_seq(
+                        curve_id,
+                        curve_part,
+                        segments_to_check,
+                        all_curve_parts_before_mapping,
+                        dummy_removed_segments,
+                        curves);
+                }
+            }
+            time_capture_before_ms = timer.getElapsedTime() * 1000.0;
+            std::cout << "Time to capture intersections before rounding: " << time_capture_before_ms
+                      << " ms" << std::endl;
+        }
+    }
 
     // optimized version of handle_non_collapse_operation curve in rational
     std::vector<std::vector<std::vector<int>>> all_curve_parts_after_mapping(curves.size());
@@ -497,49 +585,36 @@ void handle_non_collapse_operation_curves_fast_rational(
         }
     }
 
-    std::vector<std::vector<std::vector<CurveIntersectionPoint>>> intersection_sequences_before;
-    std::vector<std::set<int>> dummy_removed_segments;
+
+    //////////////////////////////////////////////////////////
+    // ROUNDING AND CHECKING
+    //////////////////////////////////////////////////////////
+
+    // back up segments before rounding
     std::vector<std::vector<query_segment_r>> segments_backup;
+    double time_segments_backup_ms = 0.0;
     if (do_rounding) {
+        igl::Timer timer_segments_backup;
+        timer_segments_backup.start();
         segments_backup.resize(curves.size());
-        dummy_removed_segments.resize(curves.size());
-        intersection_sequences_before.resize(curves.size());
-        for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
-            segments_backup[curve_id] = curves[curve_id].segments;
-            const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
-            intersection_sequences_before[curve_id].resize(curve_parts.size());
-            for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
-                const auto& curve_part = curve_parts[part_id];
-                if (curve_part.empty()) {
-                    continue;
-                }
-
-                std::vector<query_segment_r> segments_to_check;
-                segments_to_check.reserve(curve_part.size());
-                for (int seg_id : curve_part) {
-                    segments_to_check.push_back(curves[curve_id].segments[seg_id]);
-                }
-
-                intersection_sequences_before[curve_id][part_id] = get_intersections_seq(
-                    curve_id,
-                    curve_part,
-                    segments_to_check,
-                    all_curve_parts_after_mapping,
-                    dummy_removed_segments,
-                    curves);
-            }
+        for (int i = 0; i < curves.size(); i++) {
+            segments_backup[i] = curves[i].segments;
         }
+        time_segments_backup_ms = timer_segments_backup.getElapsedTime() * 1000.0;
+        std::cout << "Time to back up segments before rounding: " << time_segments_backup_ms
+                  << " ms" << std::endl;
     }
 
     if (do_rounding) {
-        igl::Timer timer;
-        timer.start();
-        rounding_segments_to_double(all_curve_parts_after_mapping, curves, false);
-        double elapsed = timer.getElapsedTime() * 1000;
-        std::cout << "rounding_segments_to_double time: " << elapsed << " ms" << std::endl;
-    }
+        // REAL ROUNDING
+        double time_rounding_ms = 0.0;
+        {
+            igl::Timer timer;
+            timer.start();
+            rounding_segments_to_double(all_curve_parts_after_mapping, curves, false);
+            time_rounding_ms = timer.getElapsedTime() * 1000.0;
+        }
 
-    if (do_rounding) {
         bool intersection_sequence_changed = false;
         auto print_intersection_sequence = [](const std::vector<CurveIntersectionPoint>& seq) {
             if (seq.empty()) {
@@ -551,57 +626,65 @@ void handle_non_collapse_operation_curves_fast_rational(
             }
         };
 
-        for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
-            const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
-            for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
-                const auto& curve_part = curve_parts[part_id];
-                if (curve_part.empty()) {
-                    continue;
-                }
 
-                std::vector<query_segment_r> segments_to_check;
-                segments_to_check.reserve(curve_part.size());
-                for (int seg_id : curve_part) {
-                    segments_to_check.push_back(curves[curve_id].segments[seg_id]);
-                }
+        // DO AFTER ROUNDING CHECK
+        double time_compare_ms = 0.0;
+        {
+            igl::Timer timer;
+            timer.start();
+            for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
+                const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
+                for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
+                    const auto& curve_part = curve_parts[part_id];
+                    if (curve_part.empty()) {
+                        continue;
+                    }
 
-                auto inter_after = get_intersections_seq(
-                    curve_id,
-                    curve_part,
-                    segments_to_check,
-                    all_curve_parts_after_mapping,
-                    dummy_removed_segments,
-                    curves);
+                    std::vector<query_segment_r> segments_to_check;
+                    segments_to_check.reserve(curve_part.size());
+                    for (int seg_id : curve_part) {
+                        segments_to_check.push_back(curves[curve_id].segments[seg_id]);
+                    }
 
-                const auto& inter_before = intersection_sequences_before[curve_id][part_id];
-                bool same = inter_before.size() == inter_after.size();
-                if (same) {
-                    for (size_t k = 0; k < inter_before.size(); ++k) {
-                        if (inter_before[k].type != inter_after[k].type ||
-                            inter_before[k].other_curve_id != inter_after[k].other_curve_id) {
-                            same = false;
-                            break;
+                    auto inter_after = get_intersections_seq(
+                        curve_id,
+                        curve_part,
+                        segments_to_check,
+                        all_curve_parts_after_mapping,
+                        dummy_removed_segments,
+                        curves);
+
+                    const auto& inter_before = intersection_sequences_before[curve_id][part_id];
+                    bool same = inter_before.size() == inter_after.size();
+                    if (same) {
+                        for (size_t k = 0; k < inter_before.size(); ++k) {
+                            if (inter_before[k].type != inter_after[k].type ||
+                                inter_before[k].other_curve_id != inter_after[k].other_curve_id) {
+                                same = false;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (verbose) {
-                    std::cout << "[rounding] curve " << curve_id << ", part " << part_id
-                              << " local intersections:" << std::endl;
-                    std::cout << "    before intersections:" << std::endl;
-                    print_intersection_sequence(inter_before);
-                    std::cout << "    after intersections:" << std::endl;
-                    print_intersection_sequence(inter_after);
-                }
+                    if (verbose) {
+                        std::cout << "[rounding] curve " << curve_id << ", part " << part_id
+                                  << " local intersections:" << std::endl;
+                        std::cout << "    before intersections:" << std::endl;
+                        print_intersection_sequence(inter_before);
+                        std::cout << "    after intersections:" << std::endl;
+                        print_intersection_sequence(inter_after);
+                    }
 
-                if (!same) {
-                    intersection_sequence_changed = true;
-                    std::cout << "[rounding] intersection sequence changed at curve " << curve_id
-                              << ", part " << part_id << std::endl;
-                    std::cout << "    before size: " << inter_before.size()
-                              << ", after size: " << inter_after.size() << std::endl;
+                    if (!same) {
+                        intersection_sequence_changed = true;
+                        std::cout << "[rounding] intersection sequence changed at curve "
+                                  << curve_id << ", part " << part_id << std::endl;
+                        std::cout << "    before size: " << inter_before.size()
+                                  << ", after size: " << inter_after.size() << std::endl;
+                    }
                 }
             }
+            time_compare_ms = timer.getElapsedTime() * 1000.0;
         }
 
         if (intersection_sequence_changed) {
@@ -612,15 +695,24 @@ void handle_non_collapse_operation_curves_fast_rational(
             }
             std::cout << "[rounding] Rolled back to pre-rounding curve segments." << std::endl;
         }
+
+        const double total_ms = time_capture_before_ms + time_rounding_ms + time_compare_ms;
+        std::cout << "[rounding] capture intersections (before): " << time_capture_before_ms
+                  << " ms" << std::endl;
+        std::cout << "[rounding] rounding_segments_to_double: " << time_rounding_ms << " ms"
+                  << std::endl;
+        std::cout << "[rounding] intersection comparison (after): " << time_compare_ms << " ms"
+                  << std::endl;
+        std::cout << "[rounding] total time: " << total_ms << " ms" << std::endl;
     }
 
-    // if (do_merge) {
-    //     igl::Timer timer;
-    //     timer.start();
-    //     merge_segments(all_curve_parts_after_mapping, curves);
-    //     double elapsed = timer.getElapsedTime() * 1000;
-    //     std::cout << "merge_segments time: " << elapsed << " ms" << std::endl;
-    // }
+    if (do_merge) { // Currentl disabled
+        igl::Timer timer;
+        timer.start();
+        merge_segments(all_curve_parts_after_mapping, curves);
+        double elapsed = timer.getElapsedTime() * 1000;
+        std::cout << "merge_segments time: " << elapsed << " ms" << std::endl;
+    }
 }
 
 template void handle_non_collapse_operation_curve_t<double>(

@@ -12,172 +12,61 @@
 template <typename CoordType>
 void clean_up_curve_t(query_curve_t<CoordType>& curve)
 {
-    // TODO: make this function work for loops
     if (curve.segments.empty()) {
         return;
     }
 
+    auto endpoints_equal = [](const Eigen::Matrix<CoordType, 3, 1>& a,
+                              const Eigen::Matrix<CoordType, 3, 1>& b) {
+        for (int i = 0; i < 3; ++i) {
+            if (!(a(i) == b(i))) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     std::vector<query_segment_t<CoordType>> new_segments;
-    std::vector<int> new_next_segment_ids;
-    std::vector<int> old_to_new_mapping(curve.segments.size(), -1);
+    std::vector<int> old_to_new(curve.segments.size(), -1);
 
+    for (int i = 0; i < static_cast<int>(curve.segments.size()); ++i) {
+        const auto& seg = curve.segments[i];
+        if (endpoints_equal(seg.bcs[0], seg.bcs[1])) {
+            continue;
+        }
+        old_to_new[i] = static_cast<int>(new_segments.size());
+        new_segments.push_back(seg);
+    }
 
-    // Process segments in chain order starting from 0
-    // int current_id = 0;
-    // while (current_id != -1 && current_id < curve.segments.size()) {
-    for (int current_id = 0; current_id < curve.segments.size(); current_id++) {
-        if (old_to_new_mapping[current_id] != -1) {
-            // This segment was already processed, skip
-            // current_id = curve.next_segment_ids[current_id];
+    std::vector<int> new_next(new_segments.size(), -1);
+    for (int old_idx = 0; old_idx < static_cast<int>(curve.segments.size()); ++old_idx) {
+        int new_idx = old_to_new[old_idx];
+        if (new_idx == -1) {
             continue;
         }
 
-        query_segment_t<CoordType>& current_segment = curve.segments[current_id];
-
-        // Convert to rational arithmetic for exact collinearity check (only first 2 components)
-        Eigen::Vector2<wmtk::Rational> start_bc_r(
-            wmtk::Rational(current_segment.bcs[0](0)),
-            wmtk::Rational(current_segment.bcs[0](1)));
-
-        Eigen::Vector2<wmtk::Rational> current_slope_r =
-            Eigen::Vector2<wmtk::Rational>(
-                wmtk::Rational(current_segment.bcs[1](0)),
-                wmtk::Rational(current_segment.bcs[1](1))) -
-            start_bc_r;
-
-        // Find consecutive segments that can be merged
-        std::vector<int> segments_to_merge = {current_id};
-        int next_id = curve.next_segment_ids[current_id];
-
-        while (next_id != -1 && next_id < curve.segments.size()) {
-            if (next_id == current_id) {
-                break; // loop detected
+        int next_old = curve.next_segment_ids[old_idx];
+        std::set<int> visited;
+        visited.insert(old_idx);
+        while (next_old != -1 && next_old < static_cast<int>(old_to_new.size()) &&
+               old_to_new[next_old] == -1) {
+            if (visited.count(next_old) > 0) {
+                next_old = -1;
+                break;
             }
-            query_segment_t<CoordType>& next_segment = curve.segments[next_id];
-
-            // Check if they can be merged (same origin_segment_id and f_id)
-            if (current_segment.origin_segment_id != next_segment.origin_segment_id ||
-                current_segment.f_id != next_segment.f_id) {
-                break; // Different segments or faces, cannot merge
-            }
-
-            // Convert next segment to rational arithmetic (only first 2 components)
-            Eigen::Vector2<wmtk::Rational> next_slope_r =
-                Eigen::Vector2<wmtk::Rational>(
-                    wmtk::Rational(next_segment.bcs[1](0)),
-                    wmtk::Rational(next_segment.bcs[1](1))) -
-                start_bc_r;
-
-            // Check collinearity using cross product in 2D (exact test)
-            // Two 2D vectors are collinear if their cross product is zero
-            wmtk::Rational cross_product_2d =
-                current_slope_r(0) * next_slope_r(1) - current_slope_r(1) * next_slope_r(0);
-
-
-            bool is_collinear = (cross_product_2d == wmtk::Rational(0));
-
-
-            // handle zero slope case
-            if (current_slope_r.norm() == 0) {
-                current_slope_r = next_slope_r;
-            }
-
-            if (!is_collinear) {
-                // std::cout << "Collinearity check failed for segment " << current_id << " and "
-                //           << next_id << std::endl;
-                // std::cout << "  current_slope_r: [" << current_slope_r(0).to_double() << ", "
-                //           << current_slope_r(1).to_double() << "]" << std::endl;
-                // std::cout << "  next_slope_r: [" << next_slope_r(0).to_double() << ", "
-                //           << next_slope_r(1).to_double() << "]" << std::endl;
-                // std::cout << "  cross_product_2d: " << std::fixed << std::setprecision(16)
-                //           << cross_product_2d.to_double() << std::endl;
-
-                break; // not collinear, stop merging
-            }
-
-            segments_to_merge.push_back(next_id);
-            next_id = curve.next_segment_ids[next_id];
+            visited.insert(next_old);
+            next_old = curve.next_segment_ids[next_old];
         }
 
-        // for debug
-        {
-            if (segments_to_merge.size() > 1) {
-                std::cout << "Merging segments: ";
-                for (int idx : segments_to_merge) {
-                    const auto& seg = curve.segments[idx];
-                    std::cout << "\n  seg id: " << idx << ", f_id: " << seg.f_id
-                              << ", origin_segment_id: " << seg.origin_segment_id << ", bcs[0]: [";
-                    if constexpr (std::is_same_v<CoordType, double>) {
-                        std::cout << std::fixed << std::setprecision(16) << seg.bcs[0].transpose();
-                    } else if constexpr (std::is_same_v<CoordType, wmtk::Rational>) {
-                        std::cout << std::fixed << std::setprecision(16)
-                                  << seg.bcs[0](0).to_double() << ", " << seg.bcs[0](1).to_double()
-                                  << ", " << seg.bcs[0](2).to_double();
-                    }
-                    std::cout << "]" << ", bcs[1]: [";
-                    if constexpr (std::is_same_v<CoordType, double>) {
-                        std::cout << std::fixed << std::setprecision(16) << seg.bcs[1].transpose();
-                    } else if constexpr (std::is_same_v<CoordType, wmtk::Rational>) {
-                        std::cout << std::fixed << std::setprecision(16)
-                                  << seg.bcs[1](0).to_double() << ", " << seg.bcs[1](1).to_double()
-                                  << ", " << seg.bcs[1](2).to_double();
-                    }
-                    std::cout << "]" << ", fv_ids: [";
-                    for (int k = 0; k < seg.fv_ids.size(); ++k) {
-                        std::cout << seg.fv_ids[k];
-                        if (k + 1 < seg.fv_ids.size()) std::cout << ", ";
-                    }
-                    std::cout << "]";
-                }
-                std::cout << std::endl;
-            }
-        }
-        // Create merged segment
-        query_segment_t<CoordType> merged_segment;
-        merged_segment.f_id = current_segment.f_id;
-        merged_segment.origin_segment_id = current_segment.origin_segment_id;
-        merged_segment.bcs[0] = current_segment.bcs[0]; // First segment's bc0
-        merged_segment.bcs[1] =
-            curve.segments[segments_to_merge.back()].bcs[1]; // Last segment's bc1
-        merged_segment.fv_ids = current_segment.fv_ids;
-
-        // Add to new segments
-        int new_segment_id = new_segments.size();
-        new_segments.push_back(merged_segment);
-
-        // Map all merged segments to the new segment
-        for (int old_id : segments_to_merge) {
-            old_to_new_mapping[old_id] = new_segment_id;
-        }
-
-        // Set next segment ID for the merged segment (this will be updated later)
-        int final_next = curve.next_segment_ids[segments_to_merge.back()];
-        new_next_segment_ids.push_back(final_next);
-
-        // Move to the next unprocessed segment
-        // current_id = final_next;
-    }
-
-    // Update next_segment_ids to point to new indices
-    for (int i = 0; i < new_next_segment_ids.size(); i++) {
-        if (new_next_segment_ids[i] != -1) {
-            int old_next = new_next_segment_ids[i];
-            if (old_next < old_to_new_mapping.size() && old_to_new_mapping[old_next] != -1) {
-                new_next_segment_ids[i] = old_to_new_mapping[old_next];
-            } else {
-                // If the old_next was not mapped, it means it was merged into another segment
-                // We need to find which segment it was merged into
-                std::cout << "Warning: old_next " << old_next << " was not mapped, setting to -1"
-                          << std::endl;
-                new_next_segment_ids[i] = -1;
-            }
+        if (next_old != -1 && next_old < static_cast<int>(old_to_new.size())) {
+            new_next[new_idx] = old_to_new[next_old];
+        } else {
+            new_next[new_idx] = -1;
         }
     }
-    std::cout << "clean up curve, segments size: " << curve.segments.size() << " -> "
-              << new_segments.size() << std::endl;
-    // Replace the curve's segments and next_segment_ids
+
     curve.segments = std::move(new_segments);
-    curve.next_segment_ids = std::move(new_next_segment_ids);
+    curve.next_segment_ids = std::move(new_next);
 }
 // Template version of is_curve_valid
 template <typename CoordType>

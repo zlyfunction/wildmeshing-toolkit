@@ -812,50 +812,54 @@ void handle_collapse_edge_curves_fast_rational(
     }
 
 
-    std::vector<std::vector<std::vector<CurveIntersectionPoint>>> intersection_sequences_before;
-    std::vector<std::set<int>> dummy_removed_segments;
-    std::vector<std::vector<query_segment_r>> segments_backup;
     if (do_rounding) {
-        segments_backup.resize(curves.size());
-        dummy_removed_segments.resize(curves.size());
-        intersection_sequences_before.resize(curves.size());
-        for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
-            segments_backup[curve_id] = curves[curve_id].segments;
-            const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
-            intersection_sequences_before[curve_id].resize(curve_parts.size());
-            for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
-                const auto& curve_part = curve_parts[part_id];
-                if (curve_part.empty()) {
-                    continue;
-                }
+        double time_capture_before_ms = 0.0;
+        double time_rounding_ms = 0.0;
+        double time_compare_ms = 0.0;
 
-                std::vector<query_segment_r> segments_to_check;
-                segments_to_check.reserve(curve_part.size());
-                for (int seg_id : curve_part) {
-                    segments_to_check.push_back(curves[curve_id].segments[seg_id]);
-                }
+        std::vector<std::vector<std::vector<CurveIntersectionPoint>>> intersection_sequences_before(
+            curves.size());
+        std::vector<std::set<int>> dummy_removed_segments(curves.size());
+        std::vector<std::vector<query_segment_r>> segments_backup(curves.size());
 
-                intersection_sequences_before[curve_id][part_id] = get_intersections_seq(
-                    curve_id,
-                    curve_part,
-                    segments_to_check,
-                    all_curve_parts_after_mapping,
-                    dummy_removed_segments,
-                    curves);
+        {
+            igl::Timer timer;
+            timer.start();
+            for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
+                segments_backup[curve_id] = curves[curve_id].segments;
+                const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
+                intersection_sequences_before[curve_id].resize(curve_parts.size());
+                for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
+                    const auto& curve_part = curve_parts[part_id];
+                    if (curve_part.empty()) {
+                        continue;
+                    }
+
+                    std::vector<query_segment_r> segments_to_check;
+                    segments_to_check.reserve(curve_part.size());
+                    for (int seg_id : curve_part) {
+                        segments_to_check.push_back(curves[curve_id].segments[seg_id]);
+                    }
+
+                    intersection_sequences_before[curve_id][part_id] = get_intersections_seq(
+                        curve_id,
+                        curve_part,
+                        segments_to_check,
+                        all_curve_parts_after_mapping,
+                        dummy_removed_segments,
+                        curves);
+                }
             }
+            time_capture_before_ms = timer.getElapsedTime() * 1000.0;
         }
-    }
 
-    // get all new seg and convert them to double
-    if (do_rounding) {
-        igl::Timer timer;
-        timer.start();
-        rounding_segments_to_double(all_curve_parts_after_mapping, curves, false);
-        double elapsed = timer.getElapsedTime() * 1000;
-        std::cout << "rounding_segments_to_double time: " << elapsed << " ms" << std::endl;
-    }
+        {
+            igl::Timer timer;
+            timer.start();
+            rounding_segments_to_double(all_curve_parts_after_mapping, curves, false);
+            time_rounding_ms = timer.getElapsedTime() * 1000.0;
+        }
 
-    if (do_rounding) {
         bool intersection_sequence_changed = false;
         auto print_intersection_sequence = [](const std::vector<CurveIntersectionPoint>& seq) {
             if (seq.empty()) {
@@ -867,57 +871,63 @@ void handle_collapse_edge_curves_fast_rational(
             }
         };
 
-        for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
-            const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
-            for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
-                const auto& curve_part = curve_parts[part_id];
-                if (curve_part.empty()) {
-                    continue;
-                }
+        {
+            igl::Timer timer;
+            timer.start();
+            for (int curve_id = 0; curve_id < curves.size(); ++curve_id) {
+                const auto& curve_parts = all_curve_parts_after_mapping[curve_id];
+                for (int part_id = 0; part_id < curve_parts.size(); ++part_id) {
+                    const auto& curve_part = curve_parts[part_id];
+                    if (curve_part.empty()) {
+                        continue;
+                    }
 
-                std::vector<query_segment_r> segments_to_check;
-                segments_to_check.reserve(curve_part.size());
-                for (int seg_id : curve_part) {
-                    segments_to_check.push_back(curves[curve_id].segments[seg_id]);
-                }
+                    const auto& inter_before = intersection_sequences_before[curve_id][part_id];
 
-                auto inter_after = get_intersections_seq(
-                    curve_id,
-                    curve_part,
-                    segments_to_check,
-                    all_curve_parts_after_mapping,
-                    dummy_removed_segments,
-                    curves);
+                    std::vector<query_segment_r> segments_to_check;
+                    segments_to_check.reserve(curve_part.size());
+                    for (int seg_id : curve_part) {
+                        segments_to_check.push_back(curves[curve_id].segments[seg_id]);
+                    }
 
-                const auto& inter_before = intersection_sequences_before[curve_id][part_id];
-                bool same = inter_before.size() == inter_after.size();
-                if (same) {
-                    for (size_t k = 0; k < inter_before.size(); ++k) {
-                        if (inter_before[k].type != inter_after[k].type ||
-                            inter_before[k].other_curve_id != inter_after[k].other_curve_id) {
-                            same = false;
-                            break;
+                    auto inter_after = get_intersections_seq(
+                        curve_id,
+                        curve_part,
+                        segments_to_check,
+                        all_curve_parts_after_mapping,
+                        dummy_removed_segments,
+                        curves);
+
+                    bool same = inter_before.size() == inter_after.size();
+                    if (same) {
+                        for (size_t k = 0; k < inter_before.size(); ++k) {
+                            if (inter_before[k].type != inter_after[k].type ||
+                                inter_before[k].other_curve_id != inter_after[k].other_curve_id) {
+                                same = false;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if (verbose) {
-                    std::cout << "[rounding] curve " << curve_id << ", part " << part_id
-                              << " local intersections:" << std::endl;
-                    std::cout << "    before intersections:" << std::endl;
-                    print_intersection_sequence(inter_before);
-                    std::cout << "    after intersections:" << std::endl;
-                    print_intersection_sequence(inter_after);
-                }
+                    if (verbose) {
+                        std::cout << "[rounding] curve " << curve_id << ", part " << part_id
+                                  << " local intersections:" << std::endl;
+                        std::cout << "    before intersections:" << std::endl;
+                        print_intersection_sequence(inter_before);
+                        std::cout << "    after intersections:" << std::endl;
+                        print_intersection_sequence(inter_after);
+                    }
 
-                if (!same) {
-                    intersection_sequence_changed = true;
-                    std::cout << "[rounding] intersection sequence changed at curve " << curve_id
-                              << ", part " << part_id << std::endl;
-                    std::cout << "    before size: " << inter_before.size()
-                              << ", after size: " << inter_after.size() << std::endl;
+                    if (!same) {
+                        intersection_sequence_changed = true;
+                        std::cout << "[rounding] intersection sequence changed at curve "
+                                  << curve_id << ", part " << part_id << std::endl;
+                        std::cout << "    before size: " << inter_before.size()
+                                  << ", after size: " << inter_after.size() << std::endl;
+                    }
                 }
             }
+            time_compare_ms = timer.getElapsedTime() * 1000.0;
         }
 
         if (intersection_sequence_changed) {
@@ -928,6 +938,15 @@ void handle_collapse_edge_curves_fast_rational(
             }
             std::cout << "[rounding] Rolled back to pre-rounding curve segments." << std::endl;
         }
+
+        const double total_ms = time_capture_before_ms + time_rounding_ms + time_compare_ms;
+        std::cout << "[rounding] capture intersections (before): " << time_capture_before_ms
+                  << " ms" << std::endl;
+        std::cout << "[rounding] rounding_segments_to_double: " << time_rounding_ms << " ms"
+                  << std::endl;
+        std::cout << "[rounding] intersection comparison (after): " << time_compare_ms << " ms"
+                  << std::endl;
+        std::cout << "[rounding] total time: " << total_ms << " ms" << std::endl;
     }
 
 
