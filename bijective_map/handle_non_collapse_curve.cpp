@@ -614,13 +614,13 @@ void handle_non_collapse_operation_curves_fast_rational(
         }
     }
 
-    if (do_merge) {
-        igl::Timer timer;
-        timer.start();
-        merge_segments(all_curve_parts_after_mapping, curves);
-        double elapsed = timer.getElapsedTime() * 1000;
-        std::cout << "merge_segments time: " << elapsed << " ms" << std::endl;
-    }
+    // if (do_merge) {
+    //     igl::Timer timer;
+    //     timer.start();
+    //     merge_segments(all_curve_parts_after_mapping, curves);
+    //     double elapsed = timer.getElapsedTime() * 1000;
+    //     std::cout << "merge_segments time: " << elapsed << " ms" << std::endl;
+    // }
 }
 
 template void handle_non_collapse_operation_curve_t<double>(
