@@ -471,7 +471,9 @@ void track_lines_one_operation(
     const json& operation_log,
     std::vector<query_curve_t<CoordType>>& curves,
     bool do_forward,
-    const TrackLinesOptions& options)
+    const TrackLinesOptions& options,
+    int operation_id,
+    const std::string& model_name)
 {
     // TODO: this should not be hard coded here
     bool verbose = true;
@@ -541,7 +543,11 @@ void track_lines_one_operation(
                 v_id_map_before,
                 curves,
                 operation_name,
-                verbose);
+                verbose,
+                options.enable_rounding,
+                options.enable_merge,
+                operation_id,
+                model_name);
             t_handle_ms += handle_timer.getElapsedTime() * 1000.0;
         } else {
             igl::Timer handle_timer;
@@ -557,7 +563,11 @@ void track_lines_one_operation(
                 v_id_map_after,
                 curves,
                 operation_name,
-                verbose);
+                verbose,
+                options.enable_rounding,
+                options.enable_merge,
+                operation_id,
+                model_name);
             t_handle_ms += handle_timer.getElapsedTime() * 1000.0;
         }
     } else if (operation_name == "EdgeCollapse") {
@@ -592,7 +602,9 @@ void track_lines_one_operation(
                 true,
                 verbose,
                 options.enable_rounding,
-                options.enable_merge);
+                options.enable_merge,
+                operation_id,
+                model_name);
         } else {
             handle_collapse_edge_curves_t(
                 UV_joint,
@@ -605,7 +617,9 @@ void track_lines_one_operation(
                 true,
                 verbose,
                 options.enable_rounding,
-                options.enable_merge);
+                options.enable_merge,
+                operation_id,
+                model_name);
         }
         t_handle_ms += handle_timer.getElapsedTime() * 1000.0;
     }
@@ -677,7 +691,8 @@ void track_lines(
     std::vector<query_curve_t<CoordType>>& curves,
     bool do_forward,
     bool do_parallel,
-    const TrackLinesOptions& options)
+    const TrackLinesOptions& options,
+    const std::string& model_name)
 {
     // // use igl parallel_for
     // if (do_parallel) {
@@ -724,7 +739,7 @@ void track_lines(
                 std::cerr << "Failed to read operation " << operation_index << std::endl;
                 continue;
             }
-            track_lines_one_operation<CoordType>(operation_log, curves, do_forward, options);
+            track_lines_one_operation<CoordType>(operation_log, curves, do_forward, options, operation_index, model_name);
 
             // if (i % 100 == 1) {
             //     for (auto& curve : curves) {
@@ -1001,7 +1016,8 @@ void forward_track_iso_lines_app(
     }
 
 
-    track_lines(operation_logs_dir, curves, true, do_parallel);
+    TrackLinesOptions track_options;
+    track_lines(operation_logs_dir, curves, true, do_parallel, track_options, model_name);
 
 
     save_query_curves(curves, model_name + "_curves.out");
@@ -1126,7 +1142,7 @@ void forward_track_plane_curves_app(
     TrackLinesOptions track_options;
     track_options.enable_rounding = enable_rounding;
     track_options.enable_merge = enable_merge;
-    track_lines<wmtk::Rational>(operation_logs_dir, curves, true, do_parallel, track_options);
+    track_lines<wmtk::Rational>(operation_logs_dir, curves, true, do_parallel, track_options, model_name);
 
     std::cout << "finished track lines" << std::endl;
 
@@ -1229,13 +1245,15 @@ template void track_lines<double>(
     std::vector<query_curve_t<double>>& curves,
     bool do_forward,
     bool do_parallel,
-    const TrackLinesOptions& options);
+    const TrackLinesOptions& options,
+    const std::string& model_name);
 template void track_lines<wmtk::Rational>(
     path dirPath,
     std::vector<query_curve_t<wmtk::Rational>>& curves,
     bool do_forward,
     bool do_parallel,
-    const TrackLinesOptions& options);
+    const TrackLinesOptions& options,
+    const std::string& model_name);
 
 template bool check_curves_topology<double>(
     const std::vector<query_curve_t<double>>& curves,

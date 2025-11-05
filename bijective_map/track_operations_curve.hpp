@@ -181,7 +181,9 @@ void handle_collapse_edge_curves_t(
     bool use_rational,
     bool verbose,
     bool do_rounding = true,
-    bool do_merge = true);
+    bool do_merge = true,
+    int operation_id = -1,
+    const std::string& model_name = "");
 
 // Curve handling functions for different operations - templated versions
 template <typename CoordType>
@@ -206,7 +208,9 @@ void handle_collapse_edge_curves_fast_rational(
     std::vector<query_curve_t<wmtk::Rational>>& curves,
     bool verbose,
     bool do_rounding = true,
-    bool do_merge = true);
+    bool do_merge = true,
+    int operation_id = -1,
+    const std::string& model_name = "");
 
 
 template <typename CoordType>
@@ -221,7 +225,11 @@ void handle_non_collapse_operation_curves_t(
     const std::vector<int64_t>& v_id_map_after,
     std::vector<query_curve_t<CoordType>>& curves,
     const std::string& operation_name,
-    bool verbose);
+    bool verbose,
+    bool do_rounding = true,
+    bool do_merge = true,
+    int operation_id = -1,
+    const std::string& model_name = "");
 
 template <typename CoordType>
 void handle_non_collapse_operation_curve_t(
@@ -248,7 +256,11 @@ void handle_non_collapse_operation_curves_fast_rational(
     const std::vector<int64_t>& v_id_map_after,
     std::vector<query_curve_t<wmtk::Rational>>& curves,
     const std::string& operation_name,
-    bool verbose);
+    bool verbose,
+    bool do_rounding = true,
+    bool do_merge = true,
+    int operation_id = -1,
+    const std::string& model_name = "");
 
 // Backward compatibility versions
 template <typename CoordType>

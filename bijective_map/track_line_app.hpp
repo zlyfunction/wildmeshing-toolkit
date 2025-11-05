@@ -37,7 +37,9 @@ void track_lines_one_operation(
     const json& operation_log,
     std::vector<query_curve_t<CoordType>>& curves,
     bool do_forward,
-    const TrackLinesOptions& options = {});
+    const TrackLinesOptions& options = {},
+    int operation_id = -1,
+    const std::string& model_name = "");
 
 template <typename CoordType>
 void track_line(path dirPath, query_curve_t<CoordType>& curve, bool do_forward = false);
@@ -48,7 +50,8 @@ void track_lines(
     std::vector<query_curve_t<CoordType>>& curves,
     bool do_forward = false,
     bool do_parallel = true,
-    const TrackLinesOptions& options = {});
+    const TrackLinesOptions& options = {},
+    const std::string& model_name = "");
 
 
 // demo application on back tracking one curve

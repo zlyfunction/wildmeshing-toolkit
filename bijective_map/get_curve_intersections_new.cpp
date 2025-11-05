@@ -737,30 +737,42 @@ std::vector<CurveIntersectionPoint> get_intersections_seq(
         for (const auto& [other_cid, other_sid] : candidate_segments) {
             // Skip if this segment has been removed
             if (removed_segments[other_cid].count(other_sid) > 0) continue;
-            bool is_our_segment = false;
-            for (int sid : segment_ids) {
+            // bool is_our_segment = false;
+            // for (int sid : segment_ids) {
+            //     if (other_cid == cid && other_sid == sid) {
+            //         is_our_segment = true;
+            //         break;
+            //     }
+            // }
+            // if (is_our_segment) continue;
+            // // skip if other_sid is adjacent to any of our segments
+            // if (other_cid == cid) {
+            //     bool is_adjacent = false;
+            //     for (int sid : segment_ids) {
+            //         if (curves[cid].next_segment_ids[sid] == other_sid) {
+            //             is_adjacent = true;
+            //             break;
+            //         }
+            //         if (curves[cid].next_segment_ids[other_sid] == sid) {
+            //             is_adjacent = true;
+            //             break;
+            //         }
+            //     }
+            //     if (is_adjacent) continue;
+            // }
+            {
+                int sid = segment_ids[seg_order];
                 if (other_cid == cid && other_sid == sid) {
-                    is_our_segment = true;
-                    break;
+                    continue;
                 }
-            }
-            if (is_our_segment) continue;
-            // skip if other_sid is adjacent to any of our segments
-            if (other_cid == cid) {
-                bool is_adjacent = false;
-                for (int sid : segment_ids) {
-                    if (curves[cid].next_segment_ids[sid] == other_sid) {
-                        is_adjacent = true;
-                        break;
-                    }
-                    if (curves[cid].next_segment_ids[other_sid] == sid) {
-                        is_adjacent = true;
-                        break;
-                    }
-                }
-                if (is_adjacent) continue;
-            }
 
+                if (other_cid == cid) {
+                    if (curves[cid].next_segment_ids[sid] == other_sid ||
+                        curves[cid].next_segment_ids[other_sid] == sid) {
+                        continue;
+                    }
+                }
+            }
             const auto& other_seg = curves[other_cid].segments[other_sid];
 
             // Use existing intersection function
