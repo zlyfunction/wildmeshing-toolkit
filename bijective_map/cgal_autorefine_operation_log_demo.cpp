@@ -12,6 +12,7 @@
 #include <array>
 #include <filesystem>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <numeric>
@@ -88,6 +89,12 @@ using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
 using Point = Kernel::Point_3;
 using Triangle = std::array<std::size_t, 3>;
 
+struct TetTriangle
+{
+    Triangle triangle;
+    std::vector<Eigen::Index> tet_indices;
+};
+
 struct SampledVertex
 {
     std::size_t point_index;
@@ -142,12 +149,13 @@ std::vector<Point> eigen_vertices_to_points(const Eigen::MatrixXd& V)
     return points;
 }
 
-std::vector<Triangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
+std::vector<TetTriangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
 {
-    struct FaceData
+    struct FaceEntry
     {
-        int count = 0;
         Triangle oriented = {0, 0, 0};
+        std::vector<Eigen::Index> tet_indices;
+        bool has_orientation = false;
     };
 
     const int local_faces[4][3] = {
@@ -157,7 +165,7 @@ std::vector<Triangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
         {0, 2, 1} // face opposite vertex 3
     };
 
-    std::map<std::array<int, 3>, FaceData> face_map;
+    std::map<std::array<int, 3>, FaceEntry> face_map;
 
     for (Eigen::Index tet = 0; tet < T.rows(); ++tet) {
         const auto v0 = static_cast<int>(T(tet, 0));
@@ -178,22 +186,21 @@ std::vector<Triangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
                 tet_vertices[face[2]]};
             std::sort(key.begin(), key.end());
 
-            auto& info = face_map[key];
-            info.count += 1;
-            if (info.count == 1) {
-                info.oriented = oriented;
+            auto& entry = face_map[key];
+            if (!entry.has_orientation) {
+                entry.oriented = oriented;
+                entry.has_orientation = true;
             }
+            entry.tet_indices.push_back(tet);
         }
     }
 
-    std::vector<Triangle> boundary_faces;
-    boundary_faces.reserve(face_map.size());
-    for (const auto& [key, info] : face_map) {
-        // if (info.count == 1) {
-        boundary_faces.push_back(info.oriented);
-        // }
+    std::vector<TetTriangle> tet_faces;
+    tet_faces.reserve(face_map.size());
+    for (auto& [key, entry] : face_map) {
+        tet_faces.push_back(TetTriangle{entry.oriented, entry.tet_indices});
     }
-    return boundary_faces;
+    return tet_faces;
 }
 
 Eigen::Vector4d random_barycentric(std::mt19937& rng)
@@ -310,15 +317,30 @@ int main(int argc, char** argv)
         Triangle sampled_triangle =
             build_sampled_triangle(V_before, T_before, points, sampled_vertices);
 
-        auto all_tet_triangles = extract_all_tet_triangles(T_before);
-        std::cout << "Extracted " << all_tet_triangles.size() << " boundary triangles\n";
+        auto tet_triangles = extract_all_tet_triangles(T_before);
+        std::cout << "Collected " << tet_triangles.size()
+                  << " tetrahedral faces as triangle soup input\n";
 
-        std::vector<Triangle> triangles = all_tet_triangles;
+        std::vector<Triangle> triangles;
+        triangles.reserve(tet_triangles.size() + 1);
+        std::vector<std::vector<int>> triangle_parent_tets;
+        triangle_parent_tets.reserve(tet_triangles.size() + 1);
+        for (const TetTriangle& face : tet_triangles) {
+            triangles.push_back(face.triangle);
+            std::vector<int> parents;
+            parents.reserve(face.tet_indices.size());
+            for (Eigen::Index tet_id : face.tet_indices) {
+                parents.push_back(static_cast<int>(tet_id));
+            }
+            triangle_parent_tets.push_back(std::move(parents));
+        }
         const std::size_t inserted_triangle_index = triangles.size();
         triangles.push_back(sampled_triangle);
+        triangle_parent_tets.push_back(std::vector<int>{-1}); // sampled test triangle
 
         const std::vector<Point> original_points = points;
         const std::vector<Triangle> original_triangles = triangles;
+        const std::vector<std::vector<int>> original_triangle_parent_tets = triangle_parent_tets;
 
         const bool had_initial_intersections =
             PMP::does_triangle_soup_self_intersect(points, triangles);
@@ -354,6 +376,54 @@ int main(int argc, char** argv)
         }
         triangle_source_ids.swap(filtered_source_ids);
 
+        const std::size_t invalid_id = static_cast<std::size_t>(-1);
+
+        std::vector<std::vector<int>> refined_triangle_parent_tets(triangles.size());
+        for (std::size_t i = 0; i < triangles.size() && i < triangle_source_ids.size(); ++i) {
+            const std::size_t src_id = triangle_source_ids[i];
+            if (src_id == invalid_id || src_id >= triangle_parent_tets.size()) {
+                continue;
+            }
+            refined_triangle_parent_tets[i] = triangle_parent_tets[src_id];
+        }
+
+        std::vector<std::vector<std::size_t>> vertex_incident_triangles(points.size());
+        for (std::size_t tri_idx = 0; tri_idx < triangles.size(); ++tri_idx) {
+            const Triangle& tri = triangles[tri_idx];
+            for (std::size_t corner = 0; corner < 3; ++corner) {
+                const std::size_t v_id = tri[corner];
+                if (v_id >= vertex_incident_triangles.size()) {
+                    continue;
+                }
+                vertex_incident_triangles[v_id].push_back(tri_idx);
+            }
+        }
+
+        std::vector<std::set<int>> vertex_tet_sets(points.size());
+        for (const SampledVertex& vertex : sampled_vertices) {
+            if (vertex.point_index < vertex_tet_sets.size()) {
+                vertex_tet_sets[vertex.point_index].insert(static_cast<int>(vertex.tet_index));
+            }
+        }
+        for (std::size_t tri_idx = 0; tri_idx < triangles.size(); ++tri_idx) {
+            const Triangle& tri = triangles[tri_idx];
+            if (tri_idx >= refined_triangle_parent_tets.size()) {
+                continue;
+            }
+            const auto& parents = refined_triangle_parent_tets[tri_idx];
+            for (int tet_id : parents) {
+                if (tet_id < 0) {
+                    continue;
+                }
+                for (std::size_t corner = 0; corner < 3; ++corner) {
+                    const std::size_t v_id = tri[corner];
+                    if (v_id < vertex_tet_sets.size()) {
+                        vertex_tet_sets[v_id].insert(tet_id);
+                    }
+                }
+            }
+        }
+
         const bool intersection_free = !PMP::does_triangle_soup_self_intersect(points, triangles);
 
         std::cout << "Initial soup had intersections: "
@@ -365,7 +435,6 @@ int main(int argc, char** argv)
         std::cout << "Output triangle count: " << triangles.size() << '\n';
 
         Eigen::VectorXi triangle_origin_ids = Eigen::VectorXi::Constant(triangles.size(), -1);
-        const std::size_t invalid_id = static_cast<std::size_t>(-1);
         for (Eigen::Index i = 0; i < triangle_origin_ids.size() &&
                                  i < static_cast<Eigen::Index>(triangle_source_ids.size());
              ++i) {
@@ -381,13 +450,33 @@ int main(int argc, char** argv)
             triangle_origin_ids(static_cast<int>(i)) = static_cast<int>(src_id);
         }
 
+        Eigen::VectorXi triangle_origin_tet = Eigen::VectorXi::Constant(triangles.size(), -1);
+        for (Eigen::Index i = 0; i < triangle_origin_tet.size(); ++i) {
+            if (i < static_cast<Eigen::Index>(refined_triangle_parent_tets.size())) {
+                const auto& parents = refined_triangle_parent_tets[static_cast<std::size_t>(i)];
+                triangle_origin_tet(i) = parents.empty() ? -1 : parents.front();
+            }
+        }
+
         const Eigen::MatrixXd V_original = to_vertex_matrix(original_points);
         const Eigen::MatrixXi F_original = to_face_matrix(original_triangles);
         const Eigen::MatrixXd V_refined = to_vertex_matrix(points);
         const Eigen::MatrixXi F_refined = to_face_matrix(triangles);
 
+        Eigen::VectorXi original_triangle_parent_vec =
+            Eigen::VectorXi::Constant(original_triangles.size(), -1);
+        for (Eigen::Index i = 0; i < original_triangle_parent_vec.size(); ++i) {
+            if (i < static_cast<Eigen::Index>(original_triangle_parent_tets.size())) {
+                const auto& parents =
+                    original_triangle_parent_tets[static_cast<std::size_t>(i)];
+                original_triangle_parent_vec(i) = parents.empty() ? -1 : parents.front();
+            }
+        }
+
         const std::string before_path = "operation_log_autorefine_before.vtu";
         const std::string after_path = "operation_log_autorefine_after.vtu";
+        const std::string before_tet_path = "operation_log_autorefine_before_tet.vtu";
+        const std::string after_tet_path = "operation_log_autorefine_after_tet.vtu";
 
         vtu_utils::write_triangle_mesh_to_vtu(V_original, F_original, before_path);
         vtu_utils::write_triangle_mesh_to_vtu(
@@ -396,23 +485,159 @@ int main(int argc, char** argv)
             after_path,
             triangle_origin_ids.size() == F_refined.rows() ? &triangle_origin_ids : nullptr,
             "origin_triangle_id");
+        vtu_utils::write_triangle_mesh_to_vtu(
+            V_original,
+            F_original,
+            before_tet_path,
+            original_triangle_parent_vec.size() == F_original.rows()
+                ? &original_triangle_parent_vec
+                : nullptr,
+            "origin_tet_id");
+        vtu_utils::write_triangle_mesh_to_vtu(
+            V_refined,
+            F_refined,
+            after_tet_path,
+            triangle_origin_tet.size() == F_refined.rows() ? &triangle_origin_tet : nullptr,
+            "origin_tet_id");
 
         std::cout << "Wrote VTU snapshots:\n"
                   << "  initial soup -> " << before_path << '\n'
-                  << "  refined soup -> " << after_path << '\n';
+                  << "  initial soup (origin_tet_id) -> " << before_tet_path << '\n'
+                  << "  refined soup -> " << after_path << '\n'
+                  << "  refined soup (origin_tet_id) -> " << after_tet_path << '\n';
 
         std::vector<Triangle> refined_sampled_triangles;
+        std::vector<std::size_t> refined_sampled_indices;
         for (std::size_t i = 0; i < triangles.size() && i < triangle_source_ids.size(); ++i) {
             if (triangle_source_ids[i] == inserted_triangle_index) {
                 refined_sampled_triangles.push_back(triangles[i]);
+                refined_sampled_indices.push_back(i);
             }
         }
 
         if (!refined_sampled_triangles.empty()) {
             const Eigen::MatrixXi F_subset = to_face_matrix(refined_sampled_triangles);
             const std::string subset_path = "operation_log_autorefine_sampled_triangle.vtu";
-            vtu_utils::write_triangle_mesh_to_vtu(V_refined, F_subset, subset_path);
+            Eigen::VectorXi subset_tet_ids =
+                Eigen::VectorXi::Constant(F_subset.rows(), -1);
             std::cout << "Refined sampled triangle written to: " << subset_path << '\n';
+
+            std::set<std::size_t> sampled_vertex_ids;
+            for (std::size_t local_idx = 0; local_idx < refined_sampled_indices.size(); ++local_idx) {
+                const std::size_t tri_idx = refined_sampled_indices[local_idx];
+                const Triangle& tri = triangles[tri_idx];
+                std::cout << "Sample triangle piece " << local_idx
+                          << " corresponds to refined triangle " << tri_idx << " [vertices "
+                          << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
+
+                std::set<int> common_tets;
+                for (std::size_t corner = 0; corner < 3; ++corner) {
+                    const std::size_t v_id = tri[corner];
+                    if (v_id >= vertex_tet_sets.size()) {
+                        common_tets.clear();
+                        break;
+                    }
+                    const auto& tet_set = vertex_tet_sets[v_id];
+                    if (tet_set.empty()) {
+                        common_tets.clear();
+                        break;
+                    }
+                    if (corner == 0) {
+                        common_tets = tet_set;
+                    } else {
+                        std::set<int> temp;
+                        std::set_intersection(
+                            common_tets.begin(),
+                            common_tets.end(),
+                            tet_set.begin(),
+                            tet_set.end(),
+                            std::inserter(temp, temp.begin()));
+                        common_tets.swap(temp);
+                    }
+                    if (common_tets.empty()) {
+                        break;
+                    }
+                }
+
+                const int assigned_tet =
+                    common_tets.empty() ? -1 : *common_tets.begin();
+                if (local_idx < static_cast<std::size_t>(subset_tet_ids.size())) {
+                    subset_tet_ids(static_cast<int>(local_idx)) = assigned_tet;
+                }
+                if (tri_idx < static_cast<std::size_t>(triangle_origin_tet.size())) {
+                    triangle_origin_tet(static_cast<int>(tri_idx)) = assigned_tet;
+                }
+
+                std::set<int> piece_partner_tets;
+                for (std::size_t corner = 0; corner < 3; ++corner) {
+                    const std::size_t v_id = tri[corner];
+                    sampled_vertex_ids.insert(v_id);
+                    std::set<int> vertex_partner_tets;
+                    if (v_id < vertex_tet_sets.size()) {
+                        vertex_partner_tets.insert(
+                            vertex_tet_sets[v_id].begin(),
+                            vertex_tet_sets[v_id].end());
+                        piece_partner_tets.insert(
+                            vertex_tet_sets[v_id].begin(),
+                            vertex_tet_sets[v_id].end());
+                    }
+
+                    const Point& p = points[v_id];
+                    std::cout << "    vertex " << v_id << " (" << CGAL::to_double(p.x()) << ", "
+                              << CGAL::to_double(p.y()) << ", " << CGAL::to_double(p.z())
+                              << ") shared with tets: ";
+                    if (vertex_partner_tets.empty()) {
+                        std::cout << "none";
+                    } else {
+                        bool first = true;
+                        for (int tet_id : vertex_partner_tets) {
+                            if (!first) {
+                                std::cout << ", ";
+                            }
+                            std::cout << tet_id;
+                            first = false;
+                        }
+                    }
+                    std::cout << '\n';
+                }
+
+                std::cout << "    assigned tet id (intersection): ";
+                if (assigned_tet == -1) {
+                    std::cout << "none";
+                } else {
+                    std::cout << assigned_tet;
+                }
+                std::cout << '\n';
+
+                std::cout << "    aggregated partner tets: ";
+                if (piece_partner_tets.empty()) {
+                    std::cout << "none";
+                } else {
+                    bool first = true;
+                    for (int tet_id : piece_partner_tets) {
+                        if (!first) {
+                            std::cout << ", ";
+                        }
+                        std::cout << tet_id;
+                        first = false;
+                    }
+                }
+                std::cout << '\n';
+            }
+
+            vtu_utils::write_triangle_mesh_to_vtu(
+                V_refined,
+                F_subset,
+                subset_path,
+                subset_tet_ids.size() == F_subset.rows() ? &subset_tet_ids : nullptr,
+                "sampled_tet_id");
+
+            std::cout << "Unique vertices belonging to test triangle fragments:\n";
+            for (std::size_t v_id : sampled_vertex_ids) {
+                const Point& p = points[v_id];
+                std::cout << "  vertex " << v_id << " -> (" << CGAL::to_double(p.x()) << ", "
+                          << CGAL::to_double(p.y()) << ", " << CGAL::to_double(p.z()) << ")\n";
+            }
         } else {
             std::cout << "No refined triangles mapped back to the sampled triangle.\n";
         }
