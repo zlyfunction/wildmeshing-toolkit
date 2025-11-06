@@ -112,6 +112,7 @@ target_compile_features(cgal_autorefine_demo PUBLIC cxx_std_17)
 
 add_executable(cgal_autorefine_operation_log_demo
     cgal_autorefine_operation_log_demo.cpp
+    cgal_autorefine_utils.cpp
     vtu_utils.cpp
     batch_operation_log_reader.cpp)
 target_link_libraries(cgal_autorefine_operation_log_demo
