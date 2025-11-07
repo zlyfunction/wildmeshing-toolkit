@@ -394,6 +394,15 @@ std::string Rational::serialize() const
     return numerator() + "/" + denominator() + "/" + (m_is_rounded ? "1" : "0");
 }
 
+void Rational::export_mpq(mpq_t out) const
+{
+    if (m_is_rounded) {
+        mpq_set_d(out, d_value);
+    } else {
+        mpq_set(out, value);
+    }
+}
+
 Rational::Rational(const Eigen::Matrix<char, Eigen::Dynamic, 1>& data, bool rounded)
     : m_is_rounded(rounded)
 {

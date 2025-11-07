@@ -1,10 +1,11 @@
 #include <CGAL/number_utils.h>
 
 #include "batch_operation_log_reader.hpp"
-#include "cgal_autorefine_utils.hpp"
+#include "cgal_autorefine_utils_rational.hpp"
 #include "vtu_utils.hpp"
 
 #include <Eigen/Core>
+#include <wmtk/utils/Rational.hpp>
 
 #include <algorithm>
 #include <filesystem>
@@ -17,10 +18,10 @@
 #include <string>
 #include <vector>
 using json = nlohmann::json;
-using cgal_autorefine_demo::autorefine_sampled_triangles;
-using cgal_autorefine_demo::AutorefineResult;
-using cgal_autorefine_demo::Point;
-using cgal_autorefine_demo::SampledPointInput;
+using cgal_autorefine_demo::autorefine_sampled_triangles_rational;
+using cgal_autorefine_demo::AutorefineResultRational;
+using cgal_autorefine_demo::RationalPoint;
+using cgal_autorefine_demo::SampledPointInputRational;
 using cgal_autorefine_demo::Triangle;
 
 template <typename Matrix>
@@ -46,15 +47,22 @@ Matrix json_to_matrix(const json& js)
 }
 
 namespace {
-using cgal_autorefine_demo::AutorefineResult;
-using cgal_autorefine_demo::Point;
-using cgal_autorefine_demo::SampledPointInput;
-using cgal_autorefine_demo::SampledVertex;
+using cgal_autorefine_demo::AutorefineResultRational;
+using cgal_autorefine_demo::RationalPoint;
+using cgal_autorefine_demo::SampledPointInputRational;
+using cgal_autorefine_demo::SampledVertexRational;
 using cgal_autorefine_demo::Triangle;
 
-Eigen::MatrixXd json_to_vertex_matrix(const json& node)
+Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3> json_to_vertex_matrix_rational(const json& node)
 {
-    return json_to_matrix<Eigen::MatrixXd>(node);
+    Eigen::MatrixXd V_double = json_to_matrix<Eigen::MatrixXd>(node);
+    Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3> V_rational(V_double.rows(), 3);
+    for (Eigen::Index i = 0; i < V_double.rows(); ++i) {
+        for (int j = 0; j < 3; ++j) {
+            V_rational(i, j) = wmtk::Rational(V_double(i, j), false);
+        }
+    }
+    return V_rational;
 }
 
 Eigen::MatrixXi json_to_tet_matrix(const json& node)
@@ -62,8 +70,8 @@ Eigen::MatrixXi json_to_tet_matrix(const json& node)
     return json_to_matrix<Eigen::MatrixXi>(node);
 }
 
-std::pair<Eigen::MatrixXd, Eigen::MatrixXi> load_first_operation_mesh(
-    const std::filesystem::path& logs_dir)
+std::pair<Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3>, Eigen::MatrixXi>
+load_first_operation_mesh_rational(const std::filesystem::path& logs_dir)
 {
     BatchOperationLogReader reader(logs_dir);
     const auto total_ops = reader.get_total_operations();
@@ -81,48 +89,49 @@ std::pair<Eigen::MatrixXd, Eigen::MatrixXi> load_first_operation_mesh(
     }
 
     Eigen::MatrixXi T_before = json_to_tet_matrix(operation["T_before"]);
-    Eigen::MatrixXd V_before = json_to_vertex_matrix(operation["V_before"]);
+    Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3> V_before =
+        json_to_vertex_matrix_rational(operation["V_before"]);
     if (T_before.cols() != 4 || V_before.cols() != 3) {
         throw std::runtime_error("Unexpected dimensions for T_before/V_before.");
     }
     return {V_before, T_before};
 }
 
-Eigen::Vector4d random_barycentric(std::mt19937& rng)
+Eigen::Matrix<wmtk::Rational, 4, 1> random_barycentric_rational(std::mt19937& rng)
 {
     std::uniform_real_distribution<double> dist(0.0, 1.0);
-    Eigen::Vector4d weights;
+    Eigen::Matrix<wmtk::Rational, 4, 1> weights;
     do {
         for (int i = 0; i < 4; ++i) {
-            weights[i] = dist(rng);
+            weights[i] = wmtk::Rational(dist(rng), false);
         }
-    } while (weights.sum() == 0.0);
+    } while (weights.sum() == wmtk::Rational(0));
 
     weights /= weights.sum();
-    // Bias towards interior by lifting weights slightly
     constexpr double min_weight = 0.05;
     for (int i = 0; i < 4; ++i) {
-        weights[i] = std::max(weights[i], min_weight);
+        double w = weights[i].to_double();
+        weights[i] = wmtk::Rational(std::max(w, min_weight), false);
     }
     weights /= weights.sum();
     return weights;
 }
 
-SampledPointInput
-sample_point_in_tet(const Eigen::MatrixXi& T, Eigen::Index tet_index, std::mt19937& rng)
+SampledPointInputRational
+sample_point_in_tet_rational(const Eigen::MatrixXi& T, Eigen::Index tet_index, std::mt19937& rng)
 {
     if (tet_index < 0 || tet_index >= T.rows()) {
         throw std::runtime_error("Requested sampled tet index out of range.");
     }
-    SampledPointInput input;
+    SampledPointInputRational input;
     input.tet_index = tet_index;
-    input.barycentric = random_barycentric(rng);
+    input.barycentric = random_barycentric_rational(rng);
     return input;
 }
 
-Eigen::MatrixXi build_sampled_triangles(
+Eigen::MatrixXi build_sampled_triangles_rational(
     const Eigen::MatrixXi& T,
-    std::vector<SampledPointInput>& sampled_points,
+    std::vector<SampledPointInputRational>& sampled_points,
     int triangle_count)
 {
     if (triangle_count <= 0) {
@@ -132,7 +141,7 @@ Eigen::MatrixXi build_sampled_triangles(
         triangle_count = 2;
     }
     if (triangle_count != 2) {
-        std::cerr << "Warning: forcing triangle_count to 2 to keep sampled strip manifold."
+        std::cerr << "Warning: forcing triangle_count to 2 to keep sampled strip manifold. "
                   << "Requested " << triangle_count << "; generating 2 triangles instead.\n";
     }
     if (T.rows() == 0) {
@@ -148,7 +157,7 @@ Eigen::MatrixXi build_sampled_triangles(
 
     const Eigen::Index tet0 = tet_ids[0];
     for (int i = 0; i < 4; ++i) {
-        sampled_points.push_back(sample_point_in_tet(T, tet0, rng));
+        sampled_points.push_back(sample_point_in_tet_rational(T, tet0, rng));
     }
 
     Eigen::MatrixXi F(2, 3);
@@ -157,8 +166,7 @@ Eigen::MatrixXi build_sampled_triangles(
     return F;
 }
 
-
-Eigen::MatrixXd to_vertex_matrix(const std::vector<Point>& pts)
+Eigen::MatrixXd to_vertex_matrix_double(const std::vector<RationalPoint>& pts)
 {
     Eigen::MatrixXd V(pts.size(), 3);
     for (Eigen::Index i = 0; i < static_cast<Eigen::Index>(pts.size()); ++i) {
@@ -190,19 +198,22 @@ int main(int argc, char** argv)
                        : std::filesystem::path("../build/operation_log_sphere_coarse");
 
         std::cout << "Reading operation logs from: " << logs_dir << '\n';
-        auto [V_before, T_before] = load_first_operation_mesh(logs_dir);
+        auto [V_before, T_before] = load_first_operation_mesh_rational(logs_dir);
         std::cout << "Loaded tet mesh: " << V_before.rows() << " vertices, " << T_before.rows()
                   << " tetrahedra\n";
 
-        std::vector<SampledPointInput> sampled_points;
+        std::vector<SampledPointInputRational> sampled_points;
         const int sample_triangle_count = 2;
         Eigen::MatrixXi sampled_faces =
-            build_sampled_triangles(T_before, sampled_points, sample_triangle_count);
+            build_sampled_triangles_rational(T_before, sampled_points, sample_triangle_count);
         std::cout << "Sampling " << sampled_faces.rows() << " test triangles ("
                   << sampled_points.size() << " vertices)\n";
 
-        AutorefineResult result =
-            autorefine_sampled_triangles(V_before, T_before, sampled_points, sampled_faces);
+        AutorefineResultRational result = autorefine_sampled_triangles_rational(
+            V_before,
+            T_before,
+            sampled_points,
+            sampled_faces);
 
         const std::size_t tet_face_count =
             result.original_triangles.size() - static_cast<std::size_t>(sampled_faces.rows());
@@ -241,9 +252,9 @@ int main(int argc, char** argv)
         const Eigen::VectorXi& triangle_origin_ids = result.origin_triangle_ids;
         const Eigen::VectorXi& triangle_origin_tet = result.origin_tet_ids;
 
-        const Eigen::MatrixXd V_original = to_vertex_matrix(result.original_points);
+        const Eigen::MatrixXd V_original = to_vertex_matrix_double(result.original_points);
         const Eigen::MatrixXi F_original = to_face_matrix(result.original_triangles);
-        const Eigen::MatrixXd V_refined = to_vertex_matrix(result.refined_points);
+        const Eigen::MatrixXd V_refined = to_vertex_matrix_double(result.refined_points);
         const Eigen::MatrixXi F_refined = to_face_matrix(result.refined_triangles);
 
         Eigen::VectorXi original_triangle_parent_vec =
@@ -255,10 +266,10 @@ int main(int argc, char** argv)
             }
         }
 
-        const std::string before_path = "operation_log_autorefine_before.vtu";
-        const std::string after_path = "operation_log_autorefine_after.vtu";
-        const std::string before_tet_path = "operation_log_autorefine_before_tet.vtu";
-        const std::string after_tet_path = "operation_log_autorefine_after_tet.vtu";
+        const std::string before_path = "operation_log_autorefine_rational_before.vtu";
+        const std::string after_path = "operation_log_autorefine_rational_after.vtu";
+        const std::string before_tet_path = "operation_log_autorefine_rational_before_tet.vtu";
+        const std::string after_tet_path = "operation_log_autorefine_rational_after_tet.vtu";
 
         vtu_utils::write_triangle_mesh_to_vtu(V_original, F_original, before_path);
         vtu_utils::write_triangle_mesh_to_vtu(
@@ -289,7 +300,8 @@ int main(int argc, char** argv)
 
         if (!result.sampled_fragment_triangles.empty()) {
             const Eigen::MatrixXi F_subset = to_face_matrix(result.sampled_fragment_triangles);
-            const std::string subset_path = "operation_log_autorefine_sampled_triangle.vtu";
+            const std::string subset_path =
+                "operation_log_autorefine_rational_sampled_triangle.vtu";
             const Eigen::VectorXi& subset_tet_ids = result.sampled_fragment_tet_ids;
             vtu_utils::write_triangle_mesh_to_vtu(
                 V_refined,
@@ -297,89 +309,13 @@ int main(int argc, char** argv)
                 subset_path,
                 subset_tet_ids.size() == F_subset.rows() ? &subset_tet_ids : nullptr,
                 "sampled_tet_id");
-            std::cout << "Refined sampled triangle written to: " << subset_path << '\n';
-
-            std::set<std::size_t> sampled_vertex_ids;
-            for (std::size_t local_idx = 0; local_idx < result.sampled_fragment_triangles.size();
-                 ++local_idx) {
-                const Triangle& tri = result.sampled_fragment_triangles[local_idx];
-                const std::size_t tri_idx = result.sampled_fragment_indices[local_idx];
-                const int assigned_tet = result.sampled_fragment_tet_ids(local_idx);
-
-                const int source_sample = result.sampled_fragment_source_ids[local_idx];
-                std::cout << "Sample triangle piece " << local_idx << " (from test triangle "
-                          << source_sample << ") corresponds to refined triangle " << tri_idx
-                          << " [vertices " << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
-
-                std::set<int> piece_partner_tets;
-                for (std::size_t corner = 0; corner < 3; ++corner) {
-                    const std::size_t v_id = tri[corner];
-                    sampled_vertex_ids.insert(v_id);
-                    const Point& p = result.refined_points[v_id];
-                    std::cout << "    vertex " << v_id << " (" << CGAL::to_double(p.x()) << ", "
-                              << CGAL::to_double(p.y()) << ", " << CGAL::to_double(p.z())
-                              << ") shared with tets: ";
-                    const auto& tet_set = result.vertex_tet_sets[v_id];
-                    if (tet_set.empty()) {
-                        std::cout << "none";
-                    } else {
-                        bool first = true;
-                        for (int tet_id : tet_set) {
-                            if (!first) {
-                                std::cout << ", ";
-                            }
-                            std::cout << tet_id;
-                            first = false;
-                        }
-                        piece_partner_tets.insert(tet_set.begin(), tet_set.end());
-                    }
-                    std::cout << '\n';
-                }
-
-                std::cout << "    assigned tet id (intersection): ";
-                if (assigned_tet == -1) {
-                    std::cout << "none";
-                } else {
-                    std::cout << assigned_tet;
-                }
-                std::cout << '\n';
-
-                std::cout << "    aggregated partner tets: ";
-                if (piece_partner_tets.empty()) {
-                    std::cout << "none";
-                } else {
-                    bool first = true;
-                    for (int tet_id : piece_partner_tets) {
-                        if (!first) {
-                            std::cout << ", ";
-                        }
-                        std::cout << tet_id;
-                        first = false;
-                    }
-                }
-                std::cout << '\n';
-            }
-
-            std::cout << "Unique vertices belonging to test triangle fragments:\n";
-            for (std::size_t v_id : sampled_vertex_ids) {
-                const Point& p = result.refined_points[v_id];
-                std::cout << "  vertex " << v_id << " -> (" << CGAL::to_double(p.x()) << ", "
-                          << CGAL::to_double(p.y()) << ", " << CGAL::to_double(p.z()) << ")\n";
-            }
-        } else {
-            std::cout << "No refined triangles mapped back to the sampled triangle.\n";
+            std::cout << "  sampled fragments -> " << subset_path << '\n';
         }
 
-        std::cout << "Sampled triangle came from tetrahedra:\n";
-        for (const auto& vertex : result.sampled_vertices) {
-            std::cout << "  tet " << vertex.tet_index << " -> point #" << vertex.point_index
-                      << " at (" << vertex.position.transpose() << "), barycentric "
-                      << vertex.barycentric.transpose() << '\n';
-        }
-
-        return result.refined_soup_is_intersection_free ? 0 : 1;
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << '\n';
         return 1;
     }
+
+    return 0;
 }

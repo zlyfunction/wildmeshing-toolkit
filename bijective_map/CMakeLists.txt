@@ -120,3 +120,15 @@ target_link_libraries(cgal_autorefine_operation_log_demo
     Eigen3::Eigen
     nlohmann_json::nlohmann_json)
 target_compile_features(cgal_autorefine_operation_log_demo PUBLIC cxx_std_17)
+
+add_executable(cgal_autorefine_rational_demo
+    cgal_autorefine_rational_demo.cpp
+    cgal_autorefine_utils_rational.cpp
+    vtu_utils.cpp
+    batch_operation_log_reader.cpp)
+target_link_libraries(cgal_autorefine_rational_demo
+    CGAL::CGAL
+    Eigen3::Eigen
+    nlohmann_json::nlohmann_json
+    wmtk::toolkit)
+target_compile_features(cgal_autorefine_rational_demo PUBLIC cxx_std_17)

@@ -94,6 +94,8 @@ public:
 
     inline bool is_rounded() const { return m_is_rounded; }
 
+    void export_mpq(mpq_t out) const;
+
 private:
     mpq_t value;
     double d_value;

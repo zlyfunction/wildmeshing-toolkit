@@ -33,10 +33,7 @@ struct TriangleTrackingVisitor : PMP::Autorefinement::Default_visitor
         store_mapping(tgt_id, src_id);
     }
 
-    void new_subtriangle(std::size_t tgt_id, std::size_t src_id)
-    {
-        store_mapping(tgt_id, src_id);
-    }
+    void new_subtriangle(std::size_t tgt_id, std::size_t src_id) { store_mapping(tgt_id, src_id); }
 
 private:
     void store_mapping(std::size_t tgt_id, std::size_t src_id)
@@ -157,7 +154,9 @@ int main()
 
     Eigen::VectorXi triangle_origin_ids = Eigen::VectorXi::Constant(triangles.size(), -1);
     const std::size_t invalid_id = static_cast<std::size_t>(-1);
-    for (Eigen::Index i = 0; i < triangle_origin_ids.size() && i < static_cast<Eigen::Index>(triangle_source_ids.size()); ++i) {
+    for (Eigen::Index i = 0; i < triangle_origin_ids.size() &&
+                             i < static_cast<Eigen::Index>(triangle_source_ids.size());
+         ++i) {
         const std::size_t src_id = triangle_source_ids[i];
         if (src_id == invalid_id) {
             continue;
