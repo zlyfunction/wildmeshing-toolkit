@@ -55,12 +55,6 @@ private:
     std::vector<std::size_t>* m_mapping = nullptr;
 };
 
-struct TetTriangle
-{
-    Triangle triangle;
-    std::vector<Eigen::Index> tet_indices;
-};
-
 std::vector<Point> eigen_vertices_to_points(const Eigen::MatrixXd& V)
 {
     std::vector<Point> points;
@@ -70,6 +64,8 @@ std::vector<Point> eigen_vertices_to_points(const Eigen::MatrixXd& V)
     }
     return points;
 }
+
+} // namespace
 
 std::vector<TetTriangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
 {
@@ -125,8 +121,6 @@ std::vector<TetTriangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
     return tet_faces;
 }
 
-} // namespace
-
 AutorefineResult autorefine_sampled_triangles(
     const Eigen::MatrixXd& V,
     const Eigen::MatrixXi& T,
@@ -138,6 +132,8 @@ AutorefineResult autorefine_sampled_triangles(
     // Seed the triangle soup with tet boundary faces.
     std::vector<Point> points = eigen_vertices_to_points(V);
     auto tet_triangles = extract_all_tet_triangles(T);
+    std::cout << "T:\n" << T << std::endl;
+    std::cout << "tet_triangles size: " << tet_triangles.size() << std::endl;
 
     std::vector<Triangle> triangles;
     triangles.reserve(tet_triangles.size() + static_cast<std::size_t>(sampled_faces.rows()));
@@ -157,6 +153,9 @@ AutorefineResult autorefine_sampled_triangles(
         triangle_parent_tets.push_back(std::move(parent_ids));
         triangle_sample_ids.push_back(-1);
     }
+
+    std::cout << "TET size: " << tet_triangles.size() << std::endl;
+    std::cout << "triangles size: " << triangles.size() << std::endl;
 
     // Append sampled barycentric vertices and insert the test triangles.
     std::vector<SampledVertex> sampled_vertices;
@@ -180,7 +179,17 @@ AutorefineResult autorefine_sampled_triangles(
 
         std::size_t point_index = points.size();
         points.emplace_back(position.x(), position.y(), position.z());
-
+        std::cout << "Sampled Point: barycentric = [";
+        for (int j = 0; j < 4; ++j) {
+            std::cout << bc[j];
+            if (j < 3) std::cout << ", ";
+        }
+        std::cout << "], tet_index = " << point_input.tet_index << ", position = [";
+        for (int j = 0; j < 3; ++j) {
+            std::cout << position(j);
+            if (j < 2) std::cout << ", ";
+        }
+        std::cout << "]" << std::endl;
         SampledVertex vertex;
         vertex.point_index = point_index;
         vertex.barycentric = bc;
@@ -222,6 +231,17 @@ AutorefineResult autorefine_sampled_triangles(
     result.initial_soup_had_intersections =
         PMP::does_triangle_soup_self_intersect(points, triangles);
 
+    std::cout << "Points:\n";
+    for (size_t i = 0; i < points.size(); ++i) {
+        const auto& pt = points[i];
+        std::cout << "  " << i << ": [" << CGAL::to_double(pt.x()) << ", "
+                  << CGAL::to_double(pt.y()) << ", " << CGAL::to_double(pt.z()) << "]\n";
+    }
+    std::cout << "Triangles:\n";
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        const auto& tri = triangles[i];
+        std::cout << "  " << i << ": [" << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
+    }
     std::vector<std::size_t> triangle_source_ids;
     TriangleTrackingVisitor visitor(triangle_source_ids);
     PMP::autorefine_triangle_soup(

@@ -1,4 +1,5 @@
 #include "cgal_autorefine_utils_rational.hpp"
+#include "cgal_autorefine_utils.hpp"
 
 #include <CGAL/Lazy_exact_nt.h>
 #include <CGAL/Polygon_mesh_processing/autorefinement.h>
@@ -57,12 +58,6 @@ private:
     std::vector<std::size_t>* m_mapping = nullptr;
 };
 
-struct TetTriangle
-{
-    Triangle triangle;
-    std::vector<Eigen::Index> tet_indices;
-};
-
 // Convert wmtk::Rational to RationalKernel::FT (Lazy_exact_nt<Gmpq>)
 RationalKernel::FT rational_to_gmpq(const wmtk::Rational& r)
 {
@@ -92,68 +87,6 @@ std::vector<RationalPoint> rational_vertices_to_points(
     return points;
 }
 
-std::vector<TetTriangle> extract_all_tet_triangles(const Eigen::MatrixXi& T)
-{
-    struct FaceEntry
-    {
-        Triangle oriented = {0, 0, 0};
-        std::vector<Eigen::Index> tet_indices;
-        bool has_orientation = false;
-    };
-
-    const int local_faces[4][3] = {
-        {1, 2, 3}, // face opposite vertex 0
-        {0, 3, 2}, // face opposite vertex 1
-        {0, 1, 3}, // face opposite vertex 2
-        {0, 2, 1} // face opposite vertex 3
-    };
-
-    std::map<std::array<int, 3>, FaceEntry> face_map;
-
-    for (Eigen::Index tet = 0; tet < T.rows(); ++tet) {
-        const auto v0 = static_cast<int>(T(tet, 0));
-        const auto v1 = static_cast<int>(T(tet, 1));
-        const auto v2 = static_cast<int>(T(tet, 2));
-        const auto v3 = static_cast<int>(T(tet, 3));
-        const int tet_vertices[4] = {v0, v1, v2, v3};
-
-        for (const auto& face : local_faces) {
-            Triangle oriented = {
-                static_cast<std::size_t>(tet_vertices[face[0]]),
-                static_cast<std::size_t>(tet_vertices[face[1]]),
-                static_cast<std::size_t>(tet_vertices[face[2]])};
-
-            std::array<int, 3> key = {
-                tet_vertices[face[0]],
-                tet_vertices[face[1]],
-                tet_vertices[face[2]]};
-            std::sort(key.begin(), key.end());
-
-            auto it = face_map.find(key);
-            if (it == face_map.end()) {
-                FaceEntry entry;
-                entry.oriented = oriented;
-                entry.tet_indices.push_back(tet);
-                entry.has_orientation = true;
-                face_map[key] = entry;
-            } else {
-                it->second.tet_indices.push_back(tet);
-            }
-        }
-    }
-
-    std::vector<TetTriangle> result;
-    for (const auto& [key, entry] : face_map) {
-        if (entry.tet_indices.size() == 1) {
-            TetTriangle tet_tri;
-            tet_tri.triangle = entry.oriented;
-            tet_tri.tet_indices = entry.tet_indices;
-            result.push_back(tet_tri);
-        }
-    }
-    return result;
-}
-
 } // namespace
 
 AutorefineResultRational autorefine_sampled_triangles_rational(
@@ -166,21 +99,37 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     std::vector<RationalPoint> points = rational_vertices_to_points(V);
     std::vector<Triangle> triangles;
+    triangles.reserve(
+        static_cast<std::size_t>(T.rows() * 4) + static_cast<std::size_t>(sampled_faces.rows()));
     std::vector<std::vector<int>> triangle_parent_tets;
+    triangle_parent_tets.reserve(triangles.capacity());
     std::vector<int> triangle_sample_ids;
+    triangle_sample_ids.reserve(triangles.capacity());
 
     const auto tet_triangles = extract_all_tet_triangles(T);
-    for (const auto& tet_tri : tet_triangles) {
-        triangles.push_back(tet_tri.triangle);
-        triangle_parent_tets.push_back(
-            std::vector<int>(tet_tri.tet_indices.begin(), tet_tri.tet_indices.end()));
+    std::cout << "T:\n" << T << std::endl;
+    std::cout << "tet_triangles size: " << tet_triangles.size() << std::endl;
+    for (const TetTriangle& face : tet_triangles) {
+        triangles.push_back(face.triangle);
+        std::vector<int> parent_ids;
+        parent_ids.reserve(face.tet_indices.size());
+        for (Eigen::Index tet_id : face.tet_indices) {
+            parent_ids.push_back(static_cast<int>(tet_id));
+        }
+        triangle_parent_tets.push_back(std::move(parent_ids));
         triangle_sample_ids.push_back(-1);
     }
-
+    std::cout << "TET size: " << tet_triangles.size() << std::endl;
+    std::cout << "triangles size: " << triangles.size() << std::endl;
     std::vector<SampledVertexRational> sampled_vertices;
+    sampled_vertices.reserve(sampled_points.size());
     std::vector<std::size_t> sampled_point_global_indices;
+    sampled_point_global_indices.reserve(sampled_points.size());
 
     for (const auto& point_input : sampled_points) {
+        if (point_input.tet_index < 0 || point_input.tet_index >= T.rows()) {
+            throw std::runtime_error("Sampled point references invalid tetrahedron index.");
+        }
         Eigen::Matrix<wmtk::Rational, 3, 4> tet_vertices;
         for (int i = 0; i < 4; ++i) {
             const Eigen::Index v_idx = T(point_input.tet_index, i);
@@ -197,7 +146,17 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         RationalKernel::FT y = rational_to_gmpq(position(1));
         RationalKernel::FT z = rational_to_gmpq(position(2));
         points.emplace_back(x, y, z);
-
+        std::cout << "Sampled Rational Point: barycentric = [";
+        for (int j = 0; j < 4; ++j) {
+            std::cout << bc[j];
+            if (j < 3) std::cout << ", ";
+        }
+        std::cout << "], tet_index = " << point_input.tet_index << ", position = [";
+        for (int j = 0; j < 3; ++j) {
+            std::cout << position(j);
+            if (j < 2) std::cout << ", ";
+        }
+        std::cout << "]" << std::endl;
         SampledVertexRational vertex;
         vertex.point_index = point_index;
         vertex.barycentric = bc;
@@ -208,12 +167,12 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     }
 
     for (Eigen::Index face_id = 0; face_id < sampled_faces.rows(); ++face_id) {
-        Triangle tri;
+        Triangle tri{};
         for (int corner = 0; corner < 3; ++corner) {
             const int local_index = sampled_faces(face_id, corner);
             if (local_index < 0 ||
                 local_index >= static_cast<int>(sampled_point_global_indices.size())) {
-                throw std::runtime_error("Sampled face references invalid point index.");
+                throw std::runtime_error("Sampled triangle references invalid vertex index.");
             }
             const std::size_t global_index =
                 sampled_point_global_indices[static_cast<std::size_t>(local_index)];
@@ -236,7 +195,17 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     result.initial_soup_had_intersections =
         PMP::does_triangle_soup_self_intersect(points, triangles);
-
+    std::cout << "Points:\n";
+    for (size_t i = 0; i < points.size(); ++i) {
+        const auto& pt = points[i];
+        std::cout << "  " << i << ": [" << CGAL::to_double(pt.x()) << ", "
+                  << CGAL::to_double(pt.y()) << ", " << CGAL::to_double(pt.z()) << "]\n";
+    }
+    std::cout << "Triangles:\n";
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        const auto& tri = triangles[i];
+        std::cout << "  " << i << ": [" << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
+    }
     std::vector<std::size_t> triangle_source_ids;
     TriangleTrackingVisitorRational visitor(triangle_source_ids);
     PMP::autorefine_triangle_soup(

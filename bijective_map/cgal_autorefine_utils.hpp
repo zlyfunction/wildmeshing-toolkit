@@ -14,6 +14,14 @@ using Kernel = CGAL::Exact_predicates_inexact_constructions_kernel;
 using Point = Kernel::Point_3;
 using Triangle = std::array<std::size_t, 3>;
 
+struct TetTriangle
+{
+    Triangle triangle;
+    std::vector<Eigen::Index> tet_indices;
+};
+
+std::vector<TetTriangle> extract_all_tet_triangles(const Eigen::MatrixXi& T);
+
 struct SampledVertex
 {
     std::size_t point_index;
@@ -65,4 +73,3 @@ AutorefineResult autorefine_sampled_triangles(
     const Eigen::MatrixXi& sampled_faces);
 
 } // namespace cgal_autorefine_demo
-

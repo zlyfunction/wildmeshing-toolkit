@@ -1,6 +1,7 @@
 #include <CGAL/number_utils.h>
 
 #include "batch_operation_log_reader.hpp"
+#include "cgal_autorefine_sampling.hpp"
 #include "cgal_autorefine_utils_rational.hpp"
 #include "vtu_utils.hpp"
 
@@ -20,6 +21,7 @@
 using json = nlohmann::json;
 using cgal_autorefine_demo::autorefine_sampled_triangles_rational;
 using cgal_autorefine_demo::AutorefineResultRational;
+using cgal_autorefine_demo::build_sampled_triangles;
 using cgal_autorefine_demo::RationalPoint;
 using cgal_autorefine_demo::SampledPointInputRational;
 using cgal_autorefine_demo::Triangle;
@@ -97,73 +99,26 @@ load_first_operation_mesh_rational(const std::filesystem::path& logs_dir)
     return {V_before, T_before};
 }
 
-Eigen::Matrix<wmtk::Rational, 4, 1> random_barycentric_rational(std::mt19937& rng)
+// Convert shared sampling results to SampledPointInputRational format
+void convert_sampling_to_input_rational(
+    const std::vector<Eigen::Vector4d>& sampled_barycentrics,
+    const std::vector<Eigen::Index>& sampled_tet_indices,
+    std::vector<SampledPointInputRational>& sampled_points)
 {
-    std::uniform_real_distribution<double> dist(0.0, 1.0);
-    Eigen::Matrix<wmtk::Rational, 4, 1> weights;
-    do {
-        for (int i = 0; i < 4; ++i) {
-            weights[i] = wmtk::Rational(dist(rng), false);
-        }
-    } while (weights.sum() == wmtk::Rational(0));
-
-    weights /= weights.sum();
-    constexpr double min_weight = 0.05;
-    for (int i = 0; i < 4; ++i) {
-        double w = weights[i].to_double();
-        weights[i] = wmtk::Rational(std::max(w, min_weight), false);
-    }
-    weights /= weights.sum();
-    return weights;
-}
-
-SampledPointInputRational
-sample_point_in_tet_rational(const Eigen::MatrixXi& T, Eigen::Index tet_index, std::mt19937& rng)
-{
-    if (tet_index < 0 || tet_index >= T.rows()) {
-        throw std::runtime_error("Requested sampled tet index out of range.");
-    }
-    SampledPointInputRational input;
-    input.tet_index = tet_index;
-    input.barycentric = random_barycentric_rational(rng);
-    return input;
-}
-
-Eigen::MatrixXi build_sampled_triangles_rational(
-    const Eigen::MatrixXi& T,
-    std::vector<SampledPointInputRational>& sampled_points,
-    int triangle_count)
-{
-    if (triangle_count <= 0) {
-        throw std::runtime_error("triangle_count must be positive.");
-    }
-    if (triangle_count == 1) {
-        triangle_count = 2;
-    }
-    if (triangle_count != 2) {
-        std::cerr << "Warning: forcing triangle_count to 2 to keep sampled strip manifold. "
-                  << "Requested " << triangle_count << "; generating 2 triangles instead.\n";
-    }
-    if (T.rows() == 0) {
-        throw std::runtime_error("Cannot sample from empty tetrahedral mesh.");
-    }
-
-    std::mt19937 rng(1337);
-    std::vector<Eigen::Index> tet_ids(static_cast<std::size_t>(T.rows()));
-    std::iota(tet_ids.begin(), tet_ids.end(), static_cast<Eigen::Index>(0));
-
     sampled_points.clear();
-    sampled_points.reserve(4);
-
-    const Eigen::Index tet0 = tet_ids[0];
-    for (int i = 0; i < 4; ++i) {
-        sampled_points.push_back(sample_point_in_tet_rational(T, tet0, rng));
+    sampled_points.reserve(sampled_barycentrics.size());
+    for (std::size_t i = 0; i < sampled_barycentrics.size(); ++i) {
+        SampledPointInputRational input;
+        input.tet_index = sampled_tet_indices[i];
+        // Convert double barycentrics to rational (exact conversion)
+        Eigen::Matrix<wmtk::Rational, 4, 1> rational_bc;
+        for (int j = 0; j < 4; ++j) {
+            rational_bc[j] = wmtk::Rational(sampled_barycentrics[i][j], false);
+        }
+        rational_bc /= rational_bc.sum();
+        input.barycentric = rational_bc;
+        sampled_points.push_back(input);
     }
-
-    Eigen::MatrixXi F(2, 3);
-    F.row(0) << 0, 1, 2;
-    F.row(1) << 2, 1, 3;
-    return F;
 }
 
 Eigen::MatrixXd to_vertex_matrix_double(const std::vector<RationalPoint>& pts)
@@ -202,13 +157,31 @@ int main(int argc, char** argv)
         std::cout << "Loaded tet mesh: " << V_before.rows() << " vertices, " << T_before.rows()
                   << " tetrahedra\n";
 
-        std::vector<SampledPointInputRational> sampled_points;
+        std::vector<Eigen::Vector4d> sampled_barycentrics;
+        std::vector<Eigen::Index> sampled_tet_indices;
         const int sample_triangle_count = 2;
-        Eigen::MatrixXi sampled_faces =
-            build_sampled_triangles_rational(T_before, sampled_points, sample_triangle_count);
+        Eigen::MatrixXi sampled_faces = build_sampled_triangles(
+            T_before,
+            sampled_barycentrics,
+            sampled_tet_indices,
+            sample_triangle_count);
+
+        std::vector<SampledPointInputRational> sampled_points;
+        convert_sampling_to_input_rational(
+            sampled_barycentrics,
+            sampled_tet_indices,
+            sampled_points);
         std::cout << "Sampling " << sampled_faces.rows() << " test triangles ("
                   << sampled_points.size() << " vertices)\n";
-
+        for (size_t i = 0; i < sampled_points.size(); ++i) {
+            const auto& pt = sampled_points[i];
+            std::cout << "Sampled Point " << i << ": barycentric = [";
+            for (int j = 0; j < 4; ++j) {
+                std::cout << pt.barycentric[j];
+                if (j < 3) std::cout << ", ";
+            }
+            std::cout << "], tet_index = " << pt.tet_index << std::endl;
+        }
         AutorefineResultRational result = autorefine_sampled_triangles_rational(
             V_before,
             T_before,
