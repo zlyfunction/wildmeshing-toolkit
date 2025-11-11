@@ -211,7 +211,7 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     PMP::autorefine_triangle_soup(
         points,
         working_triangles,
-        CGAL::parameters::visitor(visitor).apply_iterative_snap_rounding(true));
+        CGAL::parameters::visitor(visitor).apply_iterative_snap_rounding(false));
 
     const std::size_t invalid_id = static_cast<std::size_t>(-1);
 

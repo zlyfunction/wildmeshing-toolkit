@@ -1,32 +1,22 @@
 #pragma once
 
-#include <Eigen/Core>
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <random>
-#include <string>
-#include <vector>
+#include <wmtk/utils/Rational.hpp>
+#include "cgal_autorefine_sampling.hpp"
 
 namespace cgal_autorefine_demo {
 
-// Shared sampling functions for both double and rational demos
-// These functions generate the same sampling pattern using the same RNG seed
-
-inline Eigen::Vector4d random_barycentric(std::mt19937& rng)
+// Rational versions of sampling functions
+inline Eigen::Matrix<wmtk::Rational, 4, 1> random_barycentric_rational(std::mt19937& rng)
 {
     std::uniform_real_distribution<double> dist(0.0, 1.0);
-    std::uniform_int_distribution<int> type_dist(0, 3); // 0: vertex, 1: edge, 2: face, 3: interior
+    std::uniform_int_distribution<int> type_dist(0, 3);
     std::uniform_int_distribution<int> index_dist(0, 3);
-    Eigen::Vector4d weights = Eigen::Vector4d::Zero();
+    Eigen::Matrix<wmtk::Rational, 4, 1> weights = Eigen::Matrix<wmtk::Rational, 4, 1>::Zero();
     int sample_type = type_dist(rng);
     if (sample_type == 0) {
-        // Sample on vertex: one coordinate is 1, others are 0
         int vertex_idx = index_dist(rng);
-        weights[vertex_idx] = 1.0;
+        weights[vertex_idx] = wmtk::Rational(1, false);
     } else if (sample_type == 1) {
-        // Sample on edge: two coordinates are non-zero, others are 0
-        // Tetrahedron has 6 edges: (0,1), (0,2), (0,3), (1,2), (1,3), (2,3)
         std::uniform_int_distribution<int> edge_dist(0, 5);
         int edge_id = edge_dist(rng);
         int edge_v0, edge_v1;
@@ -50,11 +40,9 @@ inline Eigen::Vector4d random_barycentric(std::mt19937& rng)
             edge_v1 = 3;
         }
         double t = dist(rng);
-        weights[edge_v0] = t;
-        weights[edge_v1] = 1.0 - t;
+        weights[edge_v0] = wmtk::Rational(t, false);
+        weights[edge_v1] = wmtk::Rational(1.0 - t, false);
     } else if (sample_type == 2) {
-        // Sample on face: three coordinates are non-zero, one is 0
-        // Tetrahedron has 4 faces, each excluding one vertex
         int excluded_vertex = index_dist(rng);
         int face_v0, face_v1, face_v2;
         if (excluded_vertex == 0) {
@@ -80,75 +68,80 @@ inline Eigen::Vector4d random_barycentric(std::mt19937& rng)
             u = 1.0 - u;
             v = 1.0 - v;
         }
-        weights[face_v0] = u;
-        weights[face_v1] = v;
-        weights[face_v2] = 1.0 - u - v;
+        weights[face_v0] = wmtk::Rational(u, false);
+        weights[face_v1] = wmtk::Rational(v, false);
+        weights[face_v2] = wmtk::Rational(1.0 - u - v, false);
     } else {
-        // Sample in interior: all coordinates are positive
+        Eigen::Vector4d temp_weights;
         do {
             for (int i = 0; i < 4; ++i) {
-                weights[i] = dist(rng);
+                temp_weights[i] = dist(rng);
             }
-        } while (weights.sum() == 0.0);
-        weights /= weights.sum();
+        } while (temp_weights.sum() == 0.0);
+        temp_weights /= temp_weights.sum();
+        for (int i = 0; i < 4; ++i) {
+            weights[i] = wmtk::Rational(temp_weights[i], false);
+        }
     }
     return weights;
 }
 
-// Check if two triangles intersect (excluding shared edge)
-inline bool triangles_intersect(
-    const Eigen::Vector3d& p0,
-    const Eigen::Vector3d& p1,
-    const Eigen::Vector3d& p2,
-    const Eigen::Vector3d& p3,
+inline bool triangles_intersect_rational(
+    const Eigen::Matrix<wmtk::Rational, 3, 1>& p0,
+    const Eigen::Matrix<wmtk::Rational, 3, 1>& p1,
+    const Eigen::Matrix<wmtk::Rational, 3, 1>& p2,
+    const Eigen::Matrix<wmtk::Rational, 3, 1>& p3,
     double eps = 1e-10)
 {
-    // Triangle 1: p0, p1, p2
-    // Triangle 2: p2, p1, p3
-    // They share edge (p1, p2)
-    // To avoid self-intersection, p0 and p3 must be on opposite sides of edge (p1, p2)
-    Eigen::Vector3d edge = p2 - p1;
-    if (edge.norm() < eps) {
-        // Degenerate edge
+    Eigen::Matrix<wmtk::Rational, 3, 1> edge = p2 - p1;
+    wmtk::Rational edge_norm_sq = edge[0] * edge[0] + edge[1] * edge[1] + edge[2] * edge[2];
+    if (edge_norm_sq.to_double() < eps * eps) {
         return false;
     }
-    Eigen::Vector3d v0 = p0 - p1;
-    Eigen::Vector3d v3 = p3 - p1;
-    // Compute cross products to determine which side of the edge each point is on
-    Eigen::Vector3d cross0 = edge.cross(v0);
-    Eigen::Vector3d cross3 = edge.cross(v3);
-    double dot_product = cross0.dot(cross3);
-    // If dot_product < 0, points are on opposite sides (no self-intersection)
-    // If dot_product > 0, points are on same side (self-intersection)
-    // If dot_product == 0, at least one point is on the edge (check if both are on edge)
-    if (dot_product < -eps) {
-        return false; // Points on opposite sides, no self-intersection
+    Eigen::Matrix<wmtk::Rational, 3, 1> v0 = p0 - p1;
+    Eigen::Matrix<wmtk::Rational, 3, 1> v3 = p3 - p1;
+    Eigen::Matrix<wmtk::Rational, 3, 1> cross0;
+    cross0[0] = edge[1] * v0[2] - edge[2] * v0[1];
+    cross0[1] = edge[2] * v0[0] - edge[0] * v0[2];
+    cross0[2] = edge[0] * v0[1] - edge[1] * v0[0];
+    Eigen::Matrix<wmtk::Rational, 3, 1> cross3;
+    cross3[0] = edge[1] * v3[2] - edge[2] * v3[1];
+    cross3[1] = edge[2] * v3[0] - edge[0] * v3[2];
+    cross3[2] = edge[0] * v3[1] - edge[1] * v3[0];
+    wmtk::Rational dot_product =
+        cross0[0] * cross3[0] + cross0[1] * cross3[1] + cross0[2] * cross3[2];
+    double dot_val = dot_product.to_double();
+    if (dot_val < -eps) {
+        return false;
     }
-    if (dot_product > eps) {
-        return true; // Points on same side, self-intersection
+    if (dot_val > eps) {
+        return true;
     }
-    // Near-zero case: check if points are collinear with edge
-    double cross0_norm = cross0.norm();
-    double cross3_norm = cross3.norm();
+    wmtk::Rational cross0_norm_sq =
+        cross0[0] * cross0[0] + cross0[1] * cross0[1] + cross0[2] * cross0[2];
+    wmtk::Rational cross3_norm_sq =
+        cross3[0] * cross3[0] + cross3[1] * cross3[1] + cross3[2] * cross3[2];
+    double cross0_norm = std::sqrt(cross0_norm_sq.to_double());
+    double cross3_norm = std::sqrt(cross3_norm_sq.to_double());
     if (cross0_norm < eps && cross3_norm < eps) {
-        // Both points are on the edge line - check if they overlap
-        double t0 = v0.dot(edge) / edge.squaredNorm();
-        double t3 = v3.dot(edge) / edge.squaredNorm();
-        // If t0 and t3 are both in [0,1] and overlap, there's intersection
-        if (t0 >= 0.0 && t0 <= 1.0 && t3 >= 0.0 && t3 <= 1.0) {
-            double overlap = std::min(t0, t3) + 1.0 - std::max(t0, t3);
+        wmtk::Rational t0 = (v0[0] * edge[0] + v0[1] * edge[1] + v0[2] * edge[2]) / edge_norm_sq;
+        wmtk::Rational t3 = (v3[0] * edge[0] + v3[1] * edge[1] + v3[2] * edge[2]) / edge_norm_sq;
+        double t0_val = t0.to_double();
+        double t3_val = t3.to_double();
+        if (t0_val >= 0.0 && t0_val <= 1.0 && t3_val >= 0.0 && t3_val <= 1.0) {
+            double overlap = std::min(t0_val, t3_val) + 1.0 - std::max(t0_val, t3_val);
             if (overlap > eps) {
-                return true; // Overlapping on edge
+                return true;
             }
         }
     }
-    return false; // Default: no intersection
+    return false;
 }
 
-inline Eigen::MatrixXi build_sampled_triangles(
+inline Eigen::MatrixXi build_sampled_triangles_rational(
     const Eigen::MatrixXi& T,
-    const Eigen::MatrixXd& V,
-    std::vector<Eigen::Vector4d>& sampled_barycentrics,
+    const Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3>& V,
+    std::vector<Eigen::Matrix<wmtk::Rational, 4, 1>>& sampled_barycentrics,
     std::vector<Eigen::Index>& sampled_tet_indices,
     int triangle_count)
 {
@@ -165,32 +158,24 @@ inline Eigen::MatrixXi build_sampled_triangles(
     if (T.rows() == 0) {
         throw std::runtime_error("Cannot sample from empty tetrahedral mesh.");
     }
-
-    std::mt19937 rng(1337); // Fixed seed for reproducibility
+    std::mt19937 rng(1337);
     std::uniform_int_distribution<Eigen::Index> tet_dist(0, T.rows() - 1);
-
     sampled_barycentrics.clear();
     sampled_tet_indices.clear();
     sampled_barycentrics.reserve(4);
     sampled_tet_indices.reserve(4);
-
-    // Sample 4 points randomly, ensuring not all from the same tet and no self-intersection
     const std::size_t num_points_needed = 4;
     bool valid_sample = false;
     int max_attempts = 1000;
     int attempt = 0;
-
     while (!valid_sample && attempt < max_attempts) {
         sampled_barycentrics.clear();
         sampled_tet_indices.clear();
-
         for (std::size_t i = 0; i < num_points_needed; ++i) {
             Eigen::Index tet_id = tet_dist(rng);
             sampled_tet_indices.push_back(tet_id);
-            sampled_barycentrics.push_back(random_barycentric(rng));
+            sampled_barycentrics.push_back(random_barycentric_rational(rng));
         }
-
-        // Check if all points are from the same tet
         bool all_same_tet = true;
         if (!sampled_tet_indices.empty()) {
             const Eigen::Index first_tet = sampled_tet_indices[0];
@@ -201,43 +186,33 @@ inline Eigen::MatrixXi build_sampled_triangles(
                 }
             }
         }
-
         if (all_same_tet) {
             ++attempt;
             continue;
         }
-
-        // Compute 3D positions of sampled points
-        std::vector<Eigen::Vector3d> positions(4);
+        std::vector<Eigen::Matrix<wmtk::Rational, 3, 1>> positions(4);
         for (std::size_t i = 0; i < 4; ++i) {
             Eigen::Index tet_id = sampled_tet_indices[i];
-            const Eigen::Vector4d& bc = sampled_barycentrics[i];
-            Eigen::Vector3d pos = Eigen::Vector3d::Zero();
+            const Eigen::Matrix<wmtk::Rational, 4, 1>& bc = sampled_barycentrics[i];
+            Eigen::Matrix<wmtk::Rational, 3, 1> pos = Eigen::Matrix<wmtk::Rational, 3, 1>::Zero();
             for (int j = 0; j < 4; ++j) {
-                pos += bc[j] * V.row(T(tet_id, j));
+                pos += bc[j] * V.row(T(tet_id, j)).transpose();
             }
             positions[i] = pos;
         }
-
-        // Check if triangles self-intersect
-        // Triangle 1: positions[0], positions[1], positions[2]
-        // Triangle 2: positions[2], positions[1], positions[3]
         bool intersects =
-            triangles_intersect(positions[0], positions[1], positions[2], positions[3]);
-
+            triangles_intersect_rational(positions[0], positions[1], positions[2], positions[3]);
         if (!intersects) {
             valid_sample = true;
         } else {
             ++attempt;
         }
     }
-
     if (!valid_sample) {
         throw std::runtime_error(
             "Failed to sample non-self-intersecting triangles after " +
             std::to_string(max_attempts) + " attempts.");
     }
-
     Eigen::MatrixXi F(2, 3);
     F.row(0) << 0, 1, 2;
     F.row(1) << 2, 1, 3;

@@ -1,15 +1,15 @@
 #include <CGAL/number_utils.h>
 
 #include "batch_operation_log_reader.hpp"
-#include "cgal_autorefine_sampling.hpp"
+#include "cgal_autorefine_sampling_rational.hpp"
 #include "cgal_autorefine_utils_rational.hpp"
 #include "vtu_utils.hpp"
 
 #include <Eigen/Core>
-#include <wmtk/utils/Rational.hpp>
 
 #include <algorithm>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <numeric>
@@ -21,7 +21,7 @@
 using json = nlohmann::json;
 using cgal_autorefine_demo::autorefine_sampled_triangles_rational;
 using cgal_autorefine_demo::AutorefineResultRational;
-using cgal_autorefine_demo::build_sampled_triangles;
+using cgal_autorefine_demo::build_sampled_triangles_rational;
 using cgal_autorefine_demo::RationalPoint;
 using cgal_autorefine_demo::SampledPointInputRational;
 using cgal_autorefine_demo::Triangle;
@@ -99,9 +99,9 @@ load_first_operation_mesh_rational(const std::filesystem::path& logs_dir)
     return {V_before, T_before};
 }
 
-// Convert shared sampling results to SampledPointInputRational format
+// Convert rational sampling results to SampledPointInputRational format
 void convert_sampling_to_input_rational(
-    const std::vector<Eigen::Vector4d>& sampled_barycentrics,
+    const std::vector<Eigen::Matrix<wmtk::Rational, 4, 1>>& sampled_barycentrics,
     const std::vector<Eigen::Index>& sampled_tet_indices,
     std::vector<SampledPointInputRational>& sampled_points)
 {
@@ -110,11 +110,7 @@ void convert_sampling_to_input_rational(
     for (std::size_t i = 0; i < sampled_barycentrics.size(); ++i) {
         SampledPointInputRational input;
         input.tet_index = sampled_tet_indices[i];
-        // Convert double barycentrics to rational (exact conversion)
-        Eigen::Matrix<wmtk::Rational, 4, 1> rational_bc;
-        for (int j = 0; j < 4; ++j) {
-            rational_bc[j] = wmtk::Rational(sampled_barycentrics[i][j], false);
-        }
+        Eigen::Matrix<wmtk::Rational, 4, 1> rational_bc = sampled_barycentrics[i];
         rational_bc /= rational_bc.sum();
         input.barycentric = rational_bc;
         sampled_points.push_back(input);
@@ -152,16 +148,23 @@ int main(int argc, char** argv)
             (argc > 1) ? std::filesystem::path(argv[1])
                        : std::filesystem::path("../build/operation_log_sphere_coarse");
 
+        std::cout << std::fixed << std::setprecision(16);
         std::cout << "Reading operation logs from: " << logs_dir << '\n';
         auto [V_before, T_before] = load_first_operation_mesh_rational(logs_dir);
         std::cout << "Loaded tet mesh: " << V_before.rows() << " vertices, " << T_before.rows()
                   << " tetrahedra\n";
+        std::cout << "Input vertices:\n";
+        for (Eigen::Index i = 0; i < V_before.rows(); ++i) {
+            std::cout << "  vertex " << i << ": (" << V_before(i, 0).to_double() << ", "
+                      << V_before(i, 1).to_double() << ", " << V_before(i, 2).to_double() << ")\n";
+        }
 
-        std::vector<Eigen::Vector4d> sampled_barycentrics;
+        std::vector<Eigen::Matrix<wmtk::Rational, 4, 1>> sampled_barycentrics;
         std::vector<Eigen::Index> sampled_tet_indices;
         const int sample_triangle_count = 2;
-        Eigen::MatrixXi sampled_faces = build_sampled_triangles(
+        Eigen::MatrixXi sampled_faces = build_sampled_triangles_rational(
             T_before,
+            V_before,
             sampled_barycentrics,
             sampled_tet_indices,
             sample_triangle_count);
@@ -177,7 +180,7 @@ int main(int argc, char** argv)
             const auto& pt = sampled_points[i];
             std::cout << "Sampled Point " << i << ": barycentric = [";
             for (int j = 0; j < 4; ++j) {
-                std::cout << pt.barycentric[j];
+                std::cout << pt.barycentric[j].to_double();
                 if (j < 3) std::cout << ", ";
             }
             std::cout << "], tet_index = " << pt.tet_index << std::endl;
@@ -282,7 +285,88 @@ int main(int argc, char** argv)
                 subset_path,
                 subset_tet_ids.size() == F_subset.rows() ? &subset_tet_ids : nullptr,
                 "sampled_tet_id");
-            std::cout << "  sampled fragments -> " << subset_path << '\n';
+            std::cout << "Refined sampled triangle written to: " << subset_path << '\n';
+
+            std::set<std::size_t> sampled_vertex_ids;
+            for (std::size_t local_idx = 0; local_idx < result.sampled_fragment_triangles.size();
+                 ++local_idx) {
+                const Triangle& tri = result.sampled_fragment_triangles[local_idx];
+                const std::size_t tri_idx = result.sampled_fragment_indices[local_idx];
+                const int assigned_tet = result.sampled_fragment_tet_ids(local_idx);
+
+                const int source_sample = result.sampled_fragment_source_ids[local_idx];
+                std::cout << "Sample triangle piece " << local_idx << " (from test triangle "
+                          << source_sample << ") corresponds to refined triangle " << tri_idx
+                          << " [vertices " << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
+
+                std::set<int> piece_partner_tets;
+                for (std::size_t corner = 0; corner < 3; ++corner) {
+                    const std::size_t v_id = tri[corner];
+                    sampled_vertex_ids.insert(v_id);
+                    const RationalPoint& p = result.refined_points[v_id];
+                    std::cout << "    vertex " << v_id << " (" << CGAL::to_double(p.x()) << ", "
+                              << CGAL::to_double(p.y()) << ", " << CGAL::to_double(p.z())
+                              << ") shared with tets: ";
+                    const auto& tet_set = result.vertex_tet_sets[v_id];
+                    if (tet_set.empty()) {
+                        std::cout << "none";
+                    } else {
+                        bool first = true;
+                        for (int tet_id : tet_set) {
+                            if (!first) {
+                                std::cout << ", ";
+                            }
+                            std::cout << tet_id;
+                            first = false;
+                        }
+                        piece_partner_tets.insert(tet_set.begin(), tet_set.end());
+                    }
+                    std::cout << '\n';
+                }
+
+                std::cout << "    assigned tet id (intersection): ";
+                if (assigned_tet == -1) {
+                    std::cout << "none";
+                } else {
+                    std::cout << assigned_tet;
+                }
+                std::cout << '\n';
+
+                std::cout << "    aggregated partner tets: ";
+                if (piece_partner_tets.empty()) {
+                    std::cout << "none";
+                } else {
+                    bool first = true;
+                    for (int tet_id : piece_partner_tets) {
+                        if (!first) {
+                            std::cout << ", ";
+                        }
+                        std::cout << tet_id;
+                        first = false;
+                    }
+                }
+                std::cout << '\n';
+            }
+
+            std::cout << "Unique vertices belonging to test triangle fragments:\n";
+            for (std::size_t v_id : sampled_vertex_ids) {
+                const RationalPoint& p = result.refined_points[v_id];
+                std::cout << "  vertex " << v_id << " -> (" << CGAL::to_double(p.x()) << ", "
+                          << CGAL::to_double(p.y()) << ", " << CGAL::to_double(p.z()) << ")\n";
+            }
+        } else {
+            std::cout << "No refined triangles mapped back to the sampled triangle.\n";
+        }
+
+        std::cout << "Sampled triangle came from tetrahedra:\n";
+        for (const auto& vertex : result.sampled_vertices) {
+            std::cout << "  tet " << vertex.tet_index << " -> point #" << vertex.point_index
+                      << " at (" << vertex.position[0].to_double() << ", "
+                      << vertex.position[1].to_double() << ", " << vertex.position[2].to_double()
+                      << "), barycentric (" << vertex.barycentric[0].to_double() << ", "
+                      << vertex.barycentric[1].to_double() << ", "
+                      << vertex.barycentric[2].to_double() << ", "
+                      << vertex.barycentric[3].to_double() << ")\n";
         }
 
     } catch (const std::exception& e) {

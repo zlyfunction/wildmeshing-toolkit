@@ -148,6 +148,7 @@ int main(int argc, char** argv)
         const int sample_triangle_count = 2;
         Eigen::MatrixXi sampled_faces = build_sampled_triangles(
             T_before,
+            V_before,
             sampled_barycentrics,
             sampled_tet_indices,
             sample_triangle_count);
