@@ -1,9 +1,9 @@
 #include "tet_surface_sampling.hpp"
-#include <iostream>
-#include <random>
-#include <queue>
-#include <unordered_set>
 #include <cinolib/io/write_OBJ.h>
+#include <iostream>
+#include <queue>
+#include <random>
+#include <unordered_set>
 #include "InteractiveAndRobustMeshBooleans/code/booleans.h"
 #include "tet_track_operations.hpp"
 
@@ -464,8 +464,7 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
         // Find containing tetrahedron
         int containing_tet_id = -1;
         for (int tet_id = 0; tet_id < T_out.rows(); tet_id++) {
-            if (vertex_to_labels[v0_idx].count(tet_id) &&
-                vertex_to_labels[v1_idx].count(tet_id) &&
+            if (vertex_to_labels[v0_idx].count(tet_id) && vertex_to_labels[v1_idx].count(tet_id) &&
                 vertex_to_labels[v2_idx].count(tet_id)) {
                 std::cout << "Triangle " << triangle_id << " is in tet " << tet_id << std::endl;
                 containing_tet_id = tet_id;
@@ -513,8 +512,13 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
                     wmtk::Rational(bc_double(0)),
                     wmtk::Rational(bc_double(1)),
                     wmtk::Rational(bc_double(2)),
-                    wmtk::Rational(bc_double(3))
-                );
+                    wmtk::Rational(bc_double(3)));
+
+                for (int bc_idx = 0; bc_idx < 4; ++bc_idx) {
+                    if (qp.bc(bc_idx) < wmtk::Rational(0)) {
+                        qp.bc(bc_idx) = wmtk::Rational(0);
+                    }
+                }
 
                 // Normalize
                 wmtk::Rational sum = qp.bc(0) + qp.bc(1) + qp.bc(2) + qp.bc(3);
@@ -538,9 +542,8 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
         query_surface.tet_ids.push_back(containing_tet_id);
     }
 
-    std::cout << "Created surface with " << query_surface.points.size()
-              << " unique points and " << query_surface.query_triangles.size()
-              << " triangles" << std::endl;
+    std::cout << "Created surface with " << query_surface.points.size() << " unique points and "
+              << query_surface.query_triangles.size() << " triangles" << std::endl;
 
     return query_surface;
 }

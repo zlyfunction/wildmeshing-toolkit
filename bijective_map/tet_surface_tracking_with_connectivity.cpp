@@ -7,6 +7,7 @@
 #include <set>
 #include "InteractiveAndRobustMeshBooleans/code/booleans.h"
 #include "batch_operation_log_reader.hpp"
+#include "cgal_autorefine_utils_rational.hpp"
 #include "tet_point_tracking.hpp"
 #include "tet_surface_sampling.hpp"
 #include "tet_track_operations.hpp"
@@ -115,6 +116,7 @@ void check_surface_manifold_property(const MatrixXr& surface_V, const Eigen::Mat
     std::cout << "Checking manifold property..." << std::endl;
 }
 
+// TODO: Implement this!!!!
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
     const Eigen::MatrixXd& V_after,
@@ -123,7 +125,6 @@ void run_backward_tracking_surface(
     const std::filesystem::path& surface_file,
     bool check_manifold)
 {
-    // TODO: Implement backward tracking surface application
     std::cout << "Backward tracking surface with connectivity" << std::endl;
 
     // Step 1: Read or sample the query surface with connectivity
@@ -140,6 +141,19 @@ void run_backward_tracking_surface(
         query_surface = read_surface_connectivity_from_file(query_surface_filename);
     }
     write_surface_to_vtu(query_surface, V_after, "query_surface_tet_with_connectivity_after.vtu");
+
+    // step2 do the backward tracking
+    std::cout << "Doing backward tracking..." << std::endl;
+    track_all_operations(operation_logs_dir, query_surface, false);
+    std::cout << "Backward tracking completed" << std::endl;
+
+    // step3 write the surface to file
+    write_surface_connectivity_to_file(
+        query_surface,
+        "query_surface_tet_with_connectivity_before.json");
+    write_surface_to_vtu(query_surface, V_before, "query_surface_tet_with_connectivity_before.vtu");
+
+    // TODO: results sanity check
 }
 
 void write_surface_connectivity_to_file(
@@ -262,8 +276,37 @@ void handle_consolidate_operation(
     query_surface_tet_with_connectivity& surface,
     bool forward)
 {
-    // TODO: Implement consolidate operation handling
     std::cout << "Handling Consolidate operation for surface with connectivity" << std::endl;
+
+    // Step 1: Handle points using handle_consolidate_tet
+    tet_point_tracking::handle_consolidate_tet<wmtk::Rational>(
+        tet_ids_maps,
+        vertex_ids_maps,
+        surface.points,
+        forward);
+
+    // Step 2: Handle tet_ids (treat them like t_id in query_point_tet)
+    if (!forward) {
+        // Backward: direct mapping
+        for (auto& tet_id : surface.tet_ids) {
+            if (tet_id >= 0) {
+                tet_id = tet_ids_maps[tet_id];
+            }
+        }
+    } else {
+        // Forward: search for the old value in the map
+        for (auto& tet_id : surface.tet_ids) {
+            if (tet_id >= 0) {
+                auto it = std::find(tet_ids_maps.begin(), tet_ids_maps.end(), tet_id);
+                if (it != tet_ids_maps.end()) {
+                    tet_id = std::distance(tet_ids_maps.begin(), it);
+                }
+            }
+        }
+    }
+
+    std::cout << "Consolidate operation completed for " << surface.points.size() << " points and "
+              << surface.tet_ids.size() << " triangle tet_ids" << std::endl;
 }
 
 void handle_local_mapping_operation(
@@ -279,6 +322,105 @@ void handle_local_mapping_operation(
 {
     // TODO: Implement local mapping operation handling
     std::cout << "Handling Local Mapping operation for surface with connectivity" << std::endl;
+
+    // step1:map all points in the surface
+    tet_point_tracking::handle_local_mapping_tet_exact(
+        V_before,
+        T_before,
+        id_map_before,
+        v_id_map_before,
+        V_after,
+        T_after,
+        id_map_after,
+        v_id_map_after,
+        surface.points,
+        true);
+
+    // step2: get all faces in surface.triangle that is in id_map_after
+    {
+        std::vector<int> face_ids;
+        for (int i = 0; i < surface.query_triangles.size(); i++) {
+            if (std::find(id_map_after.begin(), id_map_after.end(), surface.tet_ids[i]) !=
+                id_map_after.end()) {
+                face_ids.push_back(i);
+            }
+        }
+
+        // Step 2.1: Collect all unique point indices used by selected triangles
+        std::set<int> unique_point_indices_set;
+        for (int face_id : face_ids) {
+            const Eigen::Vector3i& tri = surface.query_triangles[face_id];
+            unique_point_indices_set.insert(tri[0]);
+            unique_point_indices_set.insert(tri[1]);
+            unique_point_indices_set.insert(tri[2]);
+        }
+
+        // Convert set to vector for indexing
+        std::vector<int> unique_point_indices(
+            unique_point_indices_set.begin(),
+            unique_point_indices_set.end());
+
+        // Step 2.2: Create mapping from global point index to local point index
+        std::map<int, int> global_to_local_point_map;
+        for (int local_idx = 0; local_idx < unique_point_indices.size(); local_idx++) {
+            global_to_local_point_map[unique_point_indices[local_idx]] = local_idx;
+        }
+
+        // Step 2.3: Build local_triangles_F by remapping triangle indices to local indices
+        Eigen::MatrixXi local_triangles_F(face_ids.size(), 3);
+        for (int i = 0; i < face_ids.size(); i++) {
+            int face_id = face_ids[i];
+            const Eigen::Vector3i& global_tri = surface.query_triangles[face_id];
+
+            // Map each vertex from global to local index
+            local_triangles_F(i, 0) = global_to_local_point_map[global_tri[0]];
+            local_triangles_F(i, 1) = global_to_local_point_map[global_tri[1]];
+            local_triangles_F(i, 2) = global_to_local_point_map[global_tri[2]];
+        }
+
+        std::cout << "Built local triangles mesh: " << unique_point_indices.size() << " vertices, "
+                  << local_triangles_F.rows() << " faces" << std::endl;
+
+        // Step 2.4: Prepare sampled points for autorefine
+        std::vector<cgal_autorefine_demo::SampledPointInputRational> sampled_points;
+        sampled_points.reserve(unique_point_indices.size());
+
+        for (int local_idx = 0; local_idx < unique_point_indices.size(); local_idx++) {
+            int global_idx = unique_point_indices[local_idx];
+            const auto& pt = surface.points[global_idx];
+
+            cgal_autorefine_demo::SampledPointInputRational sampled_pt;
+
+            // Find the position of pt.t_id in id_map_before
+            auto it = std::find(id_map_before.begin(), id_map_before.end(), pt.t_id);
+            if (it != id_map_before.end()) {
+                sampled_pt.tet_index = std::distance(id_map_before.begin(), it);
+            } else {
+                // If not found in id_map_before, use -1 or handle error
+                std::cerr << "Warning: tet_id " << pt.t_id << " not found in id_map_before" << std::endl;
+                sampled_pt.tet_index = -1;
+            }
+
+            sampled_pt.barycentric = pt.bc;
+
+            sampled_points.push_back(sampled_pt);
+        }
+
+        // Step 2.5: Call autorefine_sampled_triangles_rational on V_before and T_before
+        std::cout << "Calling autorefine_sampled_triangles_rational on V_before and T_before..." << std::endl;
+        cgal_autorefine_demo::AutorefineResultRational autorefine_result =
+            cgal_autorefine_demo::autorefine_sampled_triangles_rational(
+                V_before,
+                T_before,
+                sampled_points,
+                local_triangles_F);
+
+        std::cout << "Autorefine completed: "
+                  << autorefine_result.refined_points.size() << " refined points, "
+                  << autorefine_result.refined_triangles.size() << " refined triangles" << std::endl;
+        std::cout << "Sampled fragment indices size: "
+                  << autorefine_result.sampled_fragment_indices.size() << std::endl;
+    }
 }
 
 void track_one_operation(
@@ -287,10 +429,81 @@ void track_one_operation(
     bool do_forward,
     int operation_id)
 {
-    // TODO: Implement single operation tracking
     std::string operation_name = operation_log["operation_name"];
     std::cout << "Tracking operation: " << operation_name << " (ID: " << operation_id << ")"
               << std::endl;
+
+    if (operation_name == "MeshConsolidate") {
+        std::cout << "  This operation is Consolidate" << std::endl;
+        std::vector<int64_t> tet_ids_maps;
+        std::vector<int64_t> vertex_ids_maps;
+        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
+
+        handle_consolidate_operation(tet_ids_maps, vertex_ids_maps, surface, do_forward);
+    } else {
+        std::cout << "  This operation is " << operation_name << std::endl;
+
+        // Parse operation data
+        Eigen::MatrixXi T_after, T_before;
+        Eigen::MatrixXd V_after_double, V_before_double;
+        std::vector<int64_t> id_map_after, id_map_before;
+        std::vector<int64_t> v_id_map_after, v_id_map_before;
+
+        parse_non_collapse_file_tet(
+            operation_log,
+            V_before_double,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            V_after_double,
+            T_after,
+            id_map_after,
+            v_id_map_after,
+            operation_id);
+
+        // Convert double matrices to rational matrices
+        MatrixXr V_before(V_before_double.rows(), V_before_double.cols());
+        MatrixXr V_after(V_after_double.rows(), V_after_double.cols());
+
+        for (int i = 0; i < V_before_double.rows(); i++) {
+            for (int j = 0; j < V_before_double.cols(); j++) {
+                V_before(i, j) = wmtk::Rational(V_before_double(i, j));
+            }
+        }
+
+        for (int i = 0; i < V_after_double.rows(); i++) {
+            for (int j = 0; j < V_after_double.cols(); j++) {
+                V_after(i, j) = wmtk::Rational(V_after_double(i, j));
+            }
+        }
+
+        // Call handle_local_mapping_operation with appropriate direction
+        if (do_forward) {
+            handle_local_mapping_operation(
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                surface);
+        } else {
+            handle_local_mapping_operation(
+                V_before,
+                T_before,
+                id_map_before,
+                v_id_map_before,
+                V_after,
+                T_after,
+                id_map_after,
+                v_id_map_after,
+                surface);
+        }
+    }
+
+    std::cout << "  Operation " << operation_id << " completed" << std::endl;
 }
 
 void track_all_operations(
@@ -298,7 +511,6 @@ void track_all_operations(
     query_surface_tet_with_connectivity& surface,
     bool do_forward)
 {
-    // TODO: Implement tracking through all operations
     std::cout << "Tracking all operations from directory: " << dirPath << std::endl;
 
     BatchOperationLogReader reader(dirPath);
@@ -312,7 +524,29 @@ void track_all_operations(
     std::cout << "Found " << total_ops << " operations in "
               << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
 
-    // TODO: Iterate through operations and track each one
+    // Iterate through operations in the appropriate order
+    for (size_t i = 0; i < total_ops; ++i) {
+        size_t operation_index = i;
+        if (!do_forward) {
+            // Backward tracking: process operations in reverse order
+            operation_index = total_ops - 1 - i;
+        }
+
+        json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            continue;
+        }
+
+        std::cout << "\n=== Processing operation " << (i + 1) << "/" << total_ops
+                  << " (index: " << operation_index << ") ===" << std::endl;
+
+        track_one_operation(operation_log, surface, do_forward, static_cast<int>(operation_index));
+    }
+
+    std::cout << "\n=== All operations completed ===" << std::endl;
+    std::cout << "Final surface state: " << surface.points.size() << " points, "
+              << surface.query_triangles.size() << " triangles" << std::endl;
 }
 
 std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(

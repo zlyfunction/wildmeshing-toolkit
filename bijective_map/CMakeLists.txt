@@ -69,6 +69,9 @@ add_executable(bijective_map_app_tet
     tet_surface_tracking_with_connectivity.cpp
     tet_surface_sampling.hpp
     tet_surface_sampling.cpp
+    cgal_autorefine_utils_rational.hpp
+    cgal_autorefine_utils_rational.cpp
+    cgal_autorefine_utils.cpp
 )
 target_include_directories(bijective_map_app_tet PUBLIC
     ./InteractiveAndRobustMeshBooleans
@@ -88,6 +91,8 @@ target_link_libraries(bijective_map_app_tet
     nlohmann_json::nlohmann_json
     cinolib
     TBB::tbb
+    CGAL::CGAL
+    Eigen3::Eigen
 )
 
 if(USE_IGL_VIEWER)
