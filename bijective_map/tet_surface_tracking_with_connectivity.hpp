@@ -24,6 +24,30 @@ std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
     const MatrixXr& V);
 
 /**
+ * @brief Write query surface with connectivity to VTU file (rational version)
+ *
+ * @param query_surface The query surface with connectivity structure
+ * @param V Vertex positions matrix (n x 3) with rational coordinates
+ * @param filename Output VTU filename
+ */
+void write_surface_to_vtu_rational(
+    const query_surface_tet_with_connectivity& query_surface,
+    const MatrixXr& V,
+    const std::string& filename);
+
+/**
+ * @brief Write query surface with connectivity to VTU file (double version)
+ *
+ * @param query_surface The query surface with connectivity structure
+ * @param V Vertex positions matrix (n x 3) with double coordinates
+ * @param filename Output VTU filename
+ */
+void write_surface_to_vtu(
+    const query_surface_tet_with_connectivity& query_surface,
+    const Eigen::MatrixXd& V,
+    const std::string& filename);
+
+/**
  * @brief Print triangle area statistics
  *
  * @param surface_V Surface vertex positions with rational coordinates

@@ -19,11 +19,86 @@ std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
     const query_surface_tet_with_connectivity& query_surface,
     const MatrixXr& V)
 {
-    // TODO: Implement conversion from query surface to world positions
-    MatrixXr V_out;
-    Eigen::MatrixXi F_out;
+    std::cout << "Converting query surface with connectivity to world positions..." << std::endl;
+
+    // Allocate output matrices
+    // V_out: one row per unique point (not 3 per triangle)
+    MatrixXr V_out(query_surface.points.size(), 3);
+    Eigen::MatrixXi F_out(query_surface.query_triangles.size(), 3);
+
+    // Convert each point to world coordinates
+    for (size_t i = 0; i < query_surface.points.size(); i++) {
+        const auto& pt = query_surface.points[i];
+
+        // Get vertices of the tetrahedron
+        Eigen::Vector4i tet_verts = pt.tv_ids;
+
+        // Calculate real position using barycentric coordinates
+        Vector3r world_pos = Vector3r::Zero();
+        for (int j = 0; j < 4; j++) {
+            world_pos += pt.bc(j) * V.row(tet_verts(j)).transpose();
+        }
+        V_out.row(i) = world_pos.transpose();
+    }
+
+    // Copy triangle connectivity
+    for (size_t i = 0; i < query_surface.query_triangles.size(); i++) {
+        F_out.row(i) = query_surface.query_triangles[i];
+    }
+
+    std::cout << "Converted " << V_out.rows() << " vertices and " << F_out.rows() << " triangles"
+              << std::endl;
 
     return {V_out, F_out};
+}
+
+void write_surface_to_vtu_rational(
+    const query_surface_tet_with_connectivity& query_surface,
+    const MatrixXr& V,
+    const std::string& filename)
+{
+    std::cout << "Writing surface with connectivity to VTU file: " << filename << std::endl;
+
+    // First convert to world positions
+    auto [V_rational, F] = surface_to_world_positions_rational(query_surface, V);
+
+    // Convert rational coordinates to double for VTU output
+    Eigen::MatrixXd V_double(V_rational.rows(), V_rational.cols());
+    for (int i = 0; i < V_rational.rows(); i++) {
+        for (int j = 0; j < V_rational.cols(); j++) {
+            V_double(i, j) = V_rational(i, j).to_double();
+        }
+    }
+
+    // Prepare tet_id as cell scalar (one value per triangle)
+    Eigen::VectorXi tet_ids_vector(query_surface.tet_ids.size());
+    for (size_t i = 0; i < query_surface.tet_ids.size(); i++) {
+        tet_ids_vector(i) = query_surface.tet_ids[i];
+    }
+
+    // Write to VTU using existing utility function
+    vtu_utils::write_triangle_mesh_to_vtu(V_double, F, filename, &tet_ids_vector, "tet_id");
+
+    std::cout << "Successfully wrote " << V_double.rows() << " vertices and " << F.rows()
+              << " triangles to " << filename << std::endl;
+    std::cout << "  with tet_id property attached to each triangle" << std::endl;
+}
+
+void write_surface_to_vtu(
+    const query_surface_tet_with_connectivity& query_surface,
+    const Eigen::MatrixXd& V,
+    const std::string& filename)
+{
+    // Convert double matrix to rational matrix
+    MatrixXr V_rational(V.rows(), V.cols());
+    for (int i = 0; i < V.rows(); i++) {
+        for (int j = 0; j < V.cols(); j++) {
+            V_rational(i, j) = wmtk::Rational(V(i, j));
+        }
+    }
+
+    // Call rational version
+    write_surface_to_vtu_rational(query_surface, V_rational, filename);
 }
 
 void print_surface_area_statistics(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F)
@@ -64,6 +139,7 @@ void run_backward_tracking_surface(
         std::cout << "query_surface found, reading from file..." << std::endl;
         query_surface = read_surface_connectivity_from_file(query_surface_filename);
     }
+    write_surface_to_vtu(query_surface, V_after, "query_surface_tet_with_connectivity_after.vtu");
 }
 
 void write_surface_connectivity_to_file(
@@ -87,8 +163,7 @@ void write_surface_connectivity_to_file(
             pt.bc[0].serialize(),
             pt.bc[1].serialize(),
             pt.bc[2].serialize(),
-            pt.bc[3].serialize()
-        };
+            pt.bc[3].serialize()};
 
         // Store tetrahedron vertex ids
         pt_json["tv_ids"] = {pt.tv_ids[0], pt.tv_ids[1], pt.tv_ids[2], pt.tv_ids[3]};
@@ -149,18 +224,13 @@ query_surface_tet_with_connectivity read_surface_connectivity_from_file(const st
 
         pt.t_id = pt_json["t_id"];
 
-        // Read barycentric coordinates from serialized strings
+        // Read barycentric coordinates from serialized strings using deserialize
         const auto& bc_array = pt_json["bc"];
-        std::string bc0_str = bc_array[0];
-        std::string bc1_str = bc_array[1];
-        std::string bc2_str = bc_array[2];
-        std::string bc3_str = bc_array[3];
         pt.bc = Eigen::Matrix<wmtk::Rational, 4, 1>(
-            wmtk::Rational(bc0_str),
-            wmtk::Rational(bc1_str),
-            wmtk::Rational(bc2_str),
-            wmtk::Rational(bc3_str)
-        );
+            wmtk::Rational::deserialize(bc_array[0]),
+            wmtk::Rational::deserialize(bc_array[1]),
+            wmtk::Rational::deserialize(bc_array[2]),
+            wmtk::Rational::deserialize(bc_array[3]));
 
         // Read tetrahedron vertex ids
         const auto& tv_array = pt_json["tv_ids"];

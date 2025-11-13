@@ -394,6 +394,67 @@ std::string Rational::serialize() const
     return numerator() + "/" + denominator() + "/" + (m_is_rounded ? "1" : "0");
 }
 
+Rational Rational::deserialize(const std::string& s)
+{
+    // Parse the serialized string format: "numerator/denominator/is_rounded"
+    size_t first_slash = s.find('/');
+    size_t second_slash = s.find('/', first_slash + 1);
+
+    if (first_slash == std::string::npos || second_slash == std::string::npos) {
+        // Invalid format, return zero
+        return Rational(0);
+    }
+
+    std::string num_str = s.substr(0, first_slash);
+    std::string denom_str = s.substr(first_slash + 1, second_slash - first_slash - 1);
+    std::string rounded_str = s.substr(second_slash + 1);
+
+    bool is_rounded = (rounded_str == "1");
+
+    // Create a Rational and set its value using mpq
+    Rational result(is_rounded);
+
+    if (!is_rounded) {
+        // Set the numerator and denominator directly
+        mpz_t num, denom;
+        mpz_init(num);
+        mpz_init(denom);
+
+        mpz_set_str(num, num_str.c_str(), 10);  // base 10
+        mpz_set_str(denom, denom_str.c_str(), 10);
+
+        mpq_set_num(result.value, num);
+        mpq_set_den(result.value, denom);
+        mpq_canonicalize(result.value);
+
+        mpz_clear(num);
+        mpz_clear(denom);
+    } else {
+        // For rounded values, reconstruct from numerator/denominator
+        mpq_t tmp;
+        mpq_init(tmp);
+
+        mpz_t num, denom;
+        mpz_init(num);
+        mpz_init(denom);
+
+        mpz_set_str(num, num_str.c_str(), 10);
+        mpz_set_str(denom, denom_str.c_str(), 10);
+
+        mpq_set_num(tmp, num);
+        mpq_set_den(tmp, denom);
+        mpq_canonicalize(tmp);
+
+        result.d_value = mpq_get_d(tmp);
+
+        mpz_clear(num);
+        mpz_clear(denom);
+        mpq_clear(tmp);
+    }
+
+    return result;
+}
+
 void Rational::export_mpq(mpq_t out) const
 {
     if (m_is_rounded) {

@@ -91,6 +91,7 @@ public:
     std::string to_binary() const;
 
     std::string serialize() const;
+    static Rational deserialize(const std::string& s);
 
     inline bool is_rounded() const { return m_is_rounded; }
 
