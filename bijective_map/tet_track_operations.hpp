@@ -72,8 +72,8 @@ inline query_point_tet_t<ToType> convert_query_point_tet(
     for (int i = 0; i < 4; ++i) {
         if constexpr (std::is_same_v<FromType, ToType>) {
             to.bc(i) = from.bc(i);
-        } else if constexpr (std::is_same_v<FromType, wmtk::Rational> &&
-                             std::is_same_v<ToType, double>) {
+        } else if constexpr (
+            std::is_same_v<FromType, wmtk::Rational> && std::is_same_v<ToType, double>) {
             to.bc(i) = from.bc(i).to_double();
         } else if constexpr (
             std::is_same_v<FromType, double> && std::is_same_v<ToType, wmtk::Rational>) {
@@ -152,6 +152,14 @@ struct query_surface_tet
 {
     std::vector<query_triangle_tet> triangles;
     // TODO: embed the connectivity of the triangles here
+};
+
+// new query_surface_tet structure,
+struct query_surface_tet_with_connectivity
+{
+    std::vector<query_point_tet_r> points;
+    std::vector<Eigen::Vector3i> query_triangles;
+    std::vector<int> tet_ids;
 };
 
 // Shared utility functions for barycentric coordinate conversions

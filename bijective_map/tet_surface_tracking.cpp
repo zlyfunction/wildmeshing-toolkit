@@ -1,16 +1,17 @@
 #include "tet_surface_tracking.hpp"
-#include <iostream>
+#include <cmath>
 #include <fstream>
+#include <iostream>
+#include <limits>
 #include <map>
 #include <set>
-#include <cmath>
-#include <limits>
-#include "tet_track_operations.hpp"
-#include "vtu_utils.hpp"
-#include "tet_track_operations_internal.hpp"
-#include "tet_point_tracking.hpp"
-#include "batch_operation_log_reader.hpp"
 #include "InteractiveAndRobustMeshBooleans/code/booleans.h"
+#include "batch_operation_log_reader.hpp"
+#include "tet_point_tracking.hpp"
+#include "tet_surface_sampling.hpp"
+#include "tet_track_operations.hpp"
+#include "tet_track_operations_internal.hpp"
+#include "vtu_utils.hpp"
 
 namespace tet_surface_tracking {
 
@@ -46,6 +47,7 @@ std::pair<Eigen::MatrixXd, Eigen::MatrixXi> query_surface_to_world_positions(
     return {V_out, F_out};
 }
 
+// helper function to print triangle area statistics
 void print_triangle_area_statistics(
     const Eigen::MatrixXd& surface_V,
     const Eigen::MatrixXi& surface_F)
@@ -92,10 +94,8 @@ void print_triangle_area_statistics(
     std::cout << "Area ratio (max/min): " << (max_area / min_area) << std::endl;
     std::cout << "================================\n" << std::endl;
 }
-
-void check_manifold_property(
-    const Eigen::MatrixXd& surface_V,
-    const Eigen::MatrixXi& surface_F)
+// helper function to check if the surface is manifold
+void check_manifold_property(const Eigen::MatrixXd& surface_V, const Eigen::MatrixXi& surface_F)
 {
     std::cout << "Merging duplicate vertices..." << std::endl;
 
@@ -150,8 +150,8 @@ void check_manifold_property(
         F_triangle.row(i) = unique_faces[i];
     }
 
-    std::cout << "Original mesh: " << surface_V.rows() << " vertices, "
-              << surface_F.rows() << " faces" << std::endl;
+    std::cout << "Original mesh: " << surface_V.rows() << " vertices, " << surface_F.rows()
+              << " faces" << std::endl;
     std::cout << "Merged mesh: " << V_triangle.rows() << " vertices, " << F_triangle.rows()
               << " faces" << std::endl;
 
@@ -185,12 +185,10 @@ void check_manifold_property(
         if (edge.second == 1) {
             boundary_edges++;
         } else if (edge.second > 2) {
-            std::cout << "    Non-manifold edge: (" << edge.first.first << ", "
-                      << edge.first.second << ") appears " << edge.second << " times"
-                      << std::endl;
-            std::cout << "    Edge vertices positions: ("
-                      << V_triangle.row(edge.first.first) << ", "
-                      << V_triangle.row(edge.first.second) << ")" << std::endl;
+            std::cout << "    Non-manifold edge: (" << edge.first.first << ", " << edge.first.second
+                      << ") appears " << edge.second << " times" << std::endl;
+            std::cout << "    Edge vertices positions: (" << V_triangle.row(edge.first.first)
+                      << ", " << V_triangle.row(edge.first.second) << ")" << std::endl;
 
             // Print faces containing this non-manifold edge and their areas
             std::cout << "    Faces containing this edge:" << std::endl;
@@ -206,8 +204,7 @@ void check_manifold_property(
                 double area = 0.5 * edge1.cross(edge2).norm();
 
                 std::cout << "      Face " << face_id << ": vertices (" << face(0) << ", "
-                          << face(1) << ", " << face(2) << "), area = " << area
-                          << std::endl;
+                          << face(1) << ", " << face(2) << "), area = " << area << std::endl;
             }
 
             non_manifold_edges++;
@@ -225,8 +222,7 @@ void check_manifold_property(
 
     // Print non-manifold vertices as point mesh
     if (!non_manifold_vertices.empty()) {
-        std::cout << "  Non-manifold vertices: " << non_manifold_vertices.size()
-                  << std::endl;
+        std::cout << "  Non-manifold vertices: " << non_manifold_vertices.size() << std::endl;
 
         // Create point mesh for non-manifold vertices
         Eigen::MatrixXd V_non_manifold(non_manifold_vertices.size(), 3);
@@ -238,8 +234,7 @@ void check_manifold_property(
 
         // Write non-manifold vertices to file
         vtu_utils::write_point_mesh_to_vtu(V_non_manifold, "non_manifold_vertices.vtu");
-        std::cout << "  Non-manifold vertices written to non_manifold_vertices.vtu"
-                  << std::endl;
+        std::cout << "  Non-manifold vertices written to non_manifold_vertices.vtu" << std::endl;
     }
 }
 
@@ -259,8 +254,11 @@ void run_back_tracking_surface(
     if (!std::filesystem::exists(query_surface_filename)) {
         std::cout << "query_surface not found, sampling and writing to file..." << std::endl;
         // User must provide surface file or use external sampling functions
-        std::cerr << "Error: Surface file not found. Please provide a valid surface file." << std::endl;
-        return;
+
+        // std::cerr << "Error: Surface file not found. Please provide a valid surface file."
+        //   << std::endl;
+        query_surface = tet_surface_sampling::sample_query_surface_large_triangle(T_after, V_after);
+        write_query_surface_tet_to_file(query_surface, query_surface_filename);
     } else {
         std::cout << "query_surface found, reading from file..." << std::endl;
         query_surface = read_query_surface_tet_from_file(query_surface_filename);
@@ -269,11 +267,9 @@ void run_back_tracking_surface(
     auto [surface_V, surface_F] = query_surface_to_world_positions(query_surface, V_after);
     vtu_utils::write_triangle_mesh_to_vtu(surface_V, surface_F, "query_surface_tet_after.vtu");
 
-    std::cout << "before tracking, surface size: " << query_surface.triangles.size()
-              << std::endl;
+    std::cout << "before tracking, surface size: " << query_surface.triangles.size() << std::endl;
     track_surface_tet(operation_logs_dir, query_surface, false, false);
-    std::cout << "after tracking, surface size: " << query_surface.triangles.size()
-              << std::endl;
+    std::cout << "after tracking, surface size: " << query_surface.triangles.size() << std::endl;
 
     write_query_surface_tet_to_file(query_surface, "query_surface_tet_before.json");
     auto [surface_V_before, surface_F_before] =

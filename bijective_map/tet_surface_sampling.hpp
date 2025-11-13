@@ -10,6 +10,11 @@ query_surface_tet sample_query_surface_large_triangle(
     const Eigen::MatrixXi& T_out,
     const Eigen::MatrixXd& V_out);
 
+// Sample a query surface with connectivity
+query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
+    const Eigen::MatrixXi& T_out,
+    const Eigen::MatrixXd& V_out);
+
 // Sample a sub-surface by traversing connected tetrahedrons
 query_surface_tet sample_query_surface_sub_surface(
     const Eigen::MatrixXi& T_out,

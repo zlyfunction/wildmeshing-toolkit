@@ -12,6 +12,7 @@
 #include "tet_point_tracking_app.hpp"
 #include "tet_surface_sampling.hpp"
 #include "tet_surface_tracking.hpp"
+#include "tet_surface_tracking_with_connectivity.hpp"
 #include "vtu_utils.hpp"
 
 using path = std::filesystem::path;
@@ -107,6 +108,14 @@ int main(int argc, char** argv)
         tet_curve_tracking::run_back_tracking_curve(T_after, V_after, V_before, operation_logs_dir);
     } else if (application_name == "back_surface") {
         tet_surface_tracking::run_back_tracking_surface(
+            T_after,
+            V_after,
+            V_before,
+            operation_logs_dir,
+            surface_file,
+            false);
+    } else if (application_name == "back_surface_connectivity") {
+        tet_surface_tracking_with_connectivity::run_backward_tracking_surface(
             T_after,
             V_after,
             V_before,
