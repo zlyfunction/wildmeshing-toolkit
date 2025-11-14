@@ -518,14 +518,14 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
     wmtk::logger().debug("Configure isotropic remeshing collapse");
     auto op_collapse = std::make_shared<EdgeCollapse>(mesh);
     op_collapse->add_invariant(invariant_link_condition);
-    // if (position_for_inversion) {
-    //     op_collapse->add_invariant(std::make_shared<SimplexInversionInvariant<double>>(
-    //         position_for_inversion.value().mesh(),
-    //         position_for_inversion.value().as<double>()));
-    // }
+    if (position_for_inversion) {
+        op_collapse->add_invariant(std::make_shared<SimplexInversionInvariant<double>>(
+            position_for_inversion.value().mesh(),
+            position_for_inversion.value().as<double>()));
+    }
 
     op_collapse->add_invariant(invariant_max_edge_length);
-    // op_collapse->add_invariant(invariant_mm_map);
+    op_collapse->add_invariant(invariant_mm_map);
 
     // hack for uv
     // if (options.fix_uv_seam) {
