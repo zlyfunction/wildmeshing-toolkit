@@ -1,5 +1,7 @@
 #include "Rational.hpp"
 
+#include <CGAL/Gmpq.h>
+#include <CGAL/Lazy_exact_nt.h>
 #include <cassert>
 #include <cmath>
 #include <limits>

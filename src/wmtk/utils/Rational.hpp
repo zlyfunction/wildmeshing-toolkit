@@ -1,10 +1,15 @@
 #pragma once
 
+#include <CGAL/Gmpq.h>
+#include <CGAL/Lazy_exact_nt.h>
+#include <CGAL/number_utils.h>
 #include <gmp.h>
 #include <gmpxx.h>
 #include <Eigen/Dense>
 #include <iostream>
+#include <limits>
 #include <string>
+#include <type_traits>
 
 namespace wmtk {
 
@@ -20,6 +25,42 @@ public:
     Rational(const Rational& other);
     Rational(const Rational& other, bool rounded);
     Rational(const std::string& data, bool rounded = false);
+
+    // Conversion from CGAL::Gmpq (exact, no precision loss)
+    Rational(const CGAL::Gmpq& cgal_rational, bool rounded = false)
+    {
+        if (rounded) {
+            m_is_rounded = true;
+            d_value = CGAL::to_double(cgal_rational);
+        } else {
+            m_is_rounded = false;
+            mpq_init(value);
+            mpq_set(value, cgal_rational.mpq());
+            d_value = std::numeric_limits<double>::lowest();
+        }
+    }
+
+    // Conversion from CGAL::Lazy_exact_nt<CGAL::Gmpq> (exact, no precision loss)
+    template <typename NT>
+    Rational(const CGAL::Lazy_exact_nt<NT>& cgal_rational, bool rounded = false)
+    {
+        if (rounded) {
+            m_is_rounded = true;
+            d_value = CGAL::to_double(cgal_rational);
+        } else {
+            m_is_rounded = false;
+            mpq_init(value);
+            // Use exact() to get the underlying expression (__gmp_expr<mpq_t, mpq_t>)
+            // Convert to CGAL::Gmpq by using CGAL::Gmpq constructor that accepts mpq_t
+            auto exact_val = cgal_rational.exact();
+            // __gmp_expr has an implicit conversion to mpq_t via get_mpq_t()
+            // But we need to use it correctly. Let's try using CGAL::Gmpq constructor
+            // that accepts mpq_t, and use get_mpq_t() to get the mpq_t from __gmp_expr
+            CGAL::Gmpq gmpq_val(exact_val.get_mpq_t());
+            mpq_set(value, gmpq_val.mpq());
+            d_value = std::numeric_limits<double>::lowest();
+        }
+    }
 
     Rational& operator=(const Rational& x);
     Rational& operator=(const double x);
