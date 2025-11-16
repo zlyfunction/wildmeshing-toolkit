@@ -130,6 +130,7 @@ void handle_consolidate_operation(
  * @param id_map_after Tetrahedron ID mapping after operation
  * @param v_id_map_after Vertex ID mapping after operation
  * @param surface The query surface to update
+ * @param operation_id Operation ID for file naming
  */
 void handle_local_mapping_operation(
     const MatrixXr& V_before,
@@ -140,7 +141,8 @@ void handle_local_mapping_operation(
     const Eigen::MatrixXi& T_after,
     const std::vector<int64_t>& id_map_after,
     const std::vector<int64_t>& v_id_map_after,
-    query_surface_tet_with_connectivity& surface);
+    query_surface_tet_with_connectivity& surface,
+    int operation_id);
 
 /**
  * @brief Track surface through one operation
