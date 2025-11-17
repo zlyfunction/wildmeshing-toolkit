@@ -515,7 +515,7 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
                     wmtk::Rational(bc_double(3)));
 
                 for (int bc_idx = 0; bc_idx < 4; ++bc_idx) {
-                    if (qp.bc(bc_idx) < wmtk::Rational(0)) {
+                    if (abs(qp.bc(bc_idx)) < wmtk::Rational(1e-14)) {
                         qp.bc(bc_idx) = wmtk::Rational(0);
                     }
                 }
