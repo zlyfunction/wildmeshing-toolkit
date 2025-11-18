@@ -145,7 +145,40 @@ void run_backward_tracking_surface(
     }
     write_surface_to_vtu(query_surface, V_after, "query_surface_tet_with_connectivity_after.vtu");
 
+    {
+        // DEBUG: sanitity check for the input query_surface
+        for (int i = 0; i < query_surface.query_triangles.size(); i++) {
+            const Eigen::Vector3i& tri = query_surface.query_triangles[i];
+            int tri_tet_id = query_surface.tet_ids[i];
 
+            const Eigen::Vector4i& relevant_vids = T_after.row(tri_tet_id);
+
+            // check points
+            for (int j = 0; j < 3; j++) {
+                const auto& pt = query_surface.points[tri[j]];
+                if (pt.t_id != tri_tet_id) {
+                    std::cout << "i: " << i << ", tri_tet_id: " << tri_tet_id
+                              << ", pt: [t_id=" << pt.t_id << ", bc=(" << pt.bc[0].to_double()
+                              << ", " << pt.bc[1].to_double() << ", " << pt.bc[2].to_double()
+                              << ", " << pt.bc[3].to_double() << ")]" << std::endl;
+
+                    const auto tv_ids = pt.tv_ids;
+                    for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
+                        if (pt.bc(bc_idx) != 0) {
+                            int v_idx = tv_ids(bc_idx);
+                            if (std::find(relevant_vids.data(), relevant_vids.data() + 4, v_idx) ==
+                                relevant_vids.data() + 4) {
+                                std::cout << "ERROR: " << "v_idx: " << v_idx
+                                          << " is not in relevant_vids" << std::endl;
+                                std::cout << "bc of this point: " << pt.bc(bc_idx).to_double()
+                                          << std::endl;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
     // step2 do the backward tracking
     std::cout << "Doing backward tracking..." << std::endl;
     track_all_operations(operation_logs_dir, query_surface, false);
@@ -313,7 +346,7 @@ void handle_consolidate_operation(
               << surface.tet_ids.size() << " triangle tet_ids" << std::endl;
 }
 
-void refine_and_update_surface_triangles(
+void surface_triangle_arrangement(
     const MatrixXr& V_before,
     const Eigen::MatrixXi& T_before,
     const std::vector<int64_t>& id_map_before,
@@ -355,6 +388,8 @@ void refine_and_update_surface_triangles(
         }
         std::cout << "  ]" << std::endl;
     }
+
+
     // Step 2.1: Collect all unique point indices used by selected triangles
     std::set<int> unique_point_indices_set;
     for (int face_id : face_ids) {
@@ -399,19 +434,75 @@ void refine_and_update_surface_triangles(
         const auto& pt = surface.points[global_idx];
 
         cgal_autorefine_demo::SampledPointInputRational sampled_pt;
-
+        sampled_pt.tet_index = -1;
         // Find the position of pt.t_id in id_map_before
         auto it = std::find(id_map_before.begin(), id_map_before.end(), pt.t_id);
         if (it != id_map_before.end()) {
             sampled_pt.tet_index = std::distance(id_map_before.begin(), it);
+            sampled_pt.barycentric = pt.bc;
         } else {
-            // If not found in id_map_before, use -1 or handle error
-            std::cerr << "Warning: tet_id " << pt.t_id << " not found in id_map_before"
+            std::cout << "Warning: tet_id " << pt.t_id << " not found in id_map_before"
                       << std::endl;
-            sampled_pt.tet_index = -1;
+            std::cout << "Starting to find the alternative representation for this point in this "
+                         "local patch"
+                      << std::endl;
+            {
+                std::vector<int> non_zero_vids;
+                std::vector<wmtk::Rational> non_zero_bcs;
+                for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
+                    if (pt.bc(bc_idx) != 0) {
+                        non_zero_vids.push_back(pt.tv_ids(bc_idx));
+                        non_zero_bcs.push_back(pt.bc(bc_idx));
+                    }
+                }
+                if (non_zero_vids.size() == 4) {
+                    std::cout
+                        << "This point does not have a valid representation in this local patch"
+                        << std::endl;
+                    throw std::runtime_error(
+                        "This point does not have a valid representation in this local patch");
+                }
+
+                // find the alternative representation for this point in this local patch by find
+                // all the non-zero bcs and vids in the local patch
+                for (int tet_id = 0; tet_id < T_before.rows(); tet_id++) {
+                    bool contains_all = true;
+                    Eigen::Vector4i tet_mapped_vids;
+                    tet_mapped_vids << v_id_map_before[T_before(tet_id, 0)],
+                        v_id_map_before[T_before(tet_id, 1)], v_id_map_before[T_before(tet_id, 2)],
+                        v_id_map_before[T_before(tet_id, 3)];
+                    Vector4r bc_tmp = Vector4r::Zero();
+                    for (int non_zero_vid_idx = 0; non_zero_vid_idx < non_zero_vids.size();
+                         non_zero_vid_idx++) {
+                        int non_zero_vid = non_zero_vids[non_zero_vid_idx];
+                        wmtk::Rational non_zero_bc = non_zero_bcs[non_zero_vid_idx];
+                        auto it =
+                            std::find(tet_mapped_vids.begin(), tet_mapped_vids.end(), non_zero_vid);
+                        if (it == tet_mapped_vids.end()) {
+                            contains_all = false;
+                            break;
+                        }
+                        bc_tmp(it - tet_mapped_vids.begin()) = non_zero_bc;
+                    }
+                    if (contains_all) {
+                        sampled_pt.tet_index = tet_id;
+                        sampled_pt.barycentric = bc_tmp;
+                        break;
+                    }
+                }
+            }
+
+            if (sampled_pt.tet_index == -1) {
+                std::cout << "Warning: failed to find the alternative representation for this "
+                             "point in this local patch"
+                          << std::endl;
+                throw std::runtime_error("Failed to find the alternative representation for this "
+                                         "point in this local patch");
+            }
         }
 
-        sampled_pt.barycentric = pt.bc;
+        // TODO: implement the case that the point has multiple representations in the local patch
+
 
         sampled_points.push_back(sampled_pt);
     }
@@ -496,7 +587,8 @@ void refine_and_update_surface_triangles(
                     original_pos(2) = wmtk::Rational(orig_p.z(), false);
                     found_original = true;
                 } else {
-                    // Try to find in sampled_vertices (for sampled points added before refine)
+                    // Try to find in sampled_vertices (for sampled points added before
+                    // refine)
                     for (const auto& sv : autorefine_result.sampled_vertices) {
                         if (sv.point_index == v_id) {
                             original_pos = sv.position;
@@ -644,8 +736,8 @@ void refine_and_update_surface_triangles(
         std::map<std::size_t, std::size_t> original_point_to_surface_point;
 
         // Find where sampled points start in original_points
-        // sampled_vertices contain the point_index in original_points for each sampled point
-        // The sampled points correspond to unique_point_indices in surface.points
+        // sampled_vertices contain the point_index in original_points for each sampled
+        // point The sampled points correspond to unique_point_indices in surface.points
         for (std::size_t i = 0;
              i < autorefine_result.sampled_vertices.size() && i < unique_point_indices.size();
              ++i) {
@@ -823,8 +915,8 @@ void refine_and_update_surface_triangles(
 
         // Step 3.3.1: Remove old triangles that were refined
         // ---------------------------------------------------
-        // face_ids contains indices of triangles in surface.query_triangles that were refined
-        // We need to remove these triangles (in reverse order to maintain indices)
+        // face_ids contains indices of triangles in surface.query_triangles that were
+        // refined We need to remove these triangles (in reverse order to maintain indices)
         std::cout << "  Removing " << face_ids.size() << " old triangles that were refined..."
                   << std::endl;
         std::sort(face_ids.begin(), face_ids.end(), std::greater<int>());
@@ -839,7 +931,8 @@ void refine_and_update_surface_triangles(
 
         // Step 3.3.2: Add new refined triangles
         // --------------------------------------
-        // For each refined sampled triangle, create a new triangle in surface.query_triangles
+        // For each refined sampled triangle, create a new triangle in
+        // surface.query_triangles
         std::cout << "  Adding " << autorefine_result.sampled_fragment_triangles.size()
                   << " new refined triangles..." << std::endl;
         for (std::size_t i = 0; i < autorefine_result.sampled_fragment_triangles.size(); ++i) {
@@ -917,7 +1010,7 @@ void handle_local_mapping_operation(
     std::cout << "Mapping all points in the surface to the new connectivity completed" << std::endl;
 
     // step2: refine and update surface triangles
-    refine_and_update_surface_triangles(
+    surface_triangle_arrangement(
         V_before,
         T_before,
         id_map_before,
@@ -968,13 +1061,11 @@ void track_one_operation(
         // Convert double matrices to rational matrices
         MatrixXr V_before(V_before_double.rows(), V_before_double.cols());
         MatrixXr V_after(V_after_double.rows(), V_after_double.cols());
-
         for (int i = 0; i < V_before_double.rows(); i++) {
             for (int j = 0; j < V_before_double.cols(); j++) {
                 V_before(i, j) = wmtk::Rational(V_before_double(i, j));
             }
         }
-
         for (int i = 0; i < V_after_double.rows(); i++) {
             for (int j = 0; j < V_after_double.cols(); j++) {
                 V_after(i, j) = wmtk::Rational(V_after_double(i, j));
@@ -1060,12 +1151,11 @@ std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
     const Vector4r& local_bc,
     const Eigen::MatrixXi& T_local)
 {
-    // TODO: Implement getting all possible representations of a point
     std::vector<int> all_possible_t_ids;
     std::vector<Vector4r> all_possible_bcs;
 
-    allpossible_t_ids.push_back(local_t_id);
-    allpossible_bcs.push_back(local_bc);
+    all_possible_t_ids.push_back(local_t_id);
+    all_possible_bcs.push_back(local_bc);
 
     std::vector<int> non_zeros_vid;
     std::vector<wmtk::Rational> non_zeros_bc;
@@ -1083,7 +1173,7 @@ std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
             bool contains_all = true;
             Vector4r bc_tmp = Vector4r::Zero();
             for (int i = 0; i < non_zeros_vid.size(); i++) {
-                int v_idx = T_local(local_t_id, non_zeros_vid[i]);
+                int v_idx = non_zeros_vid[i];
                 bool found = false;
                 for (int j = 0; j < 4; j++) {
                     if (T_local(t_id, j) == v_idx) {
@@ -1106,3 +1196,5 @@ std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
 
     return {all_possible_t_ids, all_possible_bcs};
 }
+
+} // namespace tet_surface_tracking_with_connectivity
