@@ -347,7 +347,8 @@ double local_tet_joint_opt(
     const Eigen::MatrixXi& T_after,
     Eigen::MatrixXd& V_param,
     const std::vector<int>& constraint_vids,
-    bool debug_mode)
+    bool debug_mode,
+    bool verbose)
 {
     // Precompute reference data for all tetrahedra
     std::vector<TetPrecomp> P;
@@ -360,28 +361,36 @@ double local_tet_joint_opt(
     // Precompute reference data for the joint tetrahedra
     precompute_reference(V, T_joint, P);
     // Print volumes for all tetrahedra
-    std::cout << "Tetrahedra volumes:" << std::endl;
-    for (size_t i = 0; i < P.size(); ++i) {
-        std::cout << "Tet " << i << ": volume = " << P[i].volume << std::endl;
+    if (verbose) {
+        std::cout << "Tetrahedra volumes:" << std::endl;
+        for (size_t i = 0; i < P.size(); ++i) {
+            std::cout << "Tet " << i << ": volume = " << P[i].volume << std::endl;
+        }
     }
 
     Eigen::MatrixXd grad;
     double energy =
         compute_energy_and_gradient_fast(V_param, T_joint, P, grad, SymmetricDirichletEnergy());
-    std::cout << "energy: " << energy << std::endl;
-    std::cout << "grad: \n" << grad << std::endl;
+    if (verbose) {
+        std::cout << "energy: " << energy << std::endl;
+        std::cout << "grad: \n" << grad << std::endl;
+    }
     // Set z-axis gradient to zero for all constraint vertices
     for (const int vid : constraint_vids) {
         if (vid >= 0 && vid < grad.rows()) {
             // Zero out the z-component (third column) of the gradient
             grad(vid, 2) = 0.0;
         } else {
-            std::cout << "vid: " << vid << " is out of range" << std::endl;
+            if (verbose) {
+                std::cout << "vid: " << vid << " is out of range" << std::endl;
+            }
         }
     }
 
-    std::cout << "After zeroing z-gradient for constraint vertices:" << std::endl;
-    std::cout << "grad: \n" << grad << std::endl;
+    if (verbose) {
+        std::cout << "After zeroing z-gradient for constraint vertices:" << std::endl;
+        std::cout << "grad: \n" << grad << std::endl;
+    }
 
     // Gradient descent with line search
     const double initial_step_size = 0.1;
@@ -405,8 +414,10 @@ double local_tet_joint_opt(
         for (int line_search_iter = 0; line_search_iter < max_line_search_iterations;
              ++line_search_iter) {
             // Print current iteration and step size
-            std::cout << "Line search iteration " << line_search_iter
-                      << ", step size: " << step_size << std::endl;
+            if (verbose) {
+                std::cout << "Line search iteration " << line_search_iter
+                          << ", step size: " << step_size << std::endl;
+            }
             // Try the step
             Eigen::MatrixXd V_next = V_current + step_size * descent_direction;
 
@@ -425,7 +436,9 @@ double local_tet_joint_opt(
 
                 if (wmtk::utils::wmtk_orient3d(p0, p1, p2, p3) >= 0) {
                     has_inverted_tets = true;
-                    std::cout << "Tet " << t << " is inverted" << std::endl;
+                    if (verbose) {
+                        std::cout << "Tet " << t << " is inverted" << std::endl;
+                    }
                     break;
                 }
             }
@@ -446,7 +459,9 @@ double local_tet_joint_opt(
                 SymmetricDirichletEnergy());
             // Skip if energy is NaN
             if (std::isnan(new_energy)) {
-                std::cout << "Energy is NaN, reducing step size" << std::endl;
+                if (verbose) {
+                    std::cout << "Energy is NaN, reducing step size" << std::endl;
+                }
                 step_size *= step_reduction_factor;
                 continue;
             }
@@ -467,8 +482,10 @@ double local_tet_joint_opt(
                 valid_step_found = true;
                 break;
             } else {
-                std::cout << "current energy: " << current_energy << " new energy: " << new_energy
-                          << std::endl;
+                if (verbose) {
+                    std::cout << "current energy: " << current_energy
+                              << " new energy: " << new_energy << std::endl;
+                }
 
                 // Reduce step size and try again
                 step_size *= step_reduction_factor;
@@ -476,18 +493,24 @@ double local_tet_joint_opt(
         }
 
         if (!valid_step_found) {
-            std::cout << "Line search failed to find a valid step at iteration " << iter
-                      << std::endl;
+            if (verbose) {
+                std::cout << "Line search failed to find a valid step at iteration " << iter
+                          << std::endl;
+            }
             break;
         }
 
         // Check for convergence
         double grad_norm = grad.norm();
-        std::cout << "Iteration " << iter << ": energy = " << current_energy
-                  << ", gradient norm = " << grad_norm << std::endl;
+        if (verbose) {
+            std::cout << "Iteration " << iter << ": energy = " << current_energy
+                      << ", gradient norm = " << grad_norm << std::endl;
+        }
 
         if (grad_norm < convergence_threshold) {
-            std::cout << "Converged after " << iter + 1 << " iterations." << std::endl;
+            if (verbose) {
+                std::cout << "Converged after " << iter + 1 << " iterations." << std::endl;
+            }
             break;
         }
     }
@@ -498,7 +521,9 @@ double local_tet_joint_opt(
     }
     // Update the output parameters
     V_param = V_current;
-    std::cout << "Final energy: " << current_energy << std::endl;
+    if (verbose) {
+        std::cout << "Final energy: " << current_energy << std::endl;
+    }
     return current_energy;
     // Compute energy and gradient for the entire mesh
 }

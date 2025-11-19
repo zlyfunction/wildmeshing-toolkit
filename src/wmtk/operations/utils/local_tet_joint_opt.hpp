@@ -49,7 +49,8 @@ double local_tet_joint_opt(
     const Eigen::MatrixXi& T_after,
     Eigen::MatrixXd& V_param,
     const std::vector<int>& constraint_vids,
-    bool debug_mode = false);
+    bool debug_mode = false,
+    bool verbose = false);
 
 } // namespace utils
 } // namespace operations
