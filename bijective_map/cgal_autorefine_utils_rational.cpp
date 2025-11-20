@@ -107,7 +107,7 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     triangle_sample_ids.reserve(triangles.capacity());
 
     const auto tet_triangles = extract_all_tet_triangles(T);
-    std::cout << "T:\n" << T << std::endl;
+    // std::cout << "T:\n" << T << std::endl;
     std::cout << "tet_triangles size: " << tet_triangles.size() << std::endl;
     for (const TetTriangle& face : tet_triangles) {
         triangles.push_back(face.triangle);
@@ -146,17 +146,17 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         RationalKernel::FT y = rational_to_gmpq(position(1));
         RationalKernel::FT z = rational_to_gmpq(position(2));
         points.emplace_back(x, y, z);
-        std::cout << "Sampled Rational Point: barycentric = [";
-        for (int j = 0; j < 4; ++j) {
-            std::cout << bc[j];
-            if (j < 3) std::cout << ", ";
-        }
-        std::cout << "], tet_index = " << point_input.tet_index << ", position = [";
-        for (int j = 0; j < 3; ++j) {
-            std::cout << position(j);
-            if (j < 2) std::cout << ", ";
-        }
-        std::cout << "]" << std::endl;
+        // std::cout << "Sampled Rational Point: barycentric = [";
+        // for (int j = 0; j < 4; ++j) {
+        //     std::cout << bc[j];
+        //     if (j < 3) std::cout << ", ";
+        // }
+        // std::cout << "], tet_index = " << point_input.tet_index << ", position = [";
+        // for (int j = 0; j < 3; ++j) {
+        //     std::cout << position(j);
+        //     if (j < 2) std::cout << ", ";
+        // }
+        // std::cout << "]" << std::endl;
         SampledVertexRational vertex;
         vertex.point_index = point_index;
         vertex.barycentric = bc;
@@ -195,17 +195,17 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     result.initial_soup_had_intersections =
         PMP::does_triangle_soup_self_intersect(points, triangles);
-    std::cout << "Points:\n";
-    for (size_t i = 0; i < points.size(); ++i) {
-        const auto& pt = points[i];
-        std::cout << "  " << i << ": [" << CGAL::to_double(pt.x()) << ", "
-                  << CGAL::to_double(pt.y()) << ", " << CGAL::to_double(pt.z()) << "]\n";
-    }
-    std::cout << "Triangles:\n";
-    for (size_t i = 0; i < triangles.size(); ++i) {
-        const auto& tri = triangles[i];
-        std::cout << "  " << i << ": [" << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
-    }
+    // std::cout << "Points:\n";
+    // for (size_t i = 0; i < points.size(); ++i) {
+    //     const auto& pt = points[i];
+    //     std::cout << "  " << i << ": [" << CGAL::to_double(pt.x()) << ", "
+    //               << CGAL::to_double(pt.y()) << ", " << CGAL::to_double(pt.z()) << "]\n";
+    // }
+    // std::cout << "Triangles:\n";
+    // for (size_t i = 0; i < triangles.size(); ++i) {
+    //     const auto& tri = triangles[i];
+    //     std::cout << "  " << i << ": [" << tri[0] << ", " << tri[1] << ", " << tri[2] << "]\n";
+    // }
     std::vector<std::size_t> triangle_source_ids;
     TriangleTrackingVisitorRational visitor(triangle_source_ids);
     PMP::autorefine_triangle_soup(

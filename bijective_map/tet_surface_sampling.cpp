@@ -330,10 +330,7 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
             sampled_points.push_back(sampled_pt);
         }
     }
-    if (sampled_points.size() != 3) {
-        std::cerr << "ERROR: Failed to sample 3 points" << std::endl;
-        return query_surface_tet_with_connectivity();
-    }
+
     // Create sampled_faces matrix with one triangle (indices 0, 1, 2 for the 3 sampled points)
     Eigen::MatrixXi sampled_faces(1, 3);
     sampled_faces << 0, 1, 2;
