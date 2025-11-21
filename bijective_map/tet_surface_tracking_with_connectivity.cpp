@@ -120,7 +120,6 @@ void check_surface_manifold_property(const MatrixXr& surface_V, const Eigen::Mat
     std::cout << "Checking manifold property..." << std::endl;
 }
 
-// TODO: Implement this!!!!
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
     const Eigen::MatrixXd& V_after,
@@ -144,7 +143,17 @@ void run_backward_tracking_surface(
         std::cout << "query_surface found, reading from file..." << std::endl;
         query_surface = read_surface_connectivity_from_file(query_surface_filename);
     }
-    write_surface_to_vtu(query_surface, V_after, "query_surface_tet_with_connectivity_after.vtu");
+
+    std::string model_name = "model";
+    auto dir_str = operation_logs_dir.filename().string();
+    const std::string prefix = "operation_log_";
+    if (dir_str.size() > prefix.size() && dir_str.substr(0, prefix.size()) == prefix) {
+        model_name = dir_str.substr(prefix.size());
+    }
+    write_surface_to_vtu(
+        query_surface,
+        V_after,
+        model_name + "_query_surface_tet_with_connectivity_after.vtu");
 
     {
         // DEBUG: sanitity check for the input query_surface
@@ -173,6 +182,7 @@ void run_backward_tracking_surface(
                                           << " is not in relevant_vids" << std::endl;
                                 std::cout << "bc of this point: " << pt.bc(bc_idx).to_double()
                                           << std::endl;
+                                throw std::runtime_error("Error: point not in relevant_vids");
                             }
                         }
                     }
@@ -180,6 +190,7 @@ void run_backward_tracking_surface(
             }
         }
     }
+
     // step2 do the backward tracking
     std::cout << "Doing backward tracking..." << std::endl;
     track_all_operations(operation_logs_dir, query_surface, false);
@@ -188,8 +199,11 @@ void run_backward_tracking_surface(
     // step3 write the surface to file
     write_surface_connectivity_to_file(
         query_surface,
-        "query_surface_tet_with_connectivity_before.json");
-    write_surface_to_vtu(query_surface, V_before, "query_surface_tet_with_connectivity_before.vtu");
+        model_name + "_query_surface_tet_with_connectivity_before.json");
+    write_surface_to_vtu(
+        query_surface,
+        V_before,
+        model_name + "_query_surface_tet_with_connectivity_before.vtu");
 
     // TODO: results sanity check
 }
@@ -1026,7 +1040,6 @@ void handle_local_mapping_operation(
     int operation_id)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
-    // TODO: Implement local mapping operation handling
     std::cout << "Handling Local Mapping operation for surface with connectivity" << std::endl;
 
     // step1:map all points in the surface
