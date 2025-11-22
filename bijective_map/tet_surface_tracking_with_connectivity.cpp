@@ -136,8 +136,19 @@ void run_backward_tracking_surface(
     if (!std::filesystem::exists(query_surface_filename)) {
         std::cout << "query_surface not found, sampling and writing to file..." << std::endl;
         // User must provide surface file or use external sampling functions
-        query_surface =
-            tet_surface_sampling::sample_query_surface_tet_with_connectivity(T_after, V_after);
+        // query_surface =
+        // tet_surface_sampling::sample_query_surface_tet_with_connectivity(T_after, V_after);
+        int N = 5; // number of slicing planes (can be parameterized)
+        int axis = 2; // slice axis (can be parameterized)
+        double min_coord = V_after.col(axis).minCoeff();
+        double max_coord = V_after.col(axis).maxCoeff();
+        double plane_coord =
+            min_coord + (max_coord - min_coord) * (N + 1) / (N + 2); // single point near last slice
+        query_surface = tet_surface_sampling::slice_tet_mesh_with_axis_plane(
+            T_after,
+            V_after,
+            axis,
+            plane_coord);
         write_surface_connectivity_to_file(query_surface, query_surface_filename);
     } else {
         std::cout << "query_surface found, reading from file..." << std::endl;

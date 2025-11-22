@@ -1,10 +1,14 @@
 #include "tet_surface_sampling.hpp"
 #include <cinolib/io/write_OBJ.h>
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <iostream>
 #include <map>
 #include <queue>
 #include <random>
 #include <set>
+#include <unordered_map>
 #include <unordered_set>
 #include "InteractiveAndRobustMeshBooleans/code/booleans.h"
 #include "cgal_autorefine_utils_rational.hpp"
@@ -48,6 +52,216 @@ void generateAndSaveMesh(
 
     // Write to OBJ file
     cinolib::write_OBJ(output_filename.c_str(), out_coords, out_tris, {});
+}
+
+namespace {
+struct EdgeKey
+{
+    int v0;
+    int v1;
+    bool operator==(const EdgeKey& other) const { return v0 == other.v0 && v1 == other.v1; }
+};
+
+struct EdgeKeyHash
+{
+    size_t operator()(const EdgeKey& e) const
+    {
+        // Cantor pairing-esque hash for two ints
+        return (static_cast<size_t>(e.v0) << 32) ^ static_cast<size_t>(e.v1);
+    }
+};
+
+inline EdgeKey make_edge_key(int a, int b)
+{
+    if (a > b) std::swap(a, b);
+    return {a, b};
+}
+} // namespace
+
+query_surface_tet_with_connectivity slice_tet_mesh_with_axis_plane(
+    const Eigen::MatrixXi& T,
+    const Eigen::MatrixXd& V,
+    int axis,
+    double constant)
+{
+    query_surface_tet_with_connectivity surface;
+    if (T.rows() == 0 || V.rows() == 0) {
+        return surface;
+    }
+    if (axis < 0 || axis > 2) {
+        std::cerr << "slice_tet_mesh_with_axis_plane: axis must be 0 (x), 1 (y), or 2 (z)"
+                  << std::endl;
+        return surface;
+    }
+
+    using Rational = wmtk::Rational;
+    const Rational constant_r(constant);
+    std::unordered_map<int, int> vertex_point_map; // exact vertex on plane
+    std::unordered_map<EdgeKey, int, EdgeKeyHash> edge_point_map; // edge intersections
+    std::vector<Eigen::Matrix<Rational, 3, 1>> point_positions; // cached world positions
+
+    auto create_point = [&](const Eigen::Matrix<Rational, 4, 1>& bc_in,
+                            int tet_id,
+                            const Eigen::Vector4i& tv_ids,
+                            const Eigen::Matrix<Rational, 4, 3>& tet_vertices_r) -> int {
+        Eigen::Matrix<Rational, 4, 1> bc = bc_in;
+        Rational sum = bc.sum();
+        if (sum != Rational(0)) {
+            bc /= sum;
+        }
+
+        query_point_tet_r qp;
+        qp.t_id = tet_id;
+        qp.tv_ids = tv_ids;
+        qp.bc = bc;
+        surface.points.push_back(qp);
+
+        point_positions.push_back(barycentric_to_world_tet<Rational>(bc, tet_vertices_r));
+        return static_cast<int>(surface.points.size()) - 1;
+    };
+
+    auto get_vertex_point = [&](int global_vid,
+                                int local_idx,
+                                int tet_id,
+                                const Eigen::Vector4i& tv_ids,
+                                const Eigen::Matrix<Rational, 4, 3>& tet_vertices_r) -> int {
+        auto it = vertex_point_map.find(global_vid);
+        if (it != vertex_point_map.end()) {
+            return it->second;
+        }
+        Eigen::Matrix<Rational, 4, 1> bc = Eigen::Matrix<Rational, 4, 1>::Zero();
+        bc(local_idx) = Rational(1);
+        int pid = create_point(bc, tet_id, tv_ids, tet_vertices_r);
+        vertex_point_map.emplace(global_vid, pid);
+        return pid;
+    };
+
+    auto get_edge_point = [&](const EdgeKey& key,
+                              int local_i,
+                              int local_j,
+                              const Rational& t,
+                              int tet_id,
+                              const Eigen::Vector4i& tv_ids,
+                              const Eigen::Matrix<Rational, 4, 3>& tet_vertices_r) -> int {
+        auto it = edge_point_map.find(key);
+        if (it != edge_point_map.end()) {
+            return it->second;
+        }
+        Eigen::Matrix<Rational, 4, 1> bc = Eigen::Matrix<Rational, 4, 1>::Zero();
+        bc(local_i) = Rational(1) - t;
+        bc(local_j) = t;
+        int pid = create_point(bc, tet_id, tv_ids, tet_vertices_r);
+        edge_point_map.emplace(key, pid);
+        return pid;
+    };
+
+    const std::array<int, 2> uv_axes = {[&]() -> std::array<int, 2> {
+        if (axis == 0) return {1, 2}; // slice plane x = constant -> use y,z for ordering
+        if (axis == 1) return {0, 2}; // y = constant -> use x,z
+        return {0, 1}; // z = constant -> use x,y
+    }()};
+
+    for (int tet_id = 0; tet_id < T.rows(); ++tet_id) {
+        Eigen::Vector4i tv_ids = T.row(tet_id);
+        Eigen::Matrix<Rational, 4, 3> tet_vertices_r;
+        for (int i = 0; i < 4; ++i) {
+            tet_vertices_r.row(i) = V.row(tv_ids(i)).unaryExpr([](double v) { return Rational(v); });
+        }
+
+        Rational values[4];
+        for (int i = 0; i < 4; ++i) {
+            values[i] = tet_vertices_r(i, axis) - constant_r;
+        }
+
+        std::vector<int> tet_point_ids;
+        auto add_point_to_polygon = [&](int pid) {
+            if (std::find(tet_point_ids.begin(), tet_point_ids.end(), pid) == tet_point_ids.end()) {
+                tet_point_ids.push_back(pid);
+            }
+        };
+
+        // Add vertices that lie on the plane exactly
+        for (int i = 0; i < 4; ++i) {
+            if (values[i] == Rational(0)) {
+                add_point_to_polygon(get_vertex_point(tv_ids(i), i, tet_id, tv_ids, tet_vertices_r));
+            }
+        }
+
+        // Add edge intersection points
+        for (int i = 0; i < 4; ++i) {
+            for (int j = i + 1; j < 4; ++j) {
+                Rational v0 = values[i];
+                Rational v1 = values[j];
+
+                // Edge lies on plane: keep both endpoints to capture co-planar faces
+                if (v0 == Rational(0) && v1 == Rational(0)) {
+                    add_point_to_polygon(get_vertex_point(tv_ids(i), i, tet_id, tv_ids, tet_vertices_r));
+                    add_point_to_polygon(get_vertex_point(tv_ids(j), j, tet_id, tv_ids, tet_vertices_r));
+                    continue;
+                }
+
+                // Proper crossing
+                if ((v0 > Rational(0) && v1 < Rational(0)) || (v0 < Rational(0) && v1 > Rational(0))) {
+                    Rational t = v0 / (v0 - v1); // exact parameter
+                    add_point_to_polygon(get_edge_point(
+                        make_edge_key(tv_ids(i), tv_ids(j)),
+                        i,
+                        j,
+                        t,
+                        tet_id,
+                        tv_ids,
+                        tet_vertices_r));
+                }
+            }
+        }
+
+        if (tet_point_ids.size() < 3) {
+            continue; // intersection is a segment or a point
+        }
+
+        // Order polygon vertices around centroid in the slicing plane
+        Eigen::Matrix<Rational, 2, 1> centroid = Eigen::Matrix<Rational, 2, 1>::Zero();
+        for (int pid : tet_point_ids) {
+            const auto& p = point_positions[pid];
+            centroid(0) += p(uv_axes[0]);
+            centroid(1) += p(uv_axes[1]);
+        }
+        centroid /= Rational(static_cast<int>(tet_point_ids.size()));
+
+        std::sort(tet_point_ids.begin(), tet_point_ids.end(), [&](int a, int b) {
+            const auto& pa = point_positions[a];
+            const auto& pb = point_positions[b];
+            double angle_a = std::atan2(
+                (pa(uv_axes[1]) - centroid(1)).to_double(),
+                (pa(uv_axes[0]) - centroid(0)).to_double());
+            double angle_b = std::atan2(
+                (pb(uv_axes[1]) - centroid(1)).to_double(),
+                (pb(uv_axes[0]) - centroid(0)).to_double());
+            return angle_a < angle_b;
+        });
+
+        // Ensure consistent orientation (normal aligned with +axis where possible)
+        if (tet_point_ids.size() >= 3) {
+            const auto& p0 = point_positions[tet_point_ids[0]];
+            const auto& p1 = point_positions[tet_point_ids[1]];
+            const auto& p2 = point_positions[tet_point_ids[2]];
+            Eigen::Matrix<Rational, 3, 1> orient_vec = (p1 - p0).cross(p2 - p0);
+            if (orient_vec(axis) < Rational(0)) {
+                std::reverse(tet_point_ids.begin() + 1, tet_point_ids.end());
+            }
+        }
+
+        // Triangulate polygon as a fan
+        for (size_t i = 1; i + 1 < tet_point_ids.size(); ++i) {
+            surface.query_triangles.emplace_back(
+                tet_point_ids[0],
+                tet_point_ids[i],
+                tet_point_ids[i + 1]);
+            surface.tet_ids.push_back(tet_id);
+        }
+    }
+
+    return surface;
 }
 
 query_surface_tet sample_query_surface_large_triangle(

@@ -15,6 +15,13 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
     const Eigen::MatrixXi& T_out,
     const Eigen::MatrixXd& V_out);
 
+// Slice the tet mesh with an axis-aligned plane (axis = 0/1/2 for x/y/z, coordinate = constant)
+query_surface_tet_with_connectivity slice_tet_mesh_with_axis_plane(
+    const Eigen::MatrixXi& T,
+    const Eigen::MatrixXd& V,
+    int axis,
+    double constant);
+
 // Sample a sub-surface by traversing connected tetrahedrons
 query_surface_tet sample_query_surface_sub_surface(
     const Eigen::MatrixXi& T_out,
