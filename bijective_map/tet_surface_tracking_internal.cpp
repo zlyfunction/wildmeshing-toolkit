@@ -1,6 +1,7 @@
 #include "tet_surface_tracking_internal.hpp"
-#include "tet_surface_tracking_with_connectivity.hpp"
 #include <CGAL/number_utils.h>
+#include <igl/is_edge_manifold.h>
+#include <igl/is_vertex_manifold.h>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
@@ -12,6 +13,7 @@
 #include "batch_operation_log_reader.hpp"
 #include "cgal_autorefine_utils_rational.hpp"
 #include "tet_point_tracking.hpp"
+#include "tet_surface_tracking_with_connectivity.hpp"
 #include "tet_track_operations.hpp"
 #include "vtu_utils.hpp"
 
@@ -41,10 +43,17 @@ std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
     return {V_out, F_out};
 }
 
-void check_surface_manifold_property(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F)
+bool check_surface_manifold_property(const Eigen::MatrixXi& surface_F)
 {
-    // TODO: Implement manifold property checking
-    std::cout << "Checking manifold property..." << std::endl;
+    bool is_edge_manifold_result = igl::is_edge_manifold(surface_F);
+    bool is_vertex_manifold_result = igl::is_vertex_manifold(surface_F);
+    return is_edge_manifold_result && is_vertex_manifold_result;
+}
+
+void check_surface_self_intersection(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F)
+{
+    // TODO: Implement self intersection checking
+    // ??? Should we use the CGAL PMP library to check for self intersection?
 }
 
 void handle_consolidate_operation(
@@ -782,4 +791,3 @@ std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
 }
 
 } // namespace tet_surface_tracking_with_connectivity
-

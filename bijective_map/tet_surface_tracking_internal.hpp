@@ -2,10 +2,10 @@
 
 #include <Eigen/Core>
 #include <filesystem>
+#include <nlohmann/json.hpp>
 #include <vector>
 #include <wmtk/utils/Rational.hpp>
 #include "tet_track_operations.hpp"
-#include <nlohmann/json.hpp>
 
 namespace tet_surface_tracking_with_connectivity {
 
@@ -28,10 +28,19 @@ std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
 /**
  * @brief Check if the surface is manifold
  *
+ * @param surface_F Surface triangle indices
+ * @return bool True if the surface is manifold (both edge and vertex manifold)
+ */
+bool check_surface_manifold_property(const Eigen::MatrixXi& surface_F);
+
+/**
+ * @brief Check if the surface has self-intersection
+ *
  * @param surface_V Surface vertex positions with rational coordinates
  * @param surface_F Surface triangle indices
  */
-void check_surface_manifold_property(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F);
+void check_surface_self_intersection(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F);
+
 
 /**
  * @brief Handle consolidate operation for surface with connectivity
@@ -140,4 +149,3 @@ std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
     const Eigen::MatrixXi& T_local);
 
 } // namespace tet_surface_tracking_with_connectivity
-
