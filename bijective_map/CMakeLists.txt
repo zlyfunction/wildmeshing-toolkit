@@ -67,6 +67,8 @@ add_executable(bijective_map_app_tet
     tet_surface_tracking.cpp
     tet_surface_tracking_with_connectivity.hpp
     tet_surface_tracking_with_connectivity.cpp
+    tet_surface_tracking_internal.hpp
+    tet_surface_tracking_internal.cpp
     tet_surface_sampling.hpp
     tet_surface_sampling.cpp
     cgal_autorefine_utils_rational.hpp
