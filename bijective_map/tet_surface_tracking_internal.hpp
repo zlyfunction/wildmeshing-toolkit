@@ -28,18 +28,21 @@ std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
 /**
  * @brief Check if the surface is manifold
  *
- * @param surface_F Surface triangle indices
+ * @param surface_F Surface triangle indices as vector of Vector3i
  * @return bool True if the surface is manifold (both edge and vertex manifold)
  */
-bool check_surface_manifold_property(const Eigen::MatrixXi& surface_F);
+bool check_surface_manifold_property(const std::vector<Eigen::Vector3i>& surface_F);
 
 /**
  * @brief Check if the surface has self-intersection
  *
  * @param surface_V Surface vertex positions with rational coordinates
- * @param surface_F Surface triangle indices
+ * @param surface_F Surface triangle indices as vector of Vector3i
+ * @return bool True if the surface has self-intersection
  */
-void check_surface_self_intersection(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F);
+bool check_surface_self_intersection(
+    const MatrixXr& surface_V,
+    const std::vector<Eigen::Vector3i>& surface_F);
 
 
 /**

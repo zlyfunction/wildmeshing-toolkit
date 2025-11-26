@@ -154,7 +154,19 @@ void run_backward_tracking_surface(
         }
     }
 
-    // step2 do the backward tracking
+    // check santity of the input query_surface
+    {
+        bool is_manifold = check_surface_manifold_property(query_surface.query_triangles);
+        if (is_manifold) {
+            std::cout << "Input query surface is manifold" << std::endl;
+        } else {
+            std::cout << "Input query surface is not manifold" << std::endl;
+            throw std::runtime_error("Error: input query_surface is not manifold");
+        }
+    }
+
+
+    // Step 2: Do the backward tracking
     std::cout << "Doing backward tracking..." << std::endl;
     track_all_operations(operation_logs_dir, query_surface, false);
     std::cout << "Backward tracking completed" << std::endl;
@@ -169,6 +181,33 @@ void run_backward_tracking_surface(
         model_name + "_query_surface_tet_with_connectivity_before.vtu");
 
     // TODO: results sanity check
+    {
+        bool is_manifold = check_surface_manifold_property(query_surface.query_triangles);
+        if (is_manifold) {
+            std::cout << "Output query surface is manifold" << std::endl;
+        } else {
+            std::cout << "Output query surface is not manifold" << std::endl;
+            throw std::runtime_error("Error: output query_surface is not manifold");
+        }
+    }
+    {
+        MatrixXr V_before_rational(V_before.rows(), V_before.cols());
+        for (int i = 0; i < V_before.rows(); i++) {
+            for (int j = 0; j < V_before.cols(); j++) {
+                V_before_rational(i, j) = wmtk::Rational(V_before(i, j));
+            }
+        }
+        auto [surface_V, surface_F_matrix] =
+            surface_to_world_positions_rational(query_surface, V_before_rational);
+        bool has_self_intersection =
+            check_surface_self_intersection(surface_V, query_surface.query_triangles);
+        if (has_self_intersection) {
+            std::cout << "Output query surface has self-intersection" << std::endl;
+            throw std::runtime_error("Error: output query_surface has self-intersection");
+        } else {
+            std::cout << "Output query surface has no self-intersection" << std::endl;
+        }
+    }
 }
 
 void write_surface_connectivity_to_file(

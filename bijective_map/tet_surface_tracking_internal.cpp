@@ -1,5 +1,9 @@
 #include "tet_surface_tracking_internal.hpp"
+#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
+#include <CGAL/Gmpq.h>
+#include <CGAL/Polygon_mesh_processing/intersection.h>
 #include <CGAL/number_utils.h>
+#include <gmp.h>
 #include <igl/is_edge_manifold.h>
 #include <igl/is_vertex_manifold.h>
 #include <chrono>
@@ -16,6 +20,8 @@
 #include "tet_surface_tracking_with_connectivity.hpp"
 #include "tet_track_operations.hpp"
 #include "vtu_utils.hpp"
+
+namespace PMP = CGAL::Polygon_mesh_processing;
 
 namespace tet_surface_tracking_with_connectivity {
 
@@ -43,17 +49,68 @@ std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
     return {V_out, F_out};
 }
 
-bool check_surface_manifold_property(const Eigen::MatrixXi& surface_F)
+bool check_surface_manifold_property(const std::vector<Eigen::Vector3i>& surface_F)
 {
-    bool is_edge_manifold_result = igl::is_edge_manifold(surface_F);
-    bool is_vertex_manifold_result = igl::is_vertex_manifold(surface_F);
+    Eigen::MatrixXi F(surface_F.size(), 3);
+    for (size_t i = 0; i < surface_F.size(); i++) {
+        F.row(i) = surface_F[i];
+    }
+    bool is_edge_manifold_result = igl::is_edge_manifold(F);
+    bool is_vertex_manifold_result = igl::is_vertex_manifold(F);
+    if (!is_edge_manifold_result) {
+        std::cout << "Surface is not edge manifold" << std::endl;
+    }
+    if (!is_vertex_manifold_result) {
+        std::cout << "Surface is not vertex manifold" << std::endl;
+    }
     return is_edge_manifold_result && is_vertex_manifold_result;
 }
 
-void check_surface_self_intersection(const MatrixXr& surface_V, const Eigen::MatrixXi& surface_F)
+namespace {
+using RationalKernel = CGAL::Exact_predicates_exact_constructions_kernel;
+using RationalPoint = RationalKernel::Point_3;
+using Triangle = std::array<std::size_t, 3>;
+
+RationalKernel::FT rational_to_gmpq(const wmtk::Rational& r)
 {
-    // TODO: Implement self intersection checking
-    // ??? Should we use the CGAL PMP library to check for self intersection?
+    mpq_t q;
+    mpq_init(q);
+    r.export_mpq(q);
+    using ET = RationalKernel::FT::ET;
+    ET et_expr(q);
+    RationalKernel::FT result(et_expr);
+    mpq_clear(q);
+    return result;
+}
+
+std::vector<RationalPoint> rational_vertices_to_points(const MatrixXr& V)
+{
+    std::vector<RationalPoint> points;
+    points.reserve(static_cast<std::size_t>(V.rows()));
+    for (Eigen::Index i = 0; i < V.rows(); ++i) {
+        RationalKernel::FT x = rational_to_gmpq(V(i, 0));
+        RationalKernel::FT y = rational_to_gmpq(V(i, 1));
+        RationalKernel::FT z = rational_to_gmpq(V(i, 2));
+        points.emplace_back(x, y, z);
+    }
+    return points;
+}
+} // namespace
+
+bool check_surface_self_intersection(
+    const MatrixXr& surface_V,
+    const std::vector<Eigen::Vector3i>& surface_F)
+{
+    std::vector<RationalPoint> points = rational_vertices_to_points(surface_V);
+    std::vector<Triangle> triangles;
+    triangles.reserve(surface_F.size());
+    for (const auto& tri : surface_F) {
+        triangles.push_back(Triangle{
+            static_cast<std::size_t>(tri(0)),
+            static_cast<std::size_t>(tri(1)),
+            static_cast<std::size_t>(tri(2))});
+    }
+    return PMP::does_triangle_soup_self_intersect(points, triangles);
 }
 
 void handle_consolidate_operation(
@@ -710,6 +767,16 @@ void track_one_operation(
         }
     }
     std::cout << "  Operation " << operation_id << " completed" << std::endl;
+
+    {
+        bool is_manifold = check_surface_manifold_property(surface.query_triangles);
+        if (is_manifold) {
+            std::cout << "Surface is manifold" << std::endl;
+        } else {
+            std::cout << "Surface is not manifold" << std::endl;
+            throw std::runtime_error("Error: surface is not manifold");
+        }
+    }
 }
 
 void track_all_operations(
