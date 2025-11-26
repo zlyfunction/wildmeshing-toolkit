@@ -55,6 +55,9 @@ void write_surface_to_vtu(
  * @param operation_logs_dir Directory containing operation logs
  * @param surface_file Path to surface file
  * @param check_manifold Whether to check manifold property (default: false)
+ * @param start_operation Start from operation N (default: 0)
+ * @param save_interval Save surface every N operations (default: 1, save every operation)
+ * @param save_dir Directory to save intermediate surfaces (empty = don't save)
  */
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
@@ -62,7 +65,10 @@ void run_backward_tracking_surface(
     const Eigen::MatrixXd& V_before,
     const std::filesystem::path& operation_logs_dir,
     const std::filesystem::path& surface_file,
-    bool check_manifold = false);
+    bool check_manifold = false,
+    int start_operation = 0,
+    int save_interval = 1,
+    const std::filesystem::path& save_dir = std::filesystem::path());
 
 /**
  * @brief Write query surface with connectivity to file
@@ -81,6 +87,25 @@ void write_surface_connectivity_to_file(
  * @return query_surface_tet_with_connectivity The loaded surface
  */
 query_surface_tet_with_connectivity read_surface_connectivity_from_file(
+    const std::string& filename);
+
+/**
+ * @brief Write query surface with connectivity to binary file (preserves full precision)
+ *
+ * @param surface The query surface with connectivity
+ * @param filename Output binary filename
+ */
+void write_surface_connectivity_to_binary(
+    const query_surface_tet_with_connectivity& surface,
+    const std::string& filename);
+
+/**
+ * @brief Read query surface with connectivity from binary file
+ *
+ * @param filename Input binary filename
+ * @return query_surface_tet_with_connectivity The loaded surface
+ */
+query_surface_tet_with_connectivity read_surface_connectivity_from_binary(
     const std::string& filename);
 
 } // namespace tet_surface_tracking_with_connectivity

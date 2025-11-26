@@ -2,6 +2,7 @@
 #include <CGAL/number_utils.h>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -78,34 +79,61 @@ void run_backward_tracking_surface(
     const Eigen::MatrixXd& V_before,
     const std::filesystem::path& operation_logs_dir,
     const std::filesystem::path& surface_file,
-    bool check_manifold)
+    bool check_manifold,
+    int start_operation,
+    int save_interval,
+    const std::filesystem::path& save_dir)
 {
     std::cout << "Backward tracking surface with connectivity" << std::endl;
+    if (start_operation > 0) {
+        std::cout << "Starting from operation " << start_operation << std::endl;
+    }
+    if (save_interval > 0 && !save_dir.empty()) {
+        std::cout << "Saving surface every " << save_interval << " operations to " << save_dir
+                  << std::endl;
+    }
 
     // Step 1: Read or sample the query surface with connectivity
     std::string query_surface_filename = surface_file.string();
     query_surface_tet_with_connectivity query_surface;
-    if (!std::filesystem::exists(query_surface_filename)) {
-        std::cout << "query_surface not found, sampling and writing to file..." << std::endl;
-        // User must provide surface file or use external sampling functions
-        // query_surface =
-        // tet_surface_sampling::sample_query_surface_tet_with_connectivity(T_after, V_after);
-        int N = 5; // number of slicing planes (can be parameterized)
-        int axis = 2; // slice axis (can be parameterized)
-        double min_coord = V_after.col(axis).minCoeff();
-        double max_coord = V_after.col(axis).maxCoeff();
-        double plane_coord =
-            min_coord + (max_coord - min_coord) * (N + 1) / (N + 2); // single point near last slice
-        query_surface = tet_surface_sampling::slice_tet_mesh_with_axis_plane(
-            T_after,
-            V_after,
-            axis,
-            plane_coord);
-        write_surface_connectivity_to_file(query_surface, query_surface_filename);
-    } else {
-        std::cout << "query_surface found, reading from file..." << std::endl;
-        query_surface = read_surface_connectivity_from_file(query_surface_filename);
+    bool is_checkpoint_loaded = false;
+    if (start_operation > 0 && !save_dir.empty()) {
+        BatchOperationLogReader temp_reader(operation_logs_dir);
+        int temp_total_ops = temp_reader.get_total_operations();
+        if (start_operation < temp_total_ops) {
+            int checkpoint_op_index = temp_total_ops - 1 - start_operation;
+            std::filesystem::path checkpoint_file =
+                save_dir / ("surface_op_" + std::to_string(checkpoint_op_index) + ".bin");
+            if (std::filesystem::exists(checkpoint_file)) {
+                std::cout << "Loading checkpoint from operation index " << checkpoint_op_index
+                          << ": " << checkpoint_file << std::endl;
+                query_surface = read_surface_connectivity_from_binary(checkpoint_file.string());
+                is_checkpoint_loaded = true;
+            }
+        }
     }
+    if (!is_checkpoint_loaded) {
+        start_operation = 0;
+        std::cout << "No checkpoint found, starting from operation 0" << std::endl;
+        if (!std::filesystem::exists(query_surface_filename)) {
+            std::cout << "query_surface not found, sampling and writing to file..." << std::endl;
+            int N = 5;
+            int axis = 2;
+            double min_coord = V_after.col(axis).minCoeff();
+            double max_coord = V_after.col(axis).maxCoeff();
+            double plane_coord = min_coord + (max_coord - min_coord) * (N + 1) / (N + 2);
+            query_surface = tet_surface_sampling::slice_tet_mesh_with_axis_plane(
+                T_after,
+                V_after,
+                axis,
+                plane_coord);
+            write_surface_connectivity_to_file(query_surface, query_surface_filename);
+        } else {
+            std::cout << "query_surface found, reading from file..." << std::endl;
+            query_surface = read_surface_connectivity_from_file(query_surface_filename);
+        }
+    }
+
 
     std::string model_name = "model";
     auto dir_str = operation_logs_dir.filename().string();
@@ -113,12 +141,13 @@ void run_backward_tracking_surface(
     if (dir_str.size() > prefix.size() && dir_str.substr(0, prefix.size()) == prefix) {
         model_name = dir_str.substr(prefix.size());
     }
-    write_surface_to_vtu(
-        query_surface,
-        V_after,
-        model_name + "_query_surface_tet_with_connectivity_after.vtu");
-
-    {
+    if (!is_checkpoint_loaded) {
+        write_surface_to_vtu(
+            query_surface,
+            V_after,
+            model_name + "_query_surface_tet_with_connectivity_after.vtu");
+    }
+    if (!is_checkpoint_loaded) {
         // DEBUG: sanitity check for the input query_surface
         for (int i = 0; i < query_surface.query_triangles.size(); i++) {
             const Eigen::Vector3i& tri = query_surface.query_triangles[i];
@@ -168,8 +197,52 @@ void run_backward_tracking_surface(
 
     // Step 2: Do the backward tracking
     std::cout << "Doing backward tracking..." << std::endl;
-    track_all_operations(operation_logs_dir, query_surface, false);
-    std::cout << "Backward tracking completed" << std::endl;
+    BatchOperationLogReader reader(operation_logs_dir);
+    int total_ops = reader.get_total_operations();
+    if (total_ops == 0) {
+        std::cerr << "No operation logs found in " << operation_logs_dir << std::endl;
+        return;
+    }
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+    if (start_operation >= total_ops) {
+        std::cerr << "start_operation " << start_operation << " is >= total_ops " << total_ops
+                  << std::endl;
+        return;
+    }
+    bool do_forward = false;
+    int ops_to_process = total_ops - start_operation;
+    if (!save_dir.empty()) {
+        std::filesystem::create_directories(save_dir);
+    }
+    for (int i = start_operation; i < total_ops; ++i) {
+        int operation_index = i;
+        if (!do_forward) {
+            operation_index = total_ops - 1 - i;
+        }
+        nlohmann::json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            continue;
+        }
+        int current_op = i - start_operation + 1;
+        std::cout << "\n=== Processing operation " << current_op << "/" << ops_to_process
+                  << " (index: " << operation_index << ") ===" << std::endl;
+        track_one_operation(
+            operation_log,
+            query_surface,
+            do_forward,
+            static_cast<int>(operation_index));
+        if (save_interval > 0 && !save_dir.empty() &&
+            (current_op % save_interval == 0 || current_op == ops_to_process)) {
+            std::filesystem::path save_file =
+                save_dir / ("surface_op_" + std::to_string(operation_index) + ".bin");
+            write_surface_connectivity_to_binary(query_surface, save_file.string());
+        }
+    }
+    std::cout << "\n=== All operations completed ===" << std::endl;
+    std::cout << "Final surface state: " << query_surface.points.size() << " points, "
+              << query_surface.query_triangles.size() << " triangles" << std::endl;
 
     // step3 write the surface to file
     write_surface_connectivity_to_file(
@@ -321,6 +394,117 @@ query_surface_tet_with_connectivity read_surface_connectivity_from_file(const st
     std::cout << "Successfully read " << surface.points.size() << " points and "
               << surface.query_triangles.size() << " triangles from " << filename << std::endl;
 
+    return surface;
+}
+
+void write_surface_connectivity_to_binary(
+    const query_surface_tet_with_connectivity& surface,
+    const std::string& filename)
+{
+    std::cout << "Writing surface with connectivity to binary file: " << filename << std::endl;
+    std::ofstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for writing: " << filename << std::endl;
+        return;
+    }
+    const char* magic = "SURF";
+    file.write(magic, 4);
+    uint32_t version = 1;
+    file.write(reinterpret_cast<const char*>(&version), sizeof(version));
+    size_t num_points = surface.points.size();
+    size_t num_triangles = surface.query_triangles.size();
+    file.write(reinterpret_cast<const char*>(&num_points), sizeof(num_points));
+    file.write(reinterpret_cast<const char*>(&num_triangles), sizeof(num_triangles));
+    for (size_t i = 0; i < num_points; ++i) {
+        const auto& pt = surface.points[i];
+        file.write(reinterpret_cast<const char*>(&pt.t_id), sizeof(pt.t_id));
+        for (int j = 0; j < 4; ++j) {
+            std::string bc_str = pt.bc[j].serialize();
+            uint32_t bc_len = static_cast<uint32_t>(bc_str.size());
+            file.write(reinterpret_cast<const char*>(&bc_len), sizeof(bc_len));
+            file.write(bc_str.c_str(), bc_len);
+        }
+        for (int j = 0; j < 4; ++j) {
+            int32_t vid = static_cast<int32_t>(pt.tv_ids[j]);
+            file.write(reinterpret_cast<const char*>(&vid), sizeof(vid));
+        }
+    }
+    for (size_t i = 0; i < num_triangles; ++i) {
+        const auto& tri = surface.query_triangles[i];
+        for (int j = 0; j < 3; ++j) {
+            int32_t idx = static_cast<int32_t>(tri[j]);
+            file.write(reinterpret_cast<const char*>(&idx), sizeof(idx));
+        }
+        int32_t tet_id =
+            (i < surface.tet_ids.size()) ? static_cast<int32_t>(surface.tet_ids[i]) : -1;
+        file.write(reinterpret_cast<const char*>(&tet_id), sizeof(tet_id));
+    }
+    file.close();
+    std::cout << "Successfully wrote " << num_points << " points and " << num_triangles
+              << " triangles to binary file " << filename << std::endl;
+}
+
+query_surface_tet_with_connectivity read_surface_connectivity_from_binary(
+    const std::string& filename)
+{
+    std::cout << "Reading surface with connectivity from binary file: " << filename << std::endl;
+    query_surface_tet_with_connectivity surface;
+    std::ifstream file(filename, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for reading: " << filename << std::endl;
+        return surface;
+    }
+    char magic[5] = {0};
+    file.read(magic, 4);
+    if (std::strcmp(magic, "SURF") != 0) {
+        std::cerr << "Invalid magic number in binary file: " << filename << std::endl;
+        file.close();
+        return surface;
+    }
+    uint32_t version;
+    file.read(reinterpret_cast<char*>(&version), sizeof(version));
+    if (version != 1) {
+        std::cerr << "Unsupported version " << version << " in binary file: " << filename
+                  << std::endl;
+        file.close();
+        return surface;
+    }
+    size_t num_points, num_triangles;
+    file.read(reinterpret_cast<char*>(&num_points), sizeof(num_points));
+    file.read(reinterpret_cast<char*>(&num_triangles), sizeof(num_triangles));
+    surface.points.resize(num_points);
+    surface.query_triangles.resize(num_triangles);
+    surface.tet_ids.resize(num_triangles);
+    for (size_t i = 0; i < num_points; ++i) {
+        auto& pt = surface.points[i];
+        file.read(reinterpret_cast<char*>(&pt.t_id), sizeof(pt.t_id));
+        for (int j = 0; j < 4; ++j) {
+            uint32_t bc_len;
+            file.read(reinterpret_cast<char*>(&bc_len), sizeof(bc_len));
+            std::string bc_str(bc_len, '\0');
+            file.read(&bc_str[0], bc_len);
+            pt.bc[j] = wmtk::Rational::deserialize(bc_str);
+        }
+        for (int j = 0; j < 4; ++j) {
+            int32_t vid;
+            file.read(reinterpret_cast<char*>(&vid), sizeof(vid));
+            pt.tv_ids[j] = vid;
+        }
+    }
+    for (size_t i = 0; i < num_triangles; ++i) {
+        auto& tri = surface.query_triangles[i];
+        for (int j = 0; j < 3; ++j) {
+            int32_t idx;
+            file.read(reinterpret_cast<char*>(&idx), sizeof(idx));
+            tri[j] = idx;
+        }
+        int32_t tet_id;
+        file.read(reinterpret_cast<char*>(&tet_id), sizeof(tet_id));
+        surface.tet_ids[i] = tet_id;
+    }
+    file.close();
+    std::cout << "Successfully read " << num_points << " points and " << num_triangles
+              << " triangles from binary file " << filename << std::endl;
     return surface;
 }
 

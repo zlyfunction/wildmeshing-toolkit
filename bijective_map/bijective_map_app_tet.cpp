@@ -32,6 +32,18 @@ int main(int argc, char** argv)
 
     std::filesystem::path surface_file = "query_surface.json";
     app.add_option("-s, --surface", surface_file, "Surface file");
+    size_t start_operation = 0;
+    app.add_option("--start-op", start_operation, "Start from operation N (default: 0)");
+    size_t save_interval = 1;
+    app.add_option(
+        "--save-interval",
+        save_interval,
+        "Save surface every N operations (default: 1, save every operation)");
+    std::filesystem::path save_dir;
+    app.add_option(
+        "--save-dir",
+        save_dir,
+        "Directory to save intermediate surfaces (empty = don't save)");
     CLI11_PARSE(app, argc, argv);
 
     std::cout << "Application name: " << application_name << std::endl;
@@ -96,7 +108,8 @@ int main(int argc, char** argv)
     } else if (application_name == "back_r") {
         // Generate filenames for rational version
         std::string output_points_file = output_mesh_file.stem().string() + "_points_rational.vtu";
-        std::string initial_points_file = initial_mesh_file.stem().string() + "_points_rational.vtu";
+        std::string initial_points_file =
+            initial_mesh_file.stem().string() + "_points_rational.vtu";
         tet_point_tracking::run_back_tracking_rational(
             T_after,
             V_after,
@@ -121,7 +134,10 @@ int main(int argc, char** argv)
             V_before,
             operation_logs_dir,
             surface_file,
-            false);
+            false,
+            start_operation,
+            save_interval,
+            save_dir);
     }
 
     return 0;
