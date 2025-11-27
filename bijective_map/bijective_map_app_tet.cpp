@@ -44,6 +44,11 @@ int main(int argc, char** argv)
         "--save-dir",
         save_dir,
         "Directory to save intermediate surfaces (empty = don't save)");
+    bool do_rounding = false;
+    app.add_option(
+        "--do-rounding",
+        do_rounding,
+        "Round barycentric coordinates while tracking surfaces with connectivity");
     CLI11_PARSE(app, argc, argv);
 
     std::cout << "Application name: " << application_name << std::endl;
@@ -137,7 +142,8 @@ int main(int argc, char** argv)
             false,
             start_operation,
             save_interval,
-            save_dir);
+            save_dir,
+            do_rounding);
     }
 
     return 0;

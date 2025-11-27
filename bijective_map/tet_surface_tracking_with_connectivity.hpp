@@ -58,6 +58,7 @@ void write_surface_to_vtu(
  * @param start_operation Start from operation N (default: 0)
  * @param save_interval Save surface every N operations (default: 1, save every operation)
  * @param save_dir Directory to save intermediate surfaces (empty = don't save)
+ * @param do_rounding Whether to round barycentric coordinates during tracking (default: false)
  */
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
@@ -68,7 +69,8 @@ void run_backward_tracking_surface(
     bool check_manifold = false,
     int start_operation = 0,
     int save_interval = 1,
-    const std::filesystem::path& save_dir = std::filesystem::path());
+    const std::filesystem::path& save_dir = std::filesystem::path(),
+    bool do_rounding = false);
 
 /**
  * @brief Write query surface with connectivity to file

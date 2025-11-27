@@ -17,7 +17,6 @@
 #include "tet_surface_sampling.hpp"
 #include "tet_surface_tracking_internal.hpp"
 #include "tet_track_operations.hpp"
-#include "tet_track_operations_internal.hpp"
 #include "vtu_utils.hpp"
 
 namespace tet_surface_tracking_with_connectivity {
@@ -82,7 +81,8 @@ void run_backward_tracking_surface(
     bool check_manifold,
     int start_operation,
     int save_interval,
-    const std::filesystem::path& save_dir)
+    const std::filesystem::path& save_dir,
+    bool do_rounding)
 {
     std::cout << "Backward tracking surface with connectivity" << std::endl;
     if (start_operation > 0) {
@@ -232,7 +232,8 @@ void run_backward_tracking_surface(
             operation_log,
             query_surface,
             do_forward,
-            static_cast<int>(operation_index));
+            static_cast<int>(operation_index),
+            do_rounding);
         if (save_interval > 0 && !save_dir.empty() &&
             (current_op % save_interval == 0 || current_op == ops_to_process)) {
             std::filesystem::path save_file =

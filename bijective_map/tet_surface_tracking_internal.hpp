@@ -98,6 +98,7 @@ void surface_triangle_arrangement(
  * @param v_id_map_after Vertex ID mapping after operation
  * @param surface The query surface to update
  * @param operation_id Operation ID for file naming
+ * @param do_rounding Whether to round barycentric coordinates
  */
 void handle_local_mapping_operation(
     const MatrixXr& V_before,
@@ -109,7 +110,8 @@ void handle_local_mapping_operation(
     const std::vector<int64_t>& id_map_after,
     const std::vector<int64_t>& v_id_map_after,
     query_surface_tet_with_connectivity& surface,
-    int operation_id);
+    int operation_id,
+    bool do_rounding = false);
 
 /**
  * @brief Track surface through one operation
@@ -123,7 +125,8 @@ void track_one_operation(
     const nlohmann::json& operation_log,
     query_surface_tet_with_connectivity& surface,
     bool do_forward,
-    int operation_id);
+    int operation_id,
+    bool do_rounding = false);
 
 /**
  * @brief Track surface through all operations in a directory
@@ -135,7 +138,8 @@ void track_one_operation(
 void track_all_operations(
     const std::filesystem::path& dirPath,
     query_surface_tet_with_connectivity& surface,
-    bool do_forward);
+    bool do_forward,
+    bool do_rounding = false);
 
 /**
  * @brief Helper function to get all possible representations of a point in local patch

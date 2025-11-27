@@ -599,6 +599,28 @@ void surface_triangle_arrangement(
         std::cout << "  Removing " << face_ids.size() << " old triangles that were refined..."
                   << std::endl;
         std::sort(face_ids.begin(), face_ids.end(), std::greater<int>());
+        // DEBUG: print the sampled triangles
+        if (verbose) {
+            for (size_t i = 0; i < face_ids.size(); ++i) {
+                int face_id = face_ids[i];
+                if (face_id >= 0 && face_id < static_cast<int>(surface.query_triangles.size())) {
+                    const auto& tri = surface.query_triangles[face_id];
+                    std::cout << "face_ids[" << i << "] = " << face_id
+                              << ", triangle = " << tri.transpose() << std::endl;
+                } else {
+                    std::cout << "face_ids[" << i << "] = " << face_id << " (invalid index)"
+                              << std::endl;
+                }
+            }
+        }
+        // DEBUG: print the refined_point_to_surface_point mapping
+        if (verbose) {
+            std::cout << "refined_point_to_surface_point mapping:" << std::endl;
+            for (const auto& kv : refined_point_to_surface_point) {
+                std::cout << "  refined_v_id " << kv.first << " -> surface_point_idx " << kv.second
+                          << std::endl;
+            }
+        }
         for (int face_id : face_ids) {
             if (face_id >= 0 && face_id < static_cast<int>(surface.query_triangles.size())) {
                 surface.query_triangles.erase(surface.query_triangles.begin() + face_id);
@@ -655,7 +677,8 @@ void handle_local_mapping_operation(
     const std::vector<int64_t>& id_map_after,
     const std::vector<int64_t>& v_id_map_after,
     query_surface_tet_with_connectivity& surface,
-    int operation_id)
+    int operation_id,
+    bool do_rounding)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     std::cout << "Handling Local Mapping operation for surface with connectivity" << std::endl;
@@ -678,6 +701,7 @@ void handle_local_mapping_operation(
     std::cout << "Mapping all points in the surface to the new connectivity completed" << std::endl;
     std::cout << "Step1 (point mapping) took " << step1_duration.count() << " ms" << std::endl;
     auto step2_start = std::chrono::high_resolution_clock::now();
+
     surface_triangle_arrangement(
         V_before,
         T_before,
@@ -685,7 +709,8 @@ void handle_local_mapping_operation(
         v_id_map_before,
         id_map_after,
         surface,
-        operation_id);
+        operation_id,
+        do_rounding);
     auto step2_end = std::chrono::high_resolution_clock::now();
     auto step2_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(step2_end - step2_start);
@@ -700,7 +725,8 @@ void track_one_operation(
     const nlohmann::json& operation_log,
     query_surface_tet_with_connectivity& surface,
     bool do_forward,
-    int operation_id)
+    int operation_id,
+    bool do_rounding)
 {
     std::string operation_name = operation_log["operation_name"];
     std::cout << "Tracking operation: " << operation_name << " (ID: " << operation_id << ")"
@@ -751,7 +777,8 @@ void track_one_operation(
                 id_map_before,
                 v_id_map_before,
                 surface,
-                operation_id);
+                operation_id,
+                do_rounding);
         } else {
             handle_local_mapping_operation(
                 V_before,
@@ -763,7 +790,8 @@ void track_one_operation(
                 id_map_after,
                 v_id_map_after,
                 surface,
-                operation_id);
+                operation_id,
+                do_rounding);
         }
     }
     std::cout << "  Operation " << operation_id << " completed" << std::endl;
@@ -774,6 +802,10 @@ void track_one_operation(
             std::cout << "Surface is manifold" << std::endl;
         } else {
             std::cout << "Surface is not manifold" << std::endl;
+            for (size_t i = 0; i < surface.query_triangles.size(); ++i) {
+                const auto& tri = surface.query_triangles[i];
+                std::cout << tri.transpose() << std::endl;
+            }
             throw std::runtime_error("Error: surface is not manifold");
         }
     }
@@ -782,7 +814,8 @@ void track_one_operation(
 void track_all_operations(
     const std::filesystem::path& dirPath,
     query_surface_tet_with_connectivity& surface,
-    bool do_forward)
+    bool do_forward,
+    bool do_rounding)
 {
     std::cout << "Tracking all operations from directory: " << dirPath << std::endl;
     BatchOperationLogReader reader(dirPath);
@@ -805,7 +838,12 @@ void track_all_operations(
         }
         std::cout << "\n=== Processing operation " << (i + 1) << "/" << total_ops
                   << " (index: " << operation_index << ") ===" << std::endl;
-        track_one_operation(operation_log, surface, do_forward, static_cast<int>(operation_index));
+        track_one_operation(
+            operation_log,
+            surface,
+            do_forward,
+            static_cast<int>(operation_index),
+            do_rounding);
     }
     std::cout << "\n=== All operations completed ===" << std::endl;
     std::cout << "Final surface state: " << surface.points.size() << " points, "
