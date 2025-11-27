@@ -155,4 +155,12 @@ std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
     const Vector4r& local_bc,
     const Eigen::MatrixXi& T_local);
 
+/**
+ * @brief Round barycentric coordinates by finding a non-0/1 entry and recomputing it
+ *
+ * @param bc Input barycentric coordinates (rational)
+ * @return Vector4r Rounded barycentric coordinates
+ */
+Vector4r rounding_bc(const Vector4r& bc);
+
 } // namespace tet_surface_tracking_with_connectivity

@@ -576,11 +576,7 @@ void surface_triangle_arrangement(
             query_point_tet_r new_point;
             new_point.t_id = global_tet_id;
             if (do_rounding) {
-                new_point.bc[0] = wmtk::Rational(barycentric_coords(0).to_double());
-                new_point.bc[1] = wmtk::Rational(barycentric_coords(1).to_double());
-                new_point.bc[2] = wmtk::Rational(barycentric_coords(2).to_double());
-                new_point.bc[3] = wmtk::Rational(barycentric_coords(3).to_double());
-                new_point.bc /= new_point.bc.sum();
+                new_point.bc = rounding_bc(barycentric_coords);
             } else {
                 new_point.bc = barycentric_coords;
             }
@@ -848,6 +844,32 @@ void track_all_operations(
     std::cout << "\n=== All operations completed ===" << std::endl;
     std::cout << "Final surface state: " << surface.points.size() << " points, "
               << surface.query_triangles.size() << " triangles" << std::endl;
+}
+
+Vector4r rounding_bc(const Vector4r& bc)
+{
+    Vector4r result;
+    for (int i = 0; i < 4; i++) {
+        result(i) = wmtk::Rational(bc(i).to_double());
+    }
+    int target_idx = -1;
+    for (int i = 0; i < 4; i++) {
+        double val = result(i).to_double();
+        if (val != 0.0 && val != 1.0) {
+            target_idx = i;
+            break;
+        }
+    }
+    if (target_idx != -1) {
+        wmtk::Rational sum_others = wmtk::Rational(0);
+        for (int i = 0; i < 4; i++) {
+            if (i != target_idx) {
+                sum_others += result(i);
+            }
+        }
+        result(target_idx) = wmtk::Rational(1) - sum_others;
+    }
+    return result;
 }
 
 std::pair<std::vector<int>, std::vector<Vector4r>> get_point_representations(
