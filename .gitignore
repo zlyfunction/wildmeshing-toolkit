@@ -41,3 +41,26 @@ components/wmtk_components/main/wmtk/components/components_map.hpp
 components/wmtk_components/main/wmtk/components/components.json
 
 applications/test_output
+result_analysis/*
+complete_timing_data.csv
+CrumpledDevelopable_curves.in
+CrumpledDevelopable_plane_curves.in
+curves.in
+embed_algo.md
+filtered_map_points_timing.csv
+filtered_per_segment_timing.csv
+imgui.ini
+n1znd0u5blvsua2txsn6i942ltthhd4u
+ogre_curves.in
+ogre_plane_curves.in
+output.log
+src/wmtk/operations/utils/TetMesh_Embedding_old.cpp
+src/wmtk/operations/utils/TetMesh_Embedding_old.hpp
+src/wmtk/operations/Legacy_code_for_collapse_boundary_tet.cpp
+.gitignore
+bijective_map/reference_code.cpp
+bijective_map/test_vtu_utils.cpp
+.cursor/rules/pythonrules.mdc
+.cursorignore
+result_analysis/bijective_map_log_analysis.ipynb
+result_analysis/bijective_map_log_analysis.ipynb

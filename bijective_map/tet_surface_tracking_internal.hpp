@@ -83,7 +83,8 @@ void surface_triangle_arrangement(
     int operation_id,
     bool do_rounding = true,
     bool verbose = false,
-    bool save_debug_meshes = false);
+    bool save_debug_meshes = false,
+    bool do_simplify = false);
 
 /**
  * @brief Handle local mapping operation for surface with connectivity
@@ -99,6 +100,7 @@ void surface_triangle_arrangement(
  * @param surface The query surface to update
  * @param operation_id Operation ID for file naming
  * @param do_rounding Whether to round barycentric coordinates
+ * @param do_simplify Whether to simplify refined triangles by removing interior points
  */
 void handle_local_mapping_operation(
     const MatrixXr& V_before,
@@ -111,7 +113,8 @@ void handle_local_mapping_operation(
     const std::vector<int64_t>& v_id_map_after,
     query_surface_tet_with_connectivity& surface,
     int operation_id,
-    bool do_rounding = false);
+    bool do_rounding = false,
+    bool do_simplify = false);
 
 /**
  * @brief Track surface through one operation
@@ -120,13 +123,16 @@ void handle_local_mapping_operation(
  * @param query_surface The query surface to track
  * @param do_forward Whether to track forward or backward
  * @param operation_id Operation ID for debugging
+ * @param do_rounding Whether to round barycentric coordinates
+ * @param do_simplify Whether to simplify refined triangles by removing interior points
  */
 void track_one_operation(
     const nlohmann::json& operation_log,
     query_surface_tet_with_connectivity& surface,
     bool do_forward,
     int operation_id,
-    bool do_rounding = false);
+    bool do_rounding = false,
+    bool do_simplify = false);
 
 /**
  * @brief Track surface through all operations in a directory

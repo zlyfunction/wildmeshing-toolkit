@@ -174,6 +174,9 @@ Tuple TetMesh::vertex_tuple_from_id(int64_t id) const
 
 Tuple TetMesh::edge_tuple_from_id(int64_t id) const
 {
+    if (is_removed(id, PrimitiveType::Edge)) {
+        throw std::runtime_error("this global edge id is removed");
+    }
     int64_t t = m_et_accessor->index_access().const_scalar_attribute(id);
     auto te = m_te_accessor->index_access().const_vector_attribute<6>(t);
 

@@ -49,6 +49,12 @@ int main(int argc, char** argv)
         "--do-rounding",
         do_rounding,
         "Round barycentric coordinates while tracking surfaces with connectivity");
+    bool do_simplify = false;
+    app.add_option(
+        "--do-simplify",
+        do_simplify,
+        "Simplify refined triangles by removing interior points and retriangulating boundary "
+        "loops");
     CLI11_PARSE(app, argc, argv);
 
     std::cout << "Application name: " << application_name << std::endl;
@@ -143,7 +149,8 @@ int main(int argc, char** argv)
             start_operation,
             save_interval,
             save_dir,
-            do_rounding);
+            do_rounding,
+            do_simplify);
     }
 
     return 0;

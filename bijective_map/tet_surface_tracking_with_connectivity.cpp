@@ -82,7 +82,8 @@ void run_backward_tracking_surface(
     int start_operation,
     int save_interval,
     const std::filesystem::path& save_dir,
-    bool do_rounding)
+    bool do_rounding,
+    bool do_simplify)
 {
     std::cout << "Backward tracking surface with connectivity" << std::endl;
     if (start_operation > 0) {
@@ -233,7 +234,8 @@ void run_backward_tracking_surface(
             query_surface,
             do_forward,
             static_cast<int>(operation_index),
-            do_rounding);
+            do_rounding,
+            do_simplify);
         if (save_interval > 0 && !save_dir.empty() &&
             (current_op % save_interval == 0 || current_op == ops_to_process)) {
             std::filesystem::path save_file =
