@@ -457,13 +457,18 @@ void simplify_refined_triangles_by_tet(
         }
         std::cout << "    Boundary points: " << boundary_points.size()
                   << ", Interior points: " << interior_points.size() << std::endl;
-        if (interior_points.empty()) {
-            std::cout << "    No interior points, skipping tet_id " << tet_id << std::endl;
+        // If there is only one or zero interior points, no need to simplify
+        if (interior_points.size() <= 1) {
+            std::cout << "    Only " << interior_points.size()
+                      << " interior points, skipping simplification for tet_id " << tet_id
+                      << std::endl;
             continue;
         }
+
         if (boundary_edges.empty()) {
-            std::cout << "    No boundary edges found, skipping" << std::endl;
-            continue;
+            throw std::runtime_error(
+                "Error: simplify_refined_triangles_by_tet: no boundary edges found for tet_id " +
+                std::to_string(tet_id));
         }
         std::cout << "    Found interior points, processing connected components using BFS..."
                   << std::endl;
@@ -495,8 +500,10 @@ void simplify_refined_triangles_by_tet(
             }
         }
         // Process connected components of interior points using BFS
-        std::vector<std::vector<int>> all_loops_to_triangulate;
+        std::vector<Eigen::Vector3i> all_triangulated_triangles;
         std::set<size_t> triangles_to_remove_set;
+        std::set<int>
+            interior_points_to_remove; // Only interior points that are part of fan triangulation
         std::set<int> visited_interior;
         for (int start_interior : interior_points) {
             if (visited_interior.find(start_interior) != visited_interior.end()) {
@@ -535,6 +542,11 @@ void simplify_refined_triangles_by_tet(
                 first = false;
             }
             std::cout << "]" << std::endl;
+            if (component_interior_points.size() == 1) {
+                std::cout << "      Component has only one interior point, skipping simplification"
+                          << std::endl;
+                continue;
+            }
             // Collect all boundary edges from triangles incident to this component
             std::set<std::pair<int, int>> component_boundary_edges;
             std::set<size_t> component_triangles;
@@ -577,64 +589,242 @@ void simplify_refined_triangles_by_tet(
                     }
                 }
             }
-            // Convert set of edges to vector for build_loops_from_edges
-            std::vector<std::pair<int, int>> component_edges_vec(
-                component_boundary_edges.begin(),
-                component_boundary_edges.end());
-            // Build loops from these boundary edges
-            std::vector<std::vector<int>> component_loops;
-            build_loops_from_edges(component_edges_vec, component_loops);
-            std::cout << "      Built " << component_loops.size() << " loop(s) for this component"
-                      << std::endl;
-            for (auto& loop : component_loops) {
-                if (loop.size() < 4) {
-                    std::cout << "        Skipping small loop (" << loop.size() << " vertices)"
+            // Print and validate component_boundary_edges
+            std::cout << "      Component boundary edges (" << component_boundary_edges.size()
+                      << " edges): [";
+            bool first_edge = true;
+            for (const auto& edge : component_boundary_edges) {
+                if (!first_edge) {
+                    std::cout << ", ";
+                }
+                std::cout << "(" << edge.first << "-" << edge.second << ")";
+                first_edge = false;
+            }
+            std::cout << "]" << std::endl;
+            // Check if edges form a valid loop (each vertex should appear exactly twice)
+            std::map<int, int> vertex_degree;
+            for (const auto& edge : component_boundary_edges) {
+                vertex_degree[edge.first]++;
+                vertex_degree[edge.second]++;
+            }
+            bool is_valid_loop = true;
+            std::vector<int> invalid_vertices;
+            for (const auto& vd : vertex_degree) {
+                if (vd.second != 2) {
+                    is_valid_loop = false;
+                    invalid_vertices.push_back(vd.first);
+                }
+            }
+            if (!is_valid_loop) {
+                std::cout << "      WARNING: Boundary edges do NOT form a valid loop!" << std::endl;
+                std::cout << "        Vertices with invalid degree:" << std::endl;
+                for (int v : invalid_vertices) {
+                    std::cout << "          Vertex " << v << " has degree " << vertex_degree[v]
+                              << " (expected 2)" << std::endl;
+                }
+                std::cout << "        Skipping fan triangulation for this component to avoid "
+                             "non-manifold vertices"
+                          << std::endl;
+                continue;
+            }
+            // Also check if edges form a single connected loop (not multiple disconnected loops)
+            // Use BFS to check connectivity
+            if (!component_boundary_edges.empty()) {
+                std::map<int, std::set<int>> adj;
+                for (const auto& edge : component_boundary_edges) {
+                    adj[edge.first].insert(edge.second);
+                    adj[edge.second].insert(edge.first);
+                }
+                std::set<int> visited_vertices;
+                std::queue<int> bfs_q;
+                int start_v = adj.begin()->first;
+                bfs_q.push(start_v);
+                visited_vertices.insert(start_v);
+                while (!bfs_q.empty()) {
+                    int curr = bfs_q.front();
+                    bfs_q.pop();
+                    for (int neighbor : adj[curr]) {
+                        if (visited_vertices.find(neighbor) == visited_vertices.end()) {
+                            visited_vertices.insert(neighbor);
+                            bfs_q.push(neighbor);
+                        }
+                    }
+                }
+                if (visited_vertices.size() != adj.size()) {
+                    std::cout << "      WARNING: Boundary edges form multiple disconnected loops!"
+                              << std::endl;
+                    std::cout << "        Connected: " << visited_vertices.size()
+                              << " vertices, Total: " << adj.size() << " vertices" << std::endl;
+                    std::cout << "        Skipping fan triangulation for this component"
                               << std::endl;
                     continue;
                 }
-                // Remove duplicate start vertex if present
-                if (!loop.empty() && loop.front() == loop.back()) {
-                    loop.pop_back();
+                std::cout << "      Boundary edges form a valid single loop with "
+                          << vertex_degree.size() << " vertices" << std::endl;
+            }
+            // Create a new point at the average position of interior points
+            // First, compute world positions of all interior points and average them
+            Eigen::Vector3d avg_world_pos = Eigen::Vector3d::Zero();
+            int num_interior_points = 0;
+            int64_t ref_tet_id = -1;
+            Eigen::Vector4i ref_tv_ids;
+            for (int interior_p_idx : component_interior_points) {
+                const auto& qp = surface.points[interior_p_idx];
+                if (ref_tet_id == -1) {
+                    ref_tet_id = qp.t_id;
+                    ref_tv_ids = qp.tv_ids;
                 }
-                if (loop.size() < 3) {
-                    continue;
+                // Get tet vertices for this point
+                Eigen::Matrix<double, 4, 3> tet_vertices;
+                Eigen::Vector4d bc_double;
+                for (int i = 0; i < 4; ++i) {
+                    bc_double(i) = qp.bc(i).to_double();
                 }
-                std::cout << "        Loop: [";
-                for (size_t i = 0; i < loop.size(); ++i) {
-                    std::cout << loop[i];
-                    if (i < loop.size() - 1) {
-                        std::cout << ",";
+                int local_tet_idx = -1;
+                if (qp.t_id >= 0) {
+                    auto it = std::find(id_map_before.begin(), id_map_before.end(), qp.t_id);
+                    if (it != id_map_before.end()) {
+                        local_tet_idx = std::distance(id_map_before.begin(), it);
                     }
                 }
-                std::cout << "] (" << loop.size() << " vertices)" << std::endl;
-                all_loops_to_triangulate.push_back(loop);
+                if (local_tet_idx >= 0 && local_tet_idx < T_before.rows()) {
+                    for (int i = 0; i < 4; ++i) {
+                        int v_id = T_before(local_tet_idx, i);
+                        if (v_id >= 0 && v_id < V_before.rows()) {
+                            tet_vertices.row(i) = Eigen::Vector3d(
+                                V_before(v_id, 0).to_double(),
+                                V_before(v_id, 1).to_double(),
+                                V_before(v_id, 2).to_double());
+                        }
+                    }
+                } else {
+                    // Fallback: use tv_ids and v_id_map_before
+                    if (qp.tv_ids.size() != 4) {
+                        throw std::runtime_error(
+                            "Error: simplify_refined_triangles_by_tet: qp.tv_ids.size() != 4");
+                    }
+                    for (int i = 0; i < 4; ++i) {
+                        if (bc_double(i) != 0.0) {
+                            int64_t global_v_id = qp.tv_ids(i);
+                            auto it = std::find(
+                                v_id_map_before.begin(),
+                                v_id_map_before.end(),
+                                global_v_id);
+                            if (it == v_id_map_before.end()) {
+                                throw std::runtime_error(
+                                    "Error: simplify_refined_triangles_by_tet: vertex ID " +
+                                    std::to_string(global_v_id) +
+                                    " not found in v_id_map_before (bc[" + std::to_string(i) +
+                                    "] != 0)");
+                            }
+                            int local_v_idx = std::distance(v_id_map_before.begin(), it);
+                            if (local_v_idx >= 0 && local_v_idx < V_before.rows()) {
+                                tet_vertices.row(i) = Eigen::Vector3d(
+                                    V_before(local_v_idx, 0).to_double(),
+                                    V_before(local_v_idx, 1).to_double(),
+                                    V_before(local_v_idx, 2).to_double());
+                            }
+                        }
+                    }
+                }
+                Eigen::Vector3d world_pos =
+                    barycentric_to_world_tet<double>(bc_double, tet_vertices);
+                avg_world_pos += world_pos;
+                num_interior_points++;
+            }
+            if (num_interior_points == 0) {
+                std::cout << "      No interior points to average, skipping" << std::endl;
+                continue;
+            }
+            avg_world_pos /= num_interior_points;
+            std::cout << "      Average world position: [" << avg_world_pos.transpose() << "]"
+                      << std::endl;
+            // Convert average world position back to barycentric coordinates
+            // Use the reference tet (first interior point's tet)
+            Eigen::Matrix<double, 4, 3> ref_tet_vertices;
+            int ref_local_tet_idx = -1;
+            if (ref_tet_id >= 0) {
+                auto it = std::find(id_map_before.begin(), id_map_before.end(), ref_tet_id);
+                if (it != id_map_before.end()) {
+                    ref_local_tet_idx = std::distance(id_map_before.begin(), it);
+                }
+            }
+            if (ref_local_tet_idx >= 0 && ref_local_tet_idx < T_before.rows()) {
+                for (int i = 0; i < 4; ++i) {
+                    int v_id = T_before(ref_local_tet_idx, i);
+                    if (v_id >= 0 && v_id < V_before.rows()) {
+                        ref_tet_vertices.row(i) = Eigen::Vector3d(
+                            V_before(v_id, 0).to_double(),
+                            V_before(v_id, 1).to_double(),
+                            V_before(v_id, 2).to_double());
+                    }
+                }
+            } else {
+                // Fallback: use ref_tv_ids and v_id_map_before
+                for (int i = 0; i < 4; ++i) {
+                    int64_t global_v_id = ref_tv_ids(i);
+                    auto it =
+                        std::find(v_id_map_before.begin(), v_id_map_before.end(), global_v_id);
+                    if (it == v_id_map_before.end()) {
+                        throw std::runtime_error(
+                            "Error: simplify_refined_triangles_by_tet: reference vertex ID " +
+                            std::to_string(global_v_id) + " not found in v_id_map_before");
+                    }
+                    int local_v_idx = std::distance(v_id_map_before.begin(), it);
+                    if (local_v_idx >= 0 && local_v_idx < V_before.rows()) {
+                        ref_tet_vertices.row(i) = Eigen::Vector3d(
+                            V_before(local_v_idx, 0).to_double(),
+                            V_before(local_v_idx, 1).to_double(),
+                            V_before(local_v_idx, 2).to_double());
+                    }
+                }
+            }
+            Eigen::Vector4d new_bc =
+                world_to_barycentric_tet<double>(avg_world_pos, ref_tet_vertices);
+            // Normalize barycentric coordinates
+            double bc_sum = new_bc.sum();
+            if (bc_sum > 1e-10) {
+                new_bc /= bc_sum;
+            } else {
+                // Fallback to center of tet
+                new_bc = Eigen::Vector4d(0.25, 0.25, 0.25, 0.25);
+            }
+            // Create new point
+            query_point_tet_r new_point;
+            new_point.t_id = ref_tet_id;
+            new_point.tv_ids = ref_tv_ids;
+            for (int i = 0; i < 4; ++i) {
+                new_point.bc(i) = wmtk::Rational(new_bc(i));
+            }
+            int new_point_idx = surface.points.size();
+            surface.points.push_back(new_point);
+            std::cout << "      Created new point at index " << new_point_idx << " with bc=["
+                      << new_bc.transpose() << "]" << std::endl;
+            // Create fan triangles: for each boundary edge, create a triangle with the new point
+            std::cout << "      Creating fan triangles from " << component_boundary_edges.size()
+                      << " boundary edges" << std::endl;
+            for (const auto& edge : component_boundary_edges) {
+                Eigen::Vector3i fan_tri;
+                fan_tri(0) = edge.first;
+                fan_tri(1) = edge.second;
+                fan_tri(2) = new_point_idx;
+                all_triangulated_triangles.push_back(fan_tri);
+                std::cout << "        Fan triangle: [" << fan_tri(0) << "," << fan_tri(1) << ","
+                          << fan_tri(2) << "]" << std::endl;
             }
             // Mark triangles incident to this component for removal
             for (size_t tri_idx : component_triangles) {
                 triangles_to_remove_set.insert(tri_idx);
             }
-        }
-        if (all_loops_to_triangulate.empty()) {
-            std::cout << "    No loops available for ear clipping, skipping tet_id " << tet_id
-                      << std::endl;
-            continue;
-        }
-        // Perform ear clipping for each loop
-        std::vector<Eigen::Vector3i> all_triangulated_triangles;
-        size_t loop_counter = 0;
-        for (const auto& loop : all_loops_to_triangulate) {
-            std::cout << "    Ear clipping loop " << loop_counter++ << " with " << loop.size()
-                      << " vertices" << std::endl;
-            std::vector<Eigen::Vector3i> triangulated_triangles;
-            ear_clipping_triangulation(loop, surface.points, triangulated_triangles);
-            std::cout << "      Generated " << triangulated_triangles.size() << " triangles"
-                      << std::endl;
-            for (size_t i = 0; i < triangulated_triangles.size(); ++i) {
-                const auto& tri = triangulated_triangles[i];
-                std::cout << "        Triangle " << i << ": [" << tri(0) << "," << tri(1) << ","
-                          << tri(2) << "]" << std::endl;
-                all_triangulated_triangles.push_back(tri);
+            // Mark interior points of this component for removal (only if fan triangulation was
+            // performed)
+            for (int interior_p : component_interior_points) {
+                interior_points_to_remove.insert(interior_p);
             }
+        }
+        if (all_triangulated_triangles.empty()) {
+            std::cout << "    No fan triangles created, skipping tet_id " << tet_id << std::endl;
+            continue;
         }
         // Save triangles after simplification
         // Collect all triangles that will remain: new triangulated triangles + triangles not
@@ -653,7 +843,7 @@ void simplify_refined_triangles_by_tet(
             }
         }
         std::cout << "    After simplification: " << all_triangulated_triangles.size()
-                  << " new triangles from ear clipping, "
+                  << " new triangles from fan triangulation, "
                   << (all_final_triangles.size() - all_triangulated_triangles.size())
                   << " preserved triangles, total: " << all_final_triangles.size() << " triangles"
                   << std::endl;
@@ -758,7 +948,8 @@ void simplify_refined_triangles_by_tet(
         for (size_t tri_idx : triangles_to_remove_set) {
             triangle_to_remove[tri_idx] = true;
         }
-        for (int p : interior_points) {
+        // Only remove interior points that were part of fan triangulation
+        for (int p : interior_points_to_remove) {
             points_to_remove.insert(p);
         }
     }

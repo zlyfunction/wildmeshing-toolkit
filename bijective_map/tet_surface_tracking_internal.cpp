@@ -664,7 +664,150 @@ void surface_triangle_arrangement(
         std::cout << "=== Surface update completed ===" << std::endl;
         std::cout << "  Final surface: " << surface.points.size() << " points, "
                   << surface.query_triangles.size() << " triangles" << std::endl;
-
+        { // Check and merge duplicate points if do_rounding is true
+            if (do_rounding) {
+                std::cout << "\n=== Checking for duplicate points before simplification ==="
+                          << std::endl;
+                // Build equivalence classes: for each point, find the representative (smallest
+                // index)
+                std::vector<size_t> point_to_representative(surface.points.size());
+                for (size_t i = 0; i < surface.points.size(); ++i) {
+                    point_to_representative[i] = i;
+                }
+                // Find all duplicate pairs and merge them
+                std::vector<std::pair<size_t, size_t>> duplicate_pairs;
+                for (size_t i = 0; i < surface.points.size(); ++i) {
+                    const auto& p1 = surface.points[i];
+                    for (size_t j = i + 1; j < surface.points.size(); ++j) {
+                        const auto& p2 = surface.points[j];
+                        // Check if tet_id and bc are strictly equal
+                        if (p1.t_id == p2.t_id) {
+                            bool bc_equal = true;
+                            for (int k = 0; k < 4; ++k) {
+                                if (p1.bc(k) != p2.bc(k)) {
+                                    bc_equal = false;
+                                    break;
+                                }
+                            }
+                            if (bc_equal) {
+                                duplicate_pairs.push_back({i, j});
+                                // Merge: j should point to i's representative
+                                size_t rep_i = point_to_representative[i];
+                                size_t rep_j = point_to_representative[j];
+                                size_t min_rep = std::min(rep_i, rep_j);
+                                // Update all points in both equivalence classes to point to min_rep
+                                for (size_t k = 0; k < surface.points.size(); ++k) {
+                                    if (point_to_representative[k] == rep_i ||
+                                        point_to_representative[k] == rep_j) {
+                                        point_to_representative[k] = min_rep;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!duplicate_pairs.empty()) {
+                    std::cout << "  Found " << duplicate_pairs.size()
+                              << " pair(s) of duplicate points (strictly equal tet_id and bc)"
+                              << std::endl;
+                    // Print duplicate pairs
+                    for (const auto& pair : duplicate_pairs) {
+                        size_t idx1 = pair.first;
+                        size_t idx2 = pair.second;
+                        const auto& p1 = surface.points[idx1];
+                        std::cout << "    Merging Point " << idx2 << " into Point " << idx1 << ":"
+                                  << std::endl;
+                        std::cout << "      tet_id: " << p1.t_id << std::endl;
+                        std::cout << "      bc: [" << p1.bc(0).to_double() << ", "
+                                  << p1.bc(1).to_double() << ", " << p1.bc(2).to_double() << ", "
+                                  << p1.bc(3).to_double() << "]" << std::endl;
+                    }
+                    // Find points to remove (points that are not their own representative)
+                    std::set<size_t> points_to_remove;
+                    for (size_t i = 0; i < surface.points.size(); ++i) {
+                        if (point_to_representative[i] != i) {
+                            points_to_remove.insert(i);
+                        }
+                    }
+                    std::cout << "  Removing " << points_to_remove.size() << " duplicate point(s)"
+                              << std::endl;
+                    // Build mapping: old_index -> new_index
+                    // First, build mapping for points that will be kept
+                    std::vector<int> old_to_new_map(surface.points.size(), -1);
+                    int new_idx = 0;
+                    for (size_t i = 0; i < surface.points.size(); ++i) {
+                        if (points_to_remove.find(i) == points_to_remove.end()) {
+                            old_to_new_map[i] = new_idx++;
+                        }
+                    }
+                    // For removed points, map to their representative's new index
+                    for (size_t i = 0; i < surface.points.size(); ++i) {
+                        if (points_to_remove.find(i) != points_to_remove.end()) {
+                            size_t rep = point_to_representative[i];
+                            old_to_new_map[i] = old_to_new_map[rep];
+                        }
+                    }
+                    // Update triangles with new point indices and remove triangles that contain
+                    // duplicate points
+                    std::vector<Eigen::Vector3i> new_triangles;
+                    std::vector<int> new_tet_ids;
+                    int removed_triangles_count = 0;
+                    for (size_t tri_idx = 0; tri_idx < surface.query_triangles.size(); ++tri_idx) {
+                        const auto& old_tri = surface.query_triangles[tri_idx];
+                        Eigen::Vector3i new_tri;
+                        new_tri(0) = old_to_new_map[old_tri(0)];
+                        new_tri(1) = old_to_new_map[old_tri(1)];
+                        new_tri(2) = old_to_new_map[old_tri(2)];
+                        // Check if triangle contains duplicate points (two or more vertices map to
+                        // the same point)
+                        if (new_tri(0) == new_tri(1) || new_tri(1) == new_tri(2) ||
+                            new_tri(0) == new_tri(2)) {
+                            // Triangle contains duplicate points, remove it
+                            removed_triangles_count++;
+                            if (removed_triangles_count <= 10) {
+                                // Print first 10 removed triangles for debugging
+                                std::cout << "    Removing triangle [" << old_tri(0) << ","
+                                          << old_tri(1) << "," << old_tri(2) << "] -> ["
+                                          << new_tri(0) << "," << new_tri(1) << "," << new_tri(2)
+                                          << "] (contains duplicate points)" << std::endl;
+                            }
+                            continue;
+                        }
+                        // Valid triangle, keep it
+                        new_triangles.push_back(new_tri);
+                        if (tri_idx < surface.tet_ids.size()) {
+                            new_tet_ids.push_back(surface.tet_ids[tri_idx]);
+                        }
+                    }
+                    if (removed_triangles_count > 10) {
+                        std::cout << "    ... and " << (removed_triangles_count - 10)
+                                  << " more triangles removed" << std::endl;
+                    }
+                    std::cout << "  Removed " << removed_triangles_count
+                              << " triangle(s) that contained duplicate points" << std::endl;
+                    // Remove duplicate points
+                    std::vector<query_point_tet_r> new_points;
+                    new_points.reserve(new_idx);
+                    for (size_t i = 0; i < surface.points.size(); ++i) {
+                        if (points_to_remove.find(i) == points_to_remove.end()) {
+                            new_points.push_back(surface.points[i]);
+                        }
+                    }
+                    surface.points = std::move(new_points);
+                    surface.query_triangles = std::move(new_triangles);
+                    surface.tet_ids = std::move(new_tet_ids);
+                    std::cout << "  After merging duplicates: " << surface.points.size()
+                              << " points (removed " << points_to_remove.size() << " duplicates), "
+                              << surface.query_triangles.size() << " triangles (removed "
+                              << removed_triangles_count << " invalid triangles)" << std::endl;
+                } else {
+                    std::cout
+                        << "  No duplicate points found (all points have unique tet_id and bc)"
+                        << std::endl;
+                }
+                std::cout << "=== End of duplicate points check ===" << std::endl;
+            }
+        }
         { // Check manifold property before simplification
             std::cout << "\n=== Checking surface manifold property before simplification ==="
                       << std::endl;
@@ -759,6 +902,7 @@ void surface_triangle_arrangement(
                 std::cout << "=== End of removing unreferenced points ===" << std::endl;
             }
         }
+
         if (do_simplify) {
             simplify_refined_triangles_by_tet(
                 surface,
