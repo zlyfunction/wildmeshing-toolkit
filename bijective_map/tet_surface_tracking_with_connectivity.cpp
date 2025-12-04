@@ -75,6 +75,7 @@ void write_surface_to_vtu(
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
     const Eigen::MatrixXd& V_after,
+    const Eigen::MatrixXi& T_before,
     const Eigen::MatrixXd& V_before,
     const std::filesystem::path& operation_logs_dir,
     const std::filesystem::path& surface_file,
@@ -83,7 +84,8 @@ void run_backward_tracking_surface(
     int save_interval,
     const std::filesystem::path& save_dir,
     bool do_rounding,
-    bool do_simplify)
+    bool do_simplify,
+    bool only_do_arrangement_once)
 {
     std::cout << "Backward tracking surface with connectivity" << std::endl;
     if (start_operation > 0) {
@@ -235,13 +237,198 @@ void run_backward_tracking_surface(
             do_forward,
             static_cast<int>(operation_index),
             do_rounding,
-            do_simplify);
+            do_simplify,
+            only_do_arrangement_once);
         if (save_interval > 0 && !save_dir.empty() &&
             (current_op % save_interval == 0 || current_op == ops_to_process)) {
             std::filesystem::path save_file =
                 save_dir / ("surface_op_" + std::to_string(operation_index) + ".bin");
             write_surface_connectivity_to_binary(query_surface, save_file.string());
         }
+    }
+
+    if (only_do_arrangement_once) {
+        std::cout << "\n=== Performing final autorefine on before mesh ===" << std::endl;
+        // Convert V_before to rational
+        MatrixXr V_before_rational(V_before.rows(), V_before.cols());
+        for (int i = 0; i < V_before.rows(); i++) {
+            for (int j = 0; j < V_before.cols(); j++) {
+                V_before_rational(i, j) = wmtk::Rational(V_before(i, j));
+            }
+        }
+        // Build sampled_points from query_surface
+        // Since T_before uses global IDs directly, pt.t_id == tet_index and pt.tv_ids == vertex
+        // indices
+        std::set<int> unique_point_indices_set;
+        for (const auto& tri : query_surface.query_triangles) {
+            unique_point_indices_set.insert(tri[0]);
+            unique_point_indices_set.insert(tri[1]);
+            unique_point_indices_set.insert(tri[2]);
+        }
+        std::vector<int> unique_point_indices(
+            unique_point_indices_set.begin(),
+            unique_point_indices_set.end());
+        std::map<int, int> global_to_local_point_map;
+        for (int local_idx = 0; local_idx < static_cast<int>(unique_point_indices.size());
+             local_idx++) {
+            global_to_local_point_map[unique_point_indices[local_idx]] = local_idx;
+        }
+        // Build local_triangles_F
+        Eigen::MatrixXi local_triangles_F(query_surface.query_triangles.size(), 3);
+        for (size_t i = 0; i < query_surface.query_triangles.size(); i++) {
+            const Eigen::Vector3i& global_tri = query_surface.query_triangles[i];
+            local_triangles_F(i, 0) = global_to_local_point_map[global_tri[0]];
+            local_triangles_F(i, 1) = global_to_local_point_map[global_tri[1]];
+            local_triangles_F(i, 2) = global_to_local_point_map[global_tri[2]];
+        }
+        // Build sampled_points - T_before uses global IDs directly
+        std::vector<cgal_autorefine_demo::SampledPointInputRational> sampled_points;
+        sampled_points.reserve(unique_point_indices.size());
+        for (int local_idx = 0; local_idx < static_cast<int>(unique_point_indices.size());
+             local_idx++) {
+            int global_idx = unique_point_indices[local_idx];
+            const auto& pt = query_surface.points[global_idx];
+            cgal_autorefine_demo::SampledPointInputRational sampled_pt;
+            // pt.t_id is the global tet_id which is also the index in T_before
+            sampled_pt.tet_index = static_cast<int>(pt.t_id);
+            sampled_pt.barycentric = pt.bc;
+            if (sampled_pt.tet_index < 0 || sampled_pt.tet_index >= T_before.rows()) {
+                std::cerr << "Warning: Invalid tet_id " << pt.t_id << " for point " << global_idx
+                          << std::endl;
+                continue;
+            }
+            sampled_points.push_back(sampled_pt);
+        }
+        std::cout << "  Prepared " << sampled_points.size() << " sampled points and "
+                  << local_triangles_F.rows() << " triangles for autorefine" << std::endl;
+        // Call autorefine
+        auto autorefine_start = std::chrono::high_resolution_clock::now();
+        cgal_autorefine_demo::AutorefineResultRational autorefine_result =
+            cgal_autorefine_demo::autorefine_sampled_triangles_rational(
+                V_before_rational,
+                T_before,
+                sampled_points,
+                local_triangles_F);
+        auto autorefine_end = std::chrono::high_resolution_clock::now();
+        auto autorefine_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            autorefine_end - autorefine_start);
+        std::cout << "  Autorefine completed: " << autorefine_result.refined_points.size()
+                  << " refined points, " << autorefine_result.refined_triangles.size()
+                  << " refined triangles" << std::endl;
+        std::cout << "  Autorefine took " << autorefine_duration.count() << " ms" << std::endl;
+        std::cout << "  Sampled fragment triangles: "
+                  << autorefine_result.sampled_fragment_triangles.size() << std::endl;
+        // Update query_surface with autorefine result (without rounding and simplify)
+        if (!autorefine_result.sampled_fragment_triangles.empty()) {
+            std::cout << "  Updating query_surface with autorefine result..." << std::endl;
+            // Map original points to surface points
+            std::map<std::size_t, std::size_t> original_point_to_surface_point;
+            for (std::size_t i = 0;
+                 i < autorefine_result.sampled_vertices.size() && i < unique_point_indices.size();
+                 ++i) {
+                const auto& sv = autorefine_result.sampled_vertices[i];
+                std::size_t orig_point_idx = sv.point_index;
+                int surface_point_idx = unique_point_indices[static_cast<int>(i)];
+                original_point_to_surface_point[orig_point_idx] =
+                    static_cast<std::size_t>(surface_point_idx);
+            }
+            std::map<std::size_t, std::size_t> refined_point_to_surface_point;
+            for (const auto& [orig_idx, surf_idx] : original_point_to_surface_point) {
+                refined_point_to_surface_point[orig_idx] = surf_idx;
+            }
+            // Collect vertex ids used by sampled triangles
+            std::set<std::size_t> refined_vertex_ids_used;
+            for (const auto& tri : autorefine_result.sampled_fragment_triangles) {
+                refined_vertex_ids_used.insert(tri[0]);
+                refined_vertex_ids_used.insert(tri[1]);
+                refined_vertex_ids_used.insert(tri[2]);
+            }
+            // Add new points
+            for (std::size_t refined_v_id : refined_vertex_ids_used) {
+                if (refined_point_to_surface_point.find(refined_v_id) !=
+                    refined_point_to_surface_point.end()) {
+                    continue;
+                }
+                const cgal_autorefine_demo::RationalPoint& p =
+                    autorefine_result.refined_points[refined_v_id];
+                Vector3r point_pos;
+                point_pos(0) = wmtk::Rational(p.x(), false);
+                point_pos(1) = wmtk::Rational(p.y(), false);
+                point_pos(2) = wmtk::Rational(p.z(), false);
+                int tet_id = -1;
+                if (refined_v_id < autorefine_result.vertex_tet_sets.size()) {
+                    const auto& tet_set = autorefine_result.vertex_tet_sets[refined_v_id];
+                    if (!tet_set.empty()) {
+                        tet_id = *tet_set.begin();
+                    }
+                }
+                if (tet_id == -1) {
+                    for (std::size_t tri_idx = 0;
+                         tri_idx < autorefine_result.sampled_fragment_triangles.size();
+                         ++tri_idx) {
+                        const auto& tri = autorefine_result.sampled_fragment_triangles[tri_idx];
+                        if (tri[0] == refined_v_id || tri[1] == refined_v_id ||
+                            tri[2] == refined_v_id) {
+                            tet_id = autorefine_result.sampled_fragment_tet_ids(tri_idx);
+                            break;
+                        }
+                    }
+                }
+                if (tet_id == -1 || tet_id >= T_before.rows()) {
+                    std::cerr << "Warning: Could not find valid tet_id for new point "
+                              << refined_v_id << std::endl;
+                    continue;
+                }
+                // T_before uses global IDs directly, so tet_id is global_tet_id
+                // and T_before.row(tet_id) contains global vertex IDs
+                Eigen::Vector4i tv_ids = T_before.row(tet_id);
+                Eigen::Matrix<wmtk::Rational, 4, 3> tet_vertices;
+                for (int i = 0; i < 4; ++i) {
+                    int v_id = tv_ids(i);
+                    if (v_id >= 0 && v_id < V_before_rational.rows()) {
+                        tet_vertices.row(i) = V_before_rational.row(v_id);
+                    }
+                }
+                Vector4r barycentric_coords =
+                    world_to_barycentric_tet<wmtk::Rational>(point_pos, tet_vertices);
+                query_point_tet_r new_point;
+                new_point.t_id = tet_id; // tet_id is already global
+                new_point.bc = barycentric_coords; // No rounding
+                new_point.tv_ids = tv_ids; // tv_ids are already global
+                std::size_t new_surface_point_idx = query_surface.points.size();
+                query_surface.points.push_back(new_point);
+                refined_point_to_surface_point[refined_v_id] = new_surface_point_idx;
+            }
+            // Clear and rebuild triangles
+            query_surface.query_triangles.clear();
+            query_surface.tet_ids.clear();
+            for (std::size_t i = 0; i < autorefine_result.sampled_fragment_triangles.size(); ++i) {
+                const cgal_autorefine_demo::Triangle& refined_tri =
+                    autorefine_result.sampled_fragment_triangles[i];
+                Eigen::Vector3i new_tri;
+                bool all_mapped = true;
+                for (int corner = 0; corner < 3; ++corner) {
+                    std::size_t refined_v_id = refined_tri[corner];
+                    auto it = refined_point_to_surface_point.find(refined_v_id);
+                    if (it != refined_point_to_surface_point.end()) {
+                        new_tri(corner) = static_cast<int>(it->second);
+                    } else {
+                        all_mapped = false;
+                        break;
+                    }
+                }
+                if (!all_mapped) {
+                    continue;
+                }
+                query_surface.query_triangles.push_back(new_tri);
+                // tet_id from autorefine is already global
+                int tet_id = autorefine_result.sampled_fragment_tet_ids(i);
+                query_surface.tet_ids.push_back(tet_id);
+            }
+            std::cout << "  Updated query_surface: " << query_surface.points.size() << " points, "
+                      << query_surface.query_triangles.size() << " triangles" << std::endl;
+        }
+        std::cout << "=== Final autorefine completed ===" << std::endl;
     }
     std::cout << "\n=== All operations completed ===" << std::endl;
     std::cout << "Final surface state: " << query_surface.points.size() << " points, "

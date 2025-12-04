@@ -715,6 +715,79 @@ void surface_triangle_arrangement(
         std::cout << "=== Surface update completed ===" << std::endl;
         std::cout << "  Final surface: " << surface.points.size() << " points, "
                   << surface.query_triangles.size() << " triangles" << std::endl;
+        // Self-intersection check per tet: revert new points if self-intersection found
+        if (do_rounding && !new_point_indices.empty()) {
+            std::cout << "\n=== Checking for self-intersection per tet after rounding ==="
+                      << std::endl;
+            // Find tets that contain new points
+            std::set<int64_t> tets_with_new_points;
+            for (size_t p_idx : new_point_indices) {
+                tets_with_new_points.insert(surface.points[p_idx].t_id);
+            }
+            std::cout << "  Found " << tets_with_new_points.size()
+                      << " tet(s) containing new points" << std::endl;
+            // For each tet with new points, check for self-intersection
+            for (int64_t tet_id : tets_with_new_points) {
+                // Collect all triangles in this tet
+                std::vector<size_t> tet_tri_indices;
+                for (size_t tri_idx = 0; tri_idx < surface.query_triangles.size(); ++tri_idx) {
+                    if (tri_idx < surface.tet_ids.size() && surface.tet_ids[tri_idx] == tet_id) {
+                        tet_tri_indices.push_back(tri_idx);
+                    }
+                }
+                if (tet_tri_indices.empty()) {
+                    continue;
+                }
+                // Collect unique points used by these triangles
+                std::set<int> tet_points;
+                for (size_t tri_idx : tet_tri_indices) {
+                    const auto& tri = surface.query_triangles[tri_idx];
+                    tet_points.insert(tri(0));
+                    tet_points.insert(tri(1));
+                    tet_points.insert(tri(2));
+                }
+                // Build CGAL triangle soup with rational coordinates
+                std::map<int, std::size_t> point_to_cgal_idx;
+                std::vector<RationalPoint> cgal_points;
+                cgal_points.reserve(tet_points.size());
+                for (int p_idx : tet_points) {
+                    point_to_cgal_idx[p_idx] = cgal_points.size();
+                    const auto& qp = surface.points[p_idx];
+                    RationalKernel::FT x = rational_to_gmpq(qp.bc(0));
+                    RationalKernel::FT y = rational_to_gmpq(qp.bc(1));
+                    RationalKernel::FT z = rational_to_gmpq(qp.bc(2));
+                    cgal_points.emplace_back(x, y, z);
+                }
+                std::vector<Triangle> cgal_triangles;
+                cgal_triangles.reserve(tet_tri_indices.size());
+                for (size_t tri_idx : tet_tri_indices) {
+                    const auto& tri = surface.query_triangles[tri_idx];
+                    cgal_triangles.push_back(Triangle{
+                        point_to_cgal_idx[tri(0)],
+                        point_to_cgal_idx[tri(1)],
+                        point_to_cgal_idx[tri(2)]});
+                }
+                // Check for self-intersection
+                bool has_self_intersection =
+                    PMP::does_triangle_soup_self_intersect(cgal_points, cgal_triangles);
+                if (has_self_intersection) {
+                    std::cout << "  WARNING: Self-intersection detected in tet_id " << tet_id
+                              << ". Reverting new points to original values." << std::endl;
+                    // Revert new points in this tet to original values
+                    for (int p_idx : tet_points) {
+                        if (new_point_indices.count(p_idx) > 0) {
+                            std::cout << "    Reverting point " << p_idx
+                                      << " to original (unrounded) bc" << std::endl;
+                            surface.points[p_idx].bc = new_point_original_bc[p_idx];
+                        }
+                    }
+                } else {
+                    std::cout << "  Tet_id " << tet_id << ": self-intersection check passed"
+                              << std::endl;
+                }
+            }
+            std::cout << "=== End of self-intersection check ===" << std::endl;
+        }
         { // Check manifold property before simplification
             std::cout << "\n=== Checking surface manifold property before simplification ==="
                       << std::endl;
@@ -839,7 +912,8 @@ void handle_local_mapping_operation(
     query_surface_tet_with_connectivity& surface,
     int operation_id,
     bool do_rounding,
-    bool do_simplify)
+    bool do_simplify,
+    bool only_do_arrangement_once)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     std::cout << "Handling Local Mapping operation for surface with connectivity" << std::endl;
@@ -861,25 +935,30 @@ void handle_local_mapping_operation(
         std::chrono::duration_cast<std::chrono::milliseconds>(step1_end - step1_start);
     std::cout << "Mapping all points in the surface to the new connectivity completed" << std::endl;
     std::cout << "Step1 (point mapping) took " << step1_duration.count() << " ms" << std::endl;
-    auto step2_start = std::chrono::high_resolution_clock::now();
-    bool save_debug_meshes = true;
-    surface_triangle_arrangement(
-        V_before,
-        T_before,
-        id_map_before,
-        v_id_map_before,
-        id_map_after,
-        surface,
-        operation_id,
-        do_rounding,
-        false,
-        save_debug_meshes,
-        do_simplify);
-    auto step2_end = std::chrono::high_resolution_clock::now();
-    auto step2_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(step2_end - step2_start);
-    std::cout << "Step2 (surface triangle arrangement) took " << step2_duration.count() << " ms"
-              << std::endl;
+    if (!only_do_arrangement_once) {
+        auto step2_start = std::chrono::high_resolution_clock::now();
+        bool save_debug_meshes = true;
+        surface_triangle_arrangement(
+            V_before,
+            T_before,
+            id_map_before,
+            v_id_map_before,
+            id_map_after,
+            surface,
+            operation_id,
+            do_rounding,
+            false,
+            save_debug_meshes,
+            do_simplify);
+        auto step2_end = std::chrono::high_resolution_clock::now();
+        auto step2_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(step2_end - step2_start);
+        std::cout << "Step2 (surface triangle arrangement) took " << step2_duration.count() << " ms"
+                  << std::endl;
+    } else {
+        std::cout << "Skipping per-operation arrangement (only_do_arrangement_once=true)"
+                  << std::endl;
+    }
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
     std::cout << "handle_local_mapping_operation took " << duration.count() << " ms" << std::endl;
@@ -891,7 +970,8 @@ void track_one_operation(
     bool do_forward,
     int operation_id,
     bool do_rounding,
-    bool do_simplify)
+    bool do_simplify,
+    bool only_do_arrangement_once)
 {
     std::string operation_name = operation_log["operation_name"];
     std::cout << "Tracking operation: " << operation_name << " (ID: " << operation_id << ")"
@@ -944,7 +1024,8 @@ void track_one_operation(
                 surface,
                 operation_id,
                 do_rounding,
-                do_simplify);
+                do_simplify,
+                only_do_arrangement_once);
         } else {
             handle_local_mapping_operation(
                 V_before,
@@ -958,7 +1039,8 @@ void track_one_operation(
                 surface,
                 operation_id,
                 do_rounding,
-                do_simplify);
+                do_simplify,
+                only_do_arrangement_once);
         }
     }
     std::cout << "  Operation " << operation_id << " completed" << std::endl;

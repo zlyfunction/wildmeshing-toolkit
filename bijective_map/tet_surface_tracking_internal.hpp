@@ -101,6 +101,7 @@ void surface_triangle_arrangement(
  * @param operation_id Operation ID for file naming
  * @param do_rounding Whether to round barycentric coordinates
  * @param do_simplify Whether to simplify refined triangles by removing interior points
+ * @param only_do_arrangement_once Whether to skip per-operation arrangement (default: false)
  */
 void handle_local_mapping_operation(
     const MatrixXr& V_before,
@@ -114,7 +115,8 @@ void handle_local_mapping_operation(
     query_surface_tet_with_connectivity& surface,
     int operation_id,
     bool do_rounding = false,
-    bool do_simplify = false);
+    bool do_simplify = false,
+    bool only_do_arrangement_once = false);
 
 /**
  * @brief Track surface through one operation
@@ -125,6 +127,7 @@ void handle_local_mapping_operation(
  * @param operation_id Operation ID for debugging
  * @param do_rounding Whether to round barycentric coordinates
  * @param do_simplify Whether to simplify refined triangles by removing interior points
+ * @param only_do_arrangement_once Whether to skip per-operation arrangement (default: false)
  */
 void track_one_operation(
     const nlohmann::json& operation_log,
@@ -132,7 +135,8 @@ void track_one_operation(
     bool do_forward,
     int operation_id,
     bool do_rounding = false,
-    bool do_simplify = false);
+    bool do_simplify = false,
+    bool only_do_arrangement_once = false);
 
 /**
  * @brief Track surface through all operations in a directory

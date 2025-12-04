@@ -1,6 +1,12 @@
 #include "tet_surface_simplify_internal.hpp"
+#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
+#include <CGAL/Gmpq.h>
+#include <CGAL/Polygon_mesh_processing/self_intersections.h>
+#include <CGAL/number_utils.h>
+#include <gmp.h>
 #include <Eigen/Core>
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -10,9 +16,28 @@
 #include "tet_track_operations.hpp"
 #include "vtu_utils.hpp"
 
+namespace PMP = CGAL::Polygon_mesh_processing;
+
 namespace tet_surface_tracking_with_connectivity {
 
 namespace {
+// CGAL types for self-intersection check with exact rational arithmetic
+using RationalKernel = CGAL::Exact_predicates_exact_constructions_kernel;
+using RationalPoint = RationalKernel::Point_3;
+using CgalTriangle = std::array<std::size_t, 3>;
+
+RationalKernel::FT rational_to_gmpq(const wmtk::Rational& r)
+{
+    mpq_t q;
+    mpq_init(q);
+    r.export_mpq(q);
+    using ET = RationalKernel::FT::ET;
+    ET et_expr(q);
+    RationalKernel::FT result(et_expr);
+    mpq_clear(q);
+    return result;
+}
+
 // Helper function to write triangle mesh to VTU with point data (global vertex IDs)
 void write_triangle_mesh_to_vtu_with_point_data(
     const Eigen::MatrixXd& V,
@@ -505,6 +530,8 @@ void simplify_refined_triangles_by_tet(
         std::set<int>
             interior_points_to_remove; // Only interior points that are part of fan triangulation
         std::set<int> visited_interior;
+        std::vector<int>
+            new_centroid_point_indices; // Track newly added centroid points for rollback
         for (int start_interior : interior_points) {
             if (visited_interior.find(start_interior) != visited_interior.end()) {
                 continue;
@@ -741,6 +768,7 @@ void simplify_refined_triangles_by_tet(
             new_point.bc = new_bc_rational;
             int new_point_idx = surface.points.size();
             surface.points.push_back(new_point);
+            new_centroid_point_indices.push_back(new_point_idx);
             std::cout << "      Created new point at index " << new_point_idx << std::endl;
             // Create fan triangles: for each boundary edge, create a triangle with the new point
             std::cout << "      Creating fan triangles from " << component_boundary_edges.size()
@@ -789,6 +817,63 @@ void simplify_refined_triangles_by_tet(
                   << (all_final_triangles.size() - all_triangulated_triangles.size())
                   << " preserved triangles, total: " << all_final_triangles.size() << " triangles"
                   << std::endl;
+        // Self-intersection check using CGAL with exact rational arithmetic
+        // Use first 3 components of bc as positions
+        {
+            // Collect unique points and build position map using bc(0:3)
+            std::set<int> check_points;
+            for (const auto& tri : all_final_triangles) {
+                check_points.insert(tri(0));
+                check_points.insert(tri(1));
+                check_points.insert(tri(2));
+            }
+            std::map<int, std::size_t> point_to_cgal_idx;
+            std::vector<RationalPoint> cgal_points;
+            cgal_points.reserve(check_points.size());
+            for (int p_idx : check_points) {
+                point_to_cgal_idx[p_idx] = cgal_points.size();
+                const auto& qp = surface.points[p_idx];
+                // Use first 3 barycentric coordinates as position with exact rational arithmetic
+                RationalKernel::FT x = rational_to_gmpq(qp.bc(0));
+                RationalKernel::FT y = rational_to_gmpq(qp.bc(1));
+                RationalKernel::FT z = rational_to_gmpq(qp.bc(2));
+                cgal_points.emplace_back(x, y, z);
+            }
+            // Build triangle soup
+            std::vector<CgalTriangle> cgal_triangles;
+            cgal_triangles.reserve(all_final_triangles.size());
+            for (const auto& tri : all_final_triangles) {
+                cgal_triangles.push_back(CgalTriangle{
+                    point_to_cgal_idx[tri(0)],
+                    point_to_cgal_idx[tri(1)],
+                    point_to_cgal_idx[tri(2)]});
+            }
+            // Check for self-intersection
+            bool has_self_intersection =
+                PMP::does_triangle_soup_self_intersect(cgal_points, cgal_triangles);
+            if (has_self_intersection) {
+                std::cout
+                    << "    WARNING: Self-intersection detected after simplification for tet_id "
+                    << tet_id << ". Rolling back simplification." << std::endl;
+                // Rollback: remove newly added centroid points from surface.points
+                // Remove in reverse order to keep indices valid
+                std::sort(
+                    new_centroid_point_indices.begin(),
+                    new_centroid_point_indices.end(),
+                    std::greater<int>());
+                for (int remove_idx : new_centroid_point_indices) {
+                    if (remove_idx >= 0 && remove_idx < static_cast<int>(surface.points.size())) {
+                        surface.points.erase(surface.points.begin() + remove_idx);
+                        std::cout << "      Removed centroid point at index " << remove_idx
+                                  << std::endl;
+                    }
+                }
+                std::cout << "    Skipping tet_id " << tet_id << " due to self-intersection"
+                          << std::endl;
+                continue; // Skip this tet's simplification
+            }
+            std::cout << "    Self-intersection check passed for tet_id " << tet_id << std::endl;
+        }
         // Collect all points used by final triangles
         std::set<int> local_points_after;
         for (const auto& tri : all_final_triangles) {

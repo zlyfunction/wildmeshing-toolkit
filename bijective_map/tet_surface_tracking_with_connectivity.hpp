@@ -51,6 +51,7 @@ void write_surface_to_vtu(
  *
  * @param T_after Tetrahedral connectivity after operations
  * @param V_after Vertex positions after operations
+ * @param T_before Tetrahedral connectivity before operations
  * @param V_before Vertex positions before operations
  * @param operation_logs_dir Directory containing operation logs
  * @param surface_file Path to surface file
@@ -60,10 +61,12 @@ void write_surface_to_vtu(
  * @param save_dir Directory to save intermediate surfaces (empty = don't save)
  * @param do_rounding Whether to round barycentric coordinates during tracking (default: false)
  * @param do_simplify Whether to simplify refined triangles by removing interior points (default: false)
+ * @param only_do_arrangement_once Whether to perform final autorefine on before mesh (default: true)
  */
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
     const Eigen::MatrixXd& V_after,
+    const Eigen::MatrixXi& T_before,
     const Eigen::MatrixXd& V_before,
     const std::filesystem::path& operation_logs_dir,
     const std::filesystem::path& surface_file,
@@ -72,7 +75,8 @@ void run_backward_tracking_surface(
     int save_interval = 1,
     const std::filesystem::path& save_dir = std::filesystem::path(),
     bool do_rounding = false,
-    bool do_simplify = false);
+    bool do_simplify = false,
+    bool only_do_arrangement_once = false);
 
 /**
  * @brief Write query surface with connectivity to file
