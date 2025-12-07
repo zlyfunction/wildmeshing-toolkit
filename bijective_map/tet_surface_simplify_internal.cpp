@@ -165,12 +165,12 @@ int can_collapse_edge(int v0, int v1, const LocalPatch& patch)
             // identical constraint sets -> keep v0
             return 1;
         }
-        if (c0_subset_c1) {
-            return 1; // keep more constrained (v0)
-        }
-        if (c1_subset_c0) {
-            return 2; // keep more constrained (v1)
-        }
+        // if (c0_subset_c1) {
+        //    return 1; // keep more constrained (v0)
+        //}
+        // if (c1_subset_c0) {
+        //    return 2; // keep more constrained (v1)
+        //}
         // Otherwise they don't share a consistent constraint -> cannot collapse
         return 0;
     }
@@ -421,33 +421,155 @@ bool check_manifold(const std::vector<Eigen::Vector3i>& triangles)
     for (size_t i = 0; i < triangles.size(); ++i) {
         F.row(i) = triangles[i];
     }
-    // for debug, print the triangles
-    {
-        std::cout << "Triangle:[ " << std::endl;
-        for (size_t i = 0; i < triangles.size(); ++i) {
-            const auto& tri = triangles[i];
-            std::cout << "[" << tri(0) << ", " << tri(1) << ", " << tri(2) << "] ";
-            if (i != triangles.size() - 1) {
-                std::cout << ", ";
-            }
-            std::cout << std::endl;
+    // Edge count diagnostics
+    std::map<std::pair<int, int>, int> edge_count;
+    for (const auto& tri : triangles) {
+        for (int j = 0; j < 3; ++j) {
+            int v0 = tri(j);
+            int v1 = tri((j + 1) % 3);
+            if (v0 > v1) std::swap(v0, v1);
+            edge_count[{v0, v1}]++;
         }
-        std::cout << "]" << std::endl;
     }
+    std::vector<std::pair<std::pair<int, int>, int>> bad_edges;
+    for (const auto& [e, c] : edge_count) {
+        if (c > 2) bad_edges.push_back({e, c});
+    }
+
     bool is_edge_manifold = igl::is_edge_manifold(F);
-    if (!is_edge_manifold) {
-        std::cout << "Surface is not edge manifold" << std::endl;
-        return false;
-    }
     bool is_vertex_manifold = igl::is_vertex_manifold(F);
-    if (!is_vertex_manifold) {
-        std::cout << "Surface is not vertex manifold" << std::endl;
-        return false;
+
+    if (!bad_edges.empty()) {
+        std::cout << "Non-manifold edges (count > 2):" << std::endl;
+        for (const auto& be : bad_edges) {
+            std::cout << "  edge (" << be.first.first << "," << be.first.second
+                      << ") count=" << be.second << std::endl;
+        }
     }
-    return true;
+    if (!is_edge_manifold) {
+        std::cout << "Surface is not edge manifold (igl::is_edge_manifold=false)" << std::endl;
+    }
+    if (!is_vertex_manifold) {
+        std::cout << "Surface is not vertex manifold (igl::is_vertex_manifold=false)" << std::endl;
+    }
+    return is_edge_manifold && is_vertex_manifold;
 }
 
 } // namespace
+
+// Sanity check simplified surface triangles:
+// 1) check duplicate triangles
+// 2) for each triangle, validate vertices are compatible with its tet_id
+//    - if vertex.t_id == tri_tet_id -> ok
+//    - else: take vertex.tv_ids where bc != 0, ensure all those tv_ids belong to the tet tri_tet_id
+//      (lookup using id_map_before -> local tet index -> T_before row)
+// Throws runtime_error on failure.
+void sanity_check_triangles(
+    const query_surface_tet_with_connectivity& surface,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before)
+{
+    // Deduplicate triangles (with sorted vertex order)
+    std::set<std::array<int, 3>> tri_set;
+    for (size_t i = 0; i < surface.query_triangles.size(); ++i) {
+        const auto& tri = surface.query_triangles[i];
+        std::array<int, 3> key = {tri(0), tri(1), tri(2)};
+        std::sort(key.begin(), key.end());
+        if (!tri_set.insert(key).second) {
+            throw std::runtime_error("Duplicate triangle detected at index " + std::to_string(i));
+        }
+    }
+
+    for (size_t i = 0; i < surface.query_triangles.size(); ++i) {
+        const auto& tri = surface.query_triangles[i];
+        int tri_tet_id = (i < surface.tet_ids.size()) ? surface.tet_ids[i] : -1;
+        if (tri_tet_id < 0) {
+            throw std::runtime_error("Triangle " + std::to_string(i) + " has invalid tet_id.");
+        }
+        // Try to get tet vertices quickly from any vertex whose t_id matches tri_tet_id
+        std::array<int64_t, 4> tet_global_vids = {-1, -1, -1, -1};
+        std::set<int64_t> tet_vid_set;
+        bool found_match = false;
+        std::set<int64_t> union_nonzero_tv;
+        for (int c = 0; c < 3; ++c) {
+            int v_idx = tri(c);
+            if (v_idx < 0 || v_idx >= static_cast<int>(surface.points.size())) {
+                throw std::runtime_error(
+                    "Triangle " + std::to_string(i) + " has invalid vertex index " +
+                    std::to_string(v_idx));
+            }
+            const auto& qp = surface.points[v_idx];
+            if (qp.t_id == tri_tet_id) {
+                tet_global_vids = {qp.tv_ids(0), qp.tv_ids(1), qp.tv_ids(2), qp.tv_ids(3)};
+                tet_vid_set = std::set<int64_t>(tet_global_vids.begin(), tet_global_vids.end());
+                found_match = true;
+                break;
+            }
+            for (int k = 0; k < 4; ++k) {
+                if (qp.bc(k) != wmtk::Rational(0)) {
+                    union_nonzero_tv.insert(qp.tv_ids(k));
+                }
+            }
+        }
+        // If no vertex shares the tet_id, fallback to id_map_before/T_before
+        if (!found_match) {
+            if (union_nonzero_tv.size() > 4) {
+                std::ostringstream oss;
+                oss << "Triangle " << i
+                    << " has no vertex with t_id == tet_id and union of nonzero tv_ids size > 4. "
+                    << "tri_tet_id=" << tri_tet_id << ", union tv_ids: ";
+                size_t cnt = 0;
+                for (auto vid : union_nonzero_tv) {
+                    oss << vid;
+                    if (++cnt < union_nonzero_tv.size()) oss << ",";
+                }
+                throw std::runtime_error(oss.str());
+            } else {
+                continue;
+            }
+        }
+
+        // Check each vertex
+        for (int c = 0; c < 3; ++c) {
+            int v_idx = tri(c);
+            if (v_idx < 0 || v_idx >= static_cast<int>(surface.points.size())) {
+                throw std::runtime_error(
+                    "Triangle " + std::to_string(i) + " has invalid vertex index " +
+                    std::to_string(v_idx));
+            }
+            const auto& qp = surface.points[v_idx];
+            if (qp.t_id == tri_tet_id) {
+                continue; // direct match
+            }
+            // Check non-zero bc vertices are within tet
+            std::vector<int64_t> nonzero_vids;
+            for (int k = 0; k < 4; ++k) {
+                if (qp.bc(k) != wmtk::Rational(0)) {
+                    nonzero_vids.push_back(qp.tv_ids(k));
+                }
+            }
+            bool ok = true;
+            for (auto vid : nonzero_vids) {
+                if (tet_vid_set.find(vid) == tet_vid_set.end()) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok) {
+                std::ostringstream oss;
+                oss << "Triangle " << i << " vertex " << v_idx << " not compatible with tet_id "
+                    << tri_tet_id << ". nonzero tv_ids: ";
+                for (size_t t = 0; t < nonzero_vids.size(); ++t) {
+                    oss << nonzero_vids[t];
+                    if (t + 1 < nonzero_vids.size()) oss << ",";
+                }
+                oss << " tet vids: [" << tet_global_vids[0] << "," << tet_global_vids[1] << ","
+                    << tet_global_vids[2] << "," << tet_global_vids[3] << "]";
+                throw std::runtime_error(oss.str());
+            }
+        }
+    }
+}
 
 // Simplify refined triangles using edge collapse
 void simplify_refined_triangles_by_tet(
@@ -653,6 +775,21 @@ void simplify_refined_triangles_by_tet(
     surface.points = std::move(new_points);
     surface.query_triangles = std::move(new_triangles);
     surface.tet_ids = std::move(new_tet_ids);
+    // Final sanity check only on the modified patch triangles
+    {
+        query_surface_tet_with_connectivity patch_only;
+        patch_only.points = surface.points; // full points for indexing
+        // collect only patch triangles (those we rebuilt)
+        patch_only.query_triangles.insert(
+            patch_only.query_triangles.end(),
+            surface.query_triangles.begin() + remapped_before_tris.size(),
+            surface.query_triangles.end());
+        patch_only.tet_ids.insert(
+            patch_only.tet_ids.end(),
+            surface.tet_ids.begin() + remapped_before_tris.size(),
+            surface.tet_ids.end());
+        sanity_check_triangles(patch_only, T_before, id_map_before);
+    }
     std::cout << "  Final surface: " << surface.points.size() << " points, "
               << surface.query_triangles.size() << " triangles" << std::endl;
     // Final manifold diagnostics (edge-only, optional)

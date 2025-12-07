@@ -56,13 +56,35 @@ bool check_surface_manifold_property(const std::vector<Eigen::Vector3i>& surface
     for (size_t i = 0; i < surface_F.size(); i++) {
         F.row(i) = surface_F[i];
     }
+    // Edge count diagnostics
+    std::map<std::pair<int, int>, int> edge_count;
+    for (const auto& tri : surface_F) {
+        for (int j = 0; j < 3; ++j) {
+            int v0 = tri(j);
+            int v1 = tri((j + 1) % 3);
+            if (v0 > v1) std::swap(v0, v1);
+            edge_count[{v0, v1}]++;
+        }
+    }
+    std::vector<std::pair<std::pair<int, int>, int>> bad_edges;
+    for (const auto& [e, c] : edge_count) {
+        if (c > 2) bad_edges.push_back({e, c});
+    }
+
     bool is_edge_manifold_result = igl::is_edge_manifold(F);
     bool is_vertex_manifold_result = igl::is_vertex_manifold(F);
+    if (!bad_edges.empty()) {
+        std::cout << "Non-manifold edges (count > 2):" << std::endl;
+        for (const auto& be : bad_edges) {
+            std::cout << "  edge (" << be.first.first << "," << be.first.second
+                      << ") count=" << be.second << std::endl;
+        }
+    }
     if (!is_edge_manifold_result) {
-        std::cout << "Surface is not edge manifold" << std::endl;
+        std::cout << "Surface is not edge manifold (igl::is_edge_manifold=false)" << std::endl;
     }
     if (!is_vertex_manifold_result) {
-        std::cout << "Surface is not vertex manifold" << std::endl;
+        std::cout << "Surface is not vertex manifold (igl::is_vertex_manifold=false)" << std::endl;
     }
     return is_edge_manifold_result && is_vertex_manifold_result;
 }
