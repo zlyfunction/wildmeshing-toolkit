@@ -4,6 +4,8 @@
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/number_utils.h>
 #include <gmp.h>
+#include <igl/is_edge_manifold.h>
+#include <igl/is_vertex_manifold.h>
 #include <Eigen/Core>
 #include <algorithm>
 #include <array>
@@ -38,280 +40,416 @@ RationalKernel::FT rational_to_gmpq(const wmtk::Rational& r)
     return result;
 }
 
-// Helper function to write triangle mesh to VTU with point data (global vertex IDs)
-void write_triangle_mesh_to_vtu_with_point_data(
-    const Eigen::MatrixXd& V,
-    const Eigen::MatrixXi& F,
-    const Eigen::VectorXi& point_global_ids,
+// Point location classification based on barycentric coordinates
+enum class PointLocation {
+    Interior, // All bc non-zero (inside tet)
+    OnFace, // One bc is zero (on a face)
+    OnEdge, // Two bc are zero (on an edge)
+    OnVertex // Three bc are zero (on a vertex)
+};
+
+struct PointClassification
+{
+    PointLocation location;
+    // Global vertex ids of the tet where bc != 0 (constraint set)
+    std::set<int> constraint_vids;
+};
+
+// Classify a point based on its barycentric coordinates
+PointClassification classify_point(const query_point_tet_r& point)
+{
+    PointClassification result;
+    result.constraint_vids.clear();
+    for (int i = 0; i < 4; ++i) {
+        if (point.bc(i) != wmtk::Rational(0)) {
+            result.constraint_vids.insert(point.tv_ids(i));
+        }
+    }
+    size_t num_nonzeros = result.constraint_vids.size();
+    if (num_nonzeros == 4) {
+        result.location = PointLocation::Interior;
+    } else if (num_nonzeros == 3) {
+        result.location = PointLocation::OnFace;
+    } else if (num_nonzeros == 2) {
+        result.location = PointLocation::OnEdge;
+    } else {
+        result.location = PointLocation::OnVertex;
+    }
+    return result;
+}
+
+// Structure to hold local patch data
+struct LocalPatch
+{
+    std::vector<size_t> triangle_indices; // Indices into surface.query_triangles
+    std::set<int> all_points; // All point indices in this patch
+    std::set<int> boundary_points; // Points on boundary edges
+    std::map<std::pair<int, int>, int> edge_count; // Edge -> count
+    std::vector<std::pair<int, int>> boundary_edges;
+    std::map<int, PointClassification> point_classifications;
+};
+
+// Build local patch from triangles starting at start_tri_idx
+LocalPatch build_local_patch(
+    const query_surface_tet_with_connectivity& surface,
+    size_t start_tri_idx)
+{
+    LocalPatch patch;
+    // Collect all triangles from start_tri_idx to end
+    for (size_t i = start_tri_idx; i < surface.query_triangles.size(); ++i) {
+        patch.triangle_indices.push_back(i);
+    }
+    // Collect all points and count edges
+    for (size_t tri_idx : patch.triangle_indices) {
+        const auto& tri = surface.query_triangles[tri_idx];
+        for (int j = 0; j < 3; ++j) {
+            patch.all_points.insert(tri(j));
+            int v0 = tri(j);
+            int v1 = tri((j + 1) % 3);
+            if (v0 > v1) std::swap(v0, v1);
+            patch.edge_count[{v0, v1}]++;
+        }
+    }
+    // Find boundary edges and points
+    for (const auto& [edge, count] : patch.edge_count) {
+        if (count == 1) {
+            patch.boundary_edges.push_back(edge);
+            patch.boundary_points.insert(edge.first);
+            patch.boundary_points.insert(edge.second);
+        }
+    }
+    // Classify all points
+    for (int p_idx : patch.all_points) {
+        patch.point_classifications[p_idx] = classify_point(surface.points[p_idx]);
+    }
+    return patch;
+}
+
+// Check if edge collapse is valid based on point classifications
+// Returns: 0 = cannot collapse, 1 = collapse to v0, 2 = collapse to v1
+int can_collapse_edge(int v0, int v1, const LocalPatch& patch)
+{
+    const auto& class0 = patch.point_classifications.at(v0);
+    const auto& class1 = patch.point_classifications.at(v1);
+    bool v0_is_boundary = (patch.boundary_points.find(v0) != patch.boundary_points.end());
+    bool v1_is_boundary = (patch.boundary_points.find(v1) != patch.boundary_points.end());
+    const auto& c0 = class0.constraint_vids;
+    const auto& c1 = class1.constraint_vids;
+    auto is_subset = [](const std::set<int>& a, const std::set<int>& b) {
+        return std::includes(b.begin(), b.end(), a.begin(), a.end());
+    };
+    // Rule 1: Both interior -> can collapse, keep first vertex
+    if (class0.location == PointLocation::Interior && class1.location == PointLocation::Interior) {
+        return 1; // Collapse to v0
+    }
+    // Rule 2: One on boundary face/edge/vertex, one interior -> collapse towards constrained point
+    if (class0.location != PointLocation::Interior && class1.location == PointLocation::Interior) {
+        return 1; // keep v0 (more constrained)
+    }
+    if (class0.location == PointLocation::Interior && class1.location != PointLocation::Interior) {
+        return 2; // keep v1 (more constrained)
+    }
+    // Rule 3: Both constrained (face/edge/vertex)
+    if ((class0.location == PointLocation::OnFace || class0.location == PointLocation::OnEdge ||
+         class0.location == PointLocation::OnVertex) &&
+        (class1.location == PointLocation::OnFace || class1.location == PointLocation::OnEdge ||
+         class1.location == PointLocation::OnVertex)) {
+        // Either is boundary point -> cannot collapse
+        if (v0_is_boundary || v1_is_boundary) {
+            return 0;
+        }
+        // If one constraint set is subset of the other, collapse to the more constrained (smaller)
+        bool c0_subset_c1 = is_subset(c0, c1);
+        bool c1_subset_c0 = is_subset(c1, c0);
+        if (c0_subset_c1 && c1_subset_c0) {
+            // identical constraint sets -> keep v0
+            return 1;
+        }
+        if (c0_subset_c1) {
+            return 1; // keep more constrained (v0)
+        }
+        if (c1_subset_c0) {
+            return 2; // keep more constrained (v1)
+        }
+        // Otherwise they don't share a consistent constraint -> cannot collapse
+        return 0;
+    }
+    return 0;
+}
+
+// Compute world position from barycentric coordinates (double version for VTU output)
+Eigen::Vector3d compute_world_position(
+    const query_point_tet_r& point,
+    const MatrixXr& V_before,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before)
+{
+    Eigen::Matrix<double, 4, 3> tet_vertices;
+    Eigen::Vector4d bc_double;
+    for (int i = 0; i < 4; ++i) {
+        bc_double(i) = point.bc(i).to_double();
+    }
+    // Map global tet ID to local index in T_before
+    int local_tet_idx = -1;
+    if (point.t_id >= 0) {
+        auto it = std::find(id_map_before.begin(), id_map_before.end(), point.t_id);
+        if (it != id_map_before.end()) {
+            local_tet_idx = std::distance(id_map_before.begin(), it);
+        }
+    }
+    if (local_tet_idx >= 0 && local_tet_idx < T_before.rows()) {
+        for (int i = 0; i < 4; ++i) {
+            int v_id = T_before(local_tet_idx, i);
+            if (v_id >= 0 && v_id < V_before.rows()) {
+                tet_vertices.row(i) = Eigen::Vector3d(
+                    V_before(v_id, 0).to_double(),
+                    V_before(v_id, 1).to_double(),
+                    V_before(v_id, 2).to_double());
+            }
+        }
+    } else {
+        // Fallback: use tv_ids and v_id_map_before
+        for (int i = 0; i < 4; ++i) {
+            if (bc_double(i) != 0.0) {
+                int64_t global_v_id = point.tv_ids(i);
+                auto it = std::find(v_id_map_before.begin(), v_id_map_before.end(), global_v_id);
+                if (it != v_id_map_before.end()) {
+                    int local_v_idx = std::distance(v_id_map_before.begin(), it);
+                    if (local_v_idx >= 0 && local_v_idx < V_before.rows()) {
+                        tet_vertices.row(i) = Eigen::Vector3d(
+                            V_before(local_v_idx, 0).to_double(),
+                            V_before(local_v_idx, 1).to_double(),
+                            V_before(local_v_idx, 2).to_double());
+                    }
+                }
+            }
+        }
+    }
+    return barycentric_to_world_tet<double>(bc_double, tet_vertices);
+}
+
+// Check for self-intersection using CGAL with world coordinates
+bool check_self_intersection(
+    const std::vector<query_point_tet_r>& points,
+    const std::vector<Eigen::Vector3i>& triangles,
+    const MatrixXr& V_before,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before)
+{
+    if (triangles.empty()) return false;
+    std::set<int> used_points;
+    for (const auto& tri : triangles) {
+        used_points.insert(tri(0));
+        used_points.insert(tri(1));
+        used_points.insert(tri(2));
+    }
+    std::map<int, std::size_t> point_to_cgal_idx;
+    std::vector<RationalPoint> cgal_points;
+    cgal_points.reserve(used_points.size());
+    for (int p_idx : used_points) {
+        point_to_cgal_idx[p_idx] = cgal_points.size();
+        const auto& qp = points[p_idx];
+        // Compute world position using barycentric coordinates and tet vertices
+        Eigen::Vector3d world_pos =
+            compute_world_position(qp, V_before, T_before, id_map_before, v_id_map_before);
+        RationalKernel::FT x(world_pos(0));
+        RationalKernel::FT y(world_pos(1));
+        RationalKernel::FT z(world_pos(2));
+        cgal_points.emplace_back(x, y, z);
+    }
+    std::vector<CgalTriangle> cgal_triangles;
+    cgal_triangles.reserve(triangles.size());
+    for (const auto& tri : triangles) {
+        cgal_triangles.push_back(CgalTriangle{
+            point_to_cgal_idx[tri(0)],
+            point_to_cgal_idx[tri(1)],
+            point_to_cgal_idx[tri(2)]});
+    }
+    return PMP::does_triangle_soup_self_intersect(cgal_points, cgal_triangles);
+}
+
+// Perform edge collapse: replace v_remove with v_keep in all triangles
+// Remove degenerate triangles (those with duplicate vertices)
+void perform_edge_collapse(
+    std::vector<Eigen::Vector3i>& triangles,
+    std::vector<int>& tet_ids,
+    int v_remove,
+    int v_keep)
+{
+    std::vector<Eigen::Vector3i> new_triangles;
+    std::vector<int> new_tet_ids;
+    new_triangles.reserve(triangles.size());
+    new_tet_ids.reserve(tet_ids.size());
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        Eigen::Vector3i tri = triangles[i];
+        // Replace v_remove with v_keep
+        for (int j = 0; j < 3; ++j) {
+            if (tri(j) == v_remove) {
+                tri(j) = v_keep;
+            }
+        }
+        // Check if degenerate (duplicate vertices)
+        if (tri(0) != tri(1) && tri(1) != tri(2) && tri(0) != tri(2)) {
+            new_triangles.push_back(tri);
+            if (i < tet_ids.size()) {
+                new_tet_ids.push_back(tet_ids[i]);
+            }
+        }
+    }
+    triangles = std::move(new_triangles);
+    tet_ids = std::move(new_tet_ids);
+}
+
+// Get all edges from triangles
+std::vector<std::pair<int, int>> get_all_edges(const std::vector<Eigen::Vector3i>& triangles)
+{
+    std::set<std::pair<int, int>> edge_set;
+    for (const auto& tri : triangles) {
+        for (int j = 0; j < 3; ++j) {
+            int v0 = tri(j);
+            int v1 = tri((j + 1) % 3);
+            if (v0 > v1) std::swap(v0, v1);
+            edge_set.insert({v0, v1});
+        }
+    }
+    return std::vector<std::pair<int, int>>(edge_set.begin(), edge_set.end());
+}
+
+// Update local patch after collapse
+void update_patch_after_collapse(
+    LocalPatch& patch,
+    const std::vector<Eigen::Vector3i>& triangles,
+    const query_surface_tet_with_connectivity& surface)
+{
+    // Rebuild edge count
+    patch.edge_count.clear();
+    patch.all_points.clear();
+    for (const auto& tri : triangles) {
+        for (int j = 0; j < 3; ++j) {
+            patch.all_points.insert(tri(j));
+            int v0 = tri(j);
+            int v1 = tri((j + 1) % 3);
+            if (v0 > v1) std::swap(v0, v1);
+            patch.edge_count[{v0, v1}]++;
+        }
+    }
+    // Rebuild boundary info
+    patch.boundary_edges.clear();
+    patch.boundary_points.clear();
+    for (const auto& [edge, count] : patch.edge_count) {
+        if (count == 1) {
+            patch.boundary_edges.push_back(edge);
+            patch.boundary_points.insert(edge.first);
+            patch.boundary_points.insert(edge.second);
+        }
+    }
+    // Update point classifications for new points only
+    for (int p_idx : patch.all_points) {
+        if (patch.point_classifications.find(p_idx) == patch.point_classifications.end()) {
+            patch.point_classifications[p_idx] = classify_point(surface.points[p_idx]);
+        }
+    }
+}
+
+// Write local patch triangles to VTU file
+void write_local_patch_to_vtu(
+    const std::vector<query_point_tet_r>& all_points,
+    const std::vector<Eigen::Vector3i>& triangles,
+    const std::vector<int>& tet_ids,
+    const MatrixXr& V_before,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before,
     const std::string& filename)
 {
-    Eigen::MatrixXd V3;
-    if (V.cols() == 3) {
-        V3 = V;
-    } else if (V.cols() == 2) {
-        V3.resize(V.rows(), 3);
-        V3.leftCols(2) = V;
-        V3.col(2).setZero();
-    } else {
-        std::cerr
-            << "write_triangle_mesh_to_vtu_with_point_data expects V with 2 or 3 columns, got "
-            << V.cols() << std::endl;
+    if (triangles.empty()) {
+        std::cout << "    Skipping VTU write: empty triangles" << std::endl;
         return;
     }
-    if (point_global_ids.size() != V3.rows()) {
-        std::cerr << "write_triangle_mesh_to_vtu_with_point_data: point_global_ids size ("
-                  << point_global_ids.size() << ") does not match number of vertices (" << V3.rows()
-                  << ")" << std::endl;
-        return;
+    // Collect unique points
+    std::set<int> used_point_indices;
+    for (const auto& tri : triangles) {
+        used_point_indices.insert(tri(0));
+        used_point_indices.insert(tri(1));
+        used_point_indices.insert(tri(2));
     }
-    if (V3.rows() == 0 || F.rows() == 0) {
-        std::cerr << "write_triangle_mesh_to_vtu_with_point_data: empty mesh, skipping write"
-                  << std::endl;
-        return;
+    // Build local index mapping
+    std::map<int, int> global_to_local;
+    std::vector<int> local_to_global;
+    int local_idx = 0;
+    for (int p_idx : used_point_indices) {
+        global_to_local[p_idx] = local_idx++;
+        local_to_global.push_back(p_idx);
     }
-    // Validate F indices
-    for (int i = 0; i < F.rows(); i++) {
-        for (int j = 0; j < 3; j++) {
-            if (F(i, j) < 0 || F(i, j) >= V3.rows()) {
-                std::cerr << "write_triangle_mesh_to_vtu_with_point_data: invalid face index F("
-                          << i << "," << j << ")=" << F(i, j) << " (max=" << V3.rows() - 1 << ")"
-                          << std::endl;
-                return;
-            }
-        }
+    // Build V matrix with world positions
+    Eigen::MatrixXd V(local_to_global.size(), 3);
+    Eigen::VectorXi point_global_ids(local_to_global.size());
+    for (size_t i = 0; i < local_to_global.size(); ++i) {
+        int global_idx = local_to_global[i];
+        const auto& qp = all_points[global_idx];
+        Eigen::Vector3d world_pos =
+            compute_world_position(qp, V_before, T_before, id_map_before, v_id_map_before);
+        V.row(i) = world_pos.transpose();
+        point_global_ids(i) = global_idx;
     }
-    std::ofstream outfile(filename);
-    if (!outfile.is_open()) {
-        std::cerr << "write_triangle_mesh_to_vtu_with_point_data: failed to open file " << filename
-                  << std::endl;
-        return;
+    // Build F matrix with local indices
+    Eigen::MatrixXi F(triangles.size(), 3);
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        const auto& tri = triangles[i];
+        F(i, 0) = global_to_local[tri(0)];
+        F(i, 1) = global_to_local[tri(1)];
+        F(i, 2) = global_to_local[tri(2)];
     }
-    outfile.precision(15);
-    outfile << "<?xml version=\"1.0\"?>\n";
-    outfile << "<VTKFile type=\"UnstructuredGrid\" version=\"0.1\" byte_order=\"LittleEndian\">\n";
-    outfile << "  <UnstructuredGrid>\n";
-    outfile << "    <Piece NumberOfPoints=\"" << V3.rows() << "\" NumberOfCells=\"" << F.rows()
-            << "\">\n";
-    outfile << "      <Points>\n";
-    outfile << "        <DataArray type=\"Float64\" NumberOfComponents=\"3\" format=\"ascii\">\n";
-    int point_count = 0;
-    for (int i = 0; i < V3.rows(); i++) {
-        double x = V3(i, 0);
-        double y = V3(i, 1);
-        double z = V3(i, 2);
-        if (std::isnan(x) || std::isnan(y) || std::isnan(z) || std::isinf(x) || std::isinf(y) ||
-            std::isinf(z)) {
-            std::cerr << "write_triangle_mesh_to_vtu_with_point_data: invalid point at index " << i
-                      << ": (" << x << "," << y << "," << z << ")" << std::endl;
-            outfile.close();
-            return;
-        }
-        outfile << "          " << x << " " << y << " " << z << "\n";
-        point_count++;
+    // Build tet_id array for triangles
+    Eigen::VectorXi tri_tet_ids(triangles.size());
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        tri_tet_ids(i) = (i < tet_ids.size()) ? tet_ids[i] : -1;
     }
-    if (point_count != V3.rows()) {
-        std::cerr << "write_triangle_mesh_to_vtu_with_point_data: point count mismatch: wrote "
-                  << point_count << " but expected " << V3.rows() << std::endl;
-        outfile.close();
-        return;
-    }
-    outfile << "        </DataArray>\n";
-    outfile << "      </Points>\n";
-    outfile << "      <PointData>\n";
-    outfile << "        <DataArray type=\"Int64\" Name=\"global_vertex_id\" format=\"ascii\">\n";
-    for (int i = 0; i < point_global_ids.size(); ++i) {
-        outfile << "          " << point_global_ids(i) << "\n";
-    }
-    outfile << "        </DataArray>\n";
-    outfile << "      </PointData>\n";
-    outfile << "      <Cells>\n";
-    outfile << "        <DataArray type=\"Int32\" Name=\"connectivity\" format=\"ascii\">\n";
-    for (int i = 0; i < F.rows(); i++) {
-        outfile << "          " << F(i, 0) << " " << F(i, 1) << " " << F(i, 2) << "\n";
-    }
-    outfile << "        </DataArray>\n";
-    outfile << "        <DataArray type=\"Int32\" Name=\"offsets\" format=\"ascii\">\n";
-    for (int i = 0; i < F.rows(); i++) {
-        outfile << "          " << (i + 1) * 3 << "\n";
-    }
-    outfile << "        </DataArray>\n";
-    outfile << "        <DataArray type=\"UInt8\" Name=\"types\" format=\"ascii\">\n";
-    for (int i = 0; i < F.rows(); i++) {
-        outfile << "          5\n";
-    }
-    outfile << "        </DataArray>\n";
-    outfile << "      </Cells>\n";
-    outfile << "    </Piece>\n";
-    outfile << "  </UnstructuredGrid>\n";
-    outfile << "</VTKFile>\n";
-    outfile.close();
+    // Write to VTU
+    vtu_utils::write_triangle_mesh_to_vtu(V, F, filename, &tri_tet_ids, "tet_id");
+    std::cout << "    Saved local patch to: " << filename << " (" << V.rows() << " points, "
+              << F.rows() << " triangles)" << std::endl;
 }
-// Helper function to build loops from edges
-// Takes a list of edges and assembles them into one or more closed loops
-void build_loops_from_edges(
-    const std::vector<std::pair<int, int>>& edges,
-    std::vector<std::vector<int>>& loops)
+
+// Check if a triangle list is manifold
+bool check_manifold(const std::vector<Eigen::Vector3i>& triangles)
 {
-    loops.clear();
-    if (edges.empty()) {
-        return;
+    if (triangles.empty()) return true;
+    Eigen::MatrixXi F(triangles.size(), 3);
+    for (size_t i = 0; i < triangles.size(); ++i) {
+        F.row(i) = triangles[i];
     }
-    std::map<int, std::vector<int>> vertex_neighbors;
-    for (const auto& edge : edges) {
-        if (edge.first != edge.second) {
-            vertex_neighbors[edge.first].push_back(edge.second);
-            vertex_neighbors[edge.second].push_back(edge.first);
+    // for debug, print the triangles
+    {
+        std::cout << "Triangle:[ " << std::endl;
+        for (size_t i = 0; i < triangles.size(); ++i) {
+            const auto& tri = triangles[i];
+            std::cout << "[" << tri(0) << ", " << tri(1) << ", " << tri(2) << "] ";
+            if (i != triangles.size() - 1) {
+                std::cout << ", ";
+            }
+            std::cout << std::endl;
         }
+        std::cout << "]" << std::endl;
     }
-    std::set<std::pair<int, int>> used_edges;
-    for (const auto& edge : edges) {
-        if (edge.first == edge.second) {
-            continue;
-        }
-        std::pair<int, int> normalized_edge = (edge.first < edge.second)
-                                                  ? std::make_pair(edge.first, edge.second)
-                                                  : std::make_pair(edge.second, edge.first);
-        if (used_edges.find(normalized_edge) != used_edges.end()) {
-            continue;
-        }
-        std::vector<int> loop;
-        int start_vertex = edge.first;
-        int current_vertex = start_vertex;
-        int prev_vertex = -1;
-        bool found_loop = false;
-        int max_iterations = static_cast<int>(edges.size() * 2);
-        int iterations = 0;
-        while (iterations++ < max_iterations) {
-            loop.push_back(current_vertex);
-            if (current_vertex == start_vertex && loop.size() > 2) {
-                found_loop = true;
-                break;
-            }
-            bool found_next = false;
-            for (int next : vertex_neighbors[current_vertex]) {
-                if (next == prev_vertex) {
-                    continue;
-                }
-                std::pair<int, int> edge_to_check = (current_vertex < next)
-                                                        ? std::make_pair(current_vertex, next)
-                                                        : std::make_pair(next, current_vertex);
-                if (used_edges.find(edge_to_check) == used_edges.end()) {
-                    used_edges.insert(edge_to_check);
-                    prev_vertex = current_vertex;
-                    current_vertex = next;
-                    found_next = true;
-                    break;
-                }
-            }
-            if (!found_next) {
-                break;
-            }
-        }
-        if (found_loop && loop.size() >= 3) {
-            loops.push_back(loop);
-        }
+    bool is_edge_manifold = igl::is_edge_manifold(F);
+    if (!is_edge_manifold) {
+        std::cout << "Surface is not edge manifold" << std::endl;
+        return false;
     }
+    bool is_vertex_manifold = igl::is_vertex_manifold(F);
+    if (!is_vertex_manifold) {
+        std::cout << "Surface is not vertex manifold" << std::endl;
+        return false;
+    }
+    return true;
 }
-// Helper function to perform ear clipping triangulation on a polygon
-// Input: boundary_loop - ordered list of vertex indices forming a closed loop
-//        points - vector of points (used for validation, not required for simple ear clipping)
-// Output: triangles - vector of triangles (each triangle is Vector3i)
-// Note: This is a simplified ear clipping that works for simple polygons
-void ear_clipping_triangulation(
-    const std::vector<int>& boundary_loop,
-    const std::vector<query_point_tet_r>& /*points*/,
-    std::vector<Eigen::Vector3i>& triangles)
-{
-    std::cout << "      Ear clipping input polygon: [";
-    for (size_t i = 0; i < boundary_loop.size(); ++i) {
-        std::cout << boundary_loop[i];
-        if (i < boundary_loop.size() - 1) {
-            std::cout << ",";
-        }
-    }
-    std::cout << "] (" << boundary_loop.size() << " vertices)" << std::endl;
-    if (boundary_loop.size() < 3) {
-        std::cout << "      Input polygon too small, skipping" << std::endl;
-        return;
-    }
-    if (boundary_loop.size() == 3) {
-        if (boundary_loop[0] != boundary_loop[1] && boundary_loop[1] != boundary_loop[2] &&
-            boundary_loop[0] != boundary_loop[2]) {
-            triangles.push_back(
-                Eigen::Vector3i(boundary_loop[0], boundary_loop[1], boundary_loop[2]));
-            std::cout << "      Single triangle: [" << boundary_loop[0] << "," << boundary_loop[1]
-                      << "," << boundary_loop[2] << "]" << std::endl;
-        }
-        return;
-    }
-    std::vector<int> poly = boundary_loop;
-    for (auto it = poly.begin(); it != poly.end();) {
-        bool has_duplicate = false;
-        for (auto it2 = poly.begin(); it2 != poly.end(); ++it2) {
-            if (it2 != it && *it2 == *it) {
-                has_duplicate = true;
-                break;
-            }
-        }
-        if (has_duplicate) {
-            it = poly.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    if (poly.size() < 3) {
-        std::cout << "      Warning: Polygon has less than 3 vertices after removing duplicates"
-                  << std::endl;
-        return;
-    }
-    int max_iterations = static_cast<int>(poly.size() * poly.size());
-    int iterations = 0;
-    while (poly.size() > 3 && iterations < max_iterations) {
-        iterations++;
-        bool ear_found = false;
-        for (size_t i = 0; i < poly.size(); ++i) {
-            int prev_idx = (i == 0) ? static_cast<int>(poly.size()) - 1 : static_cast<int>(i) - 1;
-            int curr_idx = static_cast<int>(i);
-            int next_idx = (i == poly.size() - 1) ? 0 : static_cast<int>(i) + 1;
-            int v0 = poly[prev_idx];
-            int v1 = poly[curr_idx];
-            int v2 = poly[next_idx];
-            if (v0 == v1 || v1 == v2 || v0 == v2) {
-                continue;
-            }
-            triangles.push_back(Eigen::Vector3i(v0, v1, v2));
-            poly.erase(poly.begin() + curr_idx);
-            ear_found = true;
-            break;
-        }
-        if (!ear_found) {
-            break;
-        }
-    }
-    if (poly.size() == 3) {
-        if (poly[0] != poly[1] && poly[1] != poly[2] && poly[0] != poly[2]) {
-            triangles.push_back(Eigen::Vector3i(poly[0], poly[1], poly[2]));
-        }
-    } else if (poly.size() > 3) {
-        std::cout
-            << "      Warning: Ear clipping incomplete, using fan triangulation for remaining "
-            << poly.size() << " vertices" << std::endl;
-        for (size_t i = 1; i < poly.size() - 1; ++i) {
-            int v0 = poly[0];
-            int v1 = poly[i];
-            int v2 = poly[i + 1];
-            if (v0 != v1 && v1 != v2 && v0 != v2) {
-                triangles.push_back(Eigen::Vector3i(v0, v1, v2));
-            }
-        }
-    }
-}
+
 } // namespace
 
-// Simplify refined triangles by grouping them by tet_id and removing interior points
-// For each tet_id's subsurface, if it has interior points, extract boundary loop
-// and retriangulate using ear clipping
-// This function processes triangles starting from start_tri_idx
+// Simplify refined triangles using edge collapse
 void simplify_refined_triangles_by_tet(
     query_surface_tet_with_connectivity& surface,
     size_t start_tri_idx,
@@ -321,7 +459,7 @@ void simplify_refined_triangles_by_tet(
     const std::vector<int64_t>& v_id_map_before,
     int operation_id)
 {
-    std::cout << "\n=== Starting simplification of refined triangles ===" << std::endl;
+    std::cout << "\n=== Starting edge collapse simplification ===" << std::endl;
     std::cout << "  Processing triangles from index " << start_tri_idx << " to "
               << surface.query_triangles.size() << std::endl;
     if (start_tri_idx >= surface.query_triangles.size()) {
@@ -331,735 +469,193 @@ void simplify_refined_triangles_by_tet(
     size_t num_refined_triangles = surface.query_triangles.size() - start_tri_idx;
     std::cout << "  Found " << num_refined_triangles << " refined triangles to process"
               << std::endl;
-    std::map<int64_t, std::vector<size_t>> tet_id_to_triangles;
-    for (size_t i = start_tri_idx; i < surface.query_triangles.size(); ++i) {
-        if (i < surface.tet_ids.size()) {
-            int64_t tet_id = surface.tet_ids[i];
-            tet_id_to_triangles[tet_id].push_back(i);
+    // Step 1: Build local patch with boundary information
+    std::cout << "\n  Step 1: Building local patch..." << std::endl;
+    LocalPatch patch = build_local_patch(surface, start_tri_idx);
+    std::cout << "    Total points: " << patch.all_points.size() << std::endl;
+    std::cout << "    Boundary points: " << patch.boundary_points.size() << std::endl;
+    std::cout << "    Boundary edges: " << patch.boundary_edges.size() << std::endl;
+    // Step 2: Print point classifications
+    std::cout << "\n  Step 2: Point classifications:" << std::endl;
+    int num_interior = 0, num_on_face = 0, num_on_edge = 0, num_on_vertex = 0;
+    for (const auto& [p_idx, classification] : patch.point_classifications) {
+        switch (classification.location) {
+        case PointLocation::Interior: num_interior++; break;
+        case PointLocation::OnFace: num_on_face++; break;
+        case PointLocation::OnEdge: num_on_edge++; break;
+        case PointLocation::OnVertex: num_on_vertex++; break;
         }
     }
-    std::cout << "  Grouped refined triangles into " << tet_id_to_triangles.size() << " tet_ids"
-              << std::endl;
-    std::vector<bool> triangle_to_remove(surface.query_triangles.size(), false);
-    std::set<int> points_to_remove;
-    std::vector<Eigen::Vector3i> new_triangles;
-    std::vector<int> new_tet_ids;
-
-    for (const auto& [tet_id, tri_indices] : tet_id_to_triangles) {
-        std::cout << "\n  Processing tet_id " << tet_id << " with " << tri_indices.size()
-                  << " refined triangles" << std::endl;
-
-
-        // Save triangles before simplification
-        std::set<int> local_points_before;
-        for (size_t tri_idx : tri_indices) {
-            const auto& tri = surface.query_triangles[tri_idx];
-            local_points_before.insert(tri(0));
-            local_points_before.insert(tri(1));
-            local_points_before.insert(tri(2));
+    std::cout << "    Interior: " << num_interior << ", OnFace: " << num_on_face
+              << ", OnEdge: " << num_on_edge << ", OnVertex: " << num_on_vertex << std::endl;
+    // Copy triangles and tet_ids for this patch to work with
+    std::vector<Eigen::Vector3i> working_triangles;
+    std::vector<int> working_tet_ids;
+    for (size_t tri_idx : patch.triangle_indices) {
+        working_triangles.push_back(surface.query_triangles[tri_idx]);
+        if (tri_idx < surface.tet_ids.size()) {
+            working_tet_ids.push_back(surface.tet_ids[tri_idx]);
         }
-        Eigen::MatrixXd V_before_simplify(local_points_before.size(), 3);
-        Eigen::MatrixXi F_before_simplify(tri_indices.size(), 3);
-        Eigen::VectorXi point_global_ids_before(local_points_before.size());
-        // Map from original point index (in surface.points) to local index (0, 1, 2, ...) in
-        // V_before_simplify
-        std::map<int, int> original_to_local_before;
-        int local_idx = 0;
-        for (int p_idx : local_points_before) {
-            original_to_local_before[p_idx] = local_idx;
-            const auto& qp = surface.points[p_idx];
-            Eigen::Matrix<double, 4, 3> tet_vertices;
-            Eigen::Vector4d bc_double;
-            for (int i = 0; i < 4; ++i) {
-                bc_double(i) = qp.bc(i).to_double();
+    }
+    // Write local patch BEFORE simplification
+    std::string before_filename = "simplify_before_op" + std::to_string(operation_id) + ".vtu";
+    write_local_patch_to_vtu(
+        surface.points,
+        working_triangles,
+        working_tet_ids,
+        V_before,
+        T_before,
+        id_map_before,
+        v_id_map_before,
+        before_filename);
+    // Step 3: Edge collapse loop
+    std::cout << "\n  Step 3: Starting edge collapse..." << std::endl;
+    int total_collapses = 0;
+    int max_iterations = static_cast<int>(patch.all_points.size() * 2);
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        auto edges = get_all_edges(working_triangles);
+        bool collapsed_any = false;
+        for (const auto& [v0, v1] : edges) {
+            int collapse_direction = can_collapse_edge(v0, v1, patch);
+            if (collapse_direction == 0) continue;
+            int v_keep = (collapse_direction == 1) ? v0 : v1;
+            int v_remove = (collapse_direction == 1) ? v1 : v0;
+            // Save state for rollback
+            auto backup_triangles = working_triangles;
+            auto backup_tet_ids = working_tet_ids;
+            // Perform collapse
+            perform_edge_collapse(working_triangles, working_tet_ids, v_remove, v_keep);
+            // Check self-intersection
+            if (check_self_intersection(
+                    surface.points,
+                    working_triangles,
+                    V_before,
+                    T_before,
+                    id_map_before,
+                    v_id_map_before)) {
+                std::cout << "    Rollback: edge (" << v0 << "," << v1
+                          << ") collapse caused self-intersection" << std::endl;
+                working_triangles = std::move(backup_triangles);
+                working_tet_ids = std::move(backup_tet_ids);
+                continue;
             }
-            // Map global tet ID to local index in T_before
-            int local_tet_idx = -1;
-            if (qp.t_id >= 0) {
-                auto it = std::find(id_map_before.begin(), id_map_before.end(), qp.t_id);
-                if (it != id_map_before.end()) {
-                    local_tet_idx = std::distance(id_map_before.begin(), it);
-                }
-            }
-            if (local_tet_idx >= 0 && local_tet_idx < T_before.rows()) {
-                // Use tet ID to get vertices
-                for (int i = 0; i < 4; ++i) {
-                    int v_id = T_before(local_tet_idx, i);
-                    if (v_id >= 0 && v_id < V_before.rows()) {
-                        tet_vertices.row(i) = Eigen::Vector3d(
-                            V_before(v_id, 0).to_double(),
-                            V_before(v_id, 1).to_double(),
-                            V_before(v_id, 2).to_double());
-                    }
-                }
-            } else {
-                // Fallback: use tv_ids and v_id_map_before to get vertex coordinates
-                if (qp.tv_ids.size() != 4) {
-                    throw std::runtime_error(
-                        "Error: simplify_refined_triangles_by_tet: qp.tv_ids.size() != 4");
-                }
-                for (int i = 0; i < 4; ++i) {
-                    if (bc_double(i) != 0.0) {
-                        int64_t global_v_id = qp.tv_ids(i);
-                        auto it =
-                            std::find(v_id_map_before.begin(), v_id_map_before.end(), global_v_id);
-                        if (it == v_id_map_before.end()) {
-                            throw std::runtime_error(
-                                "Error: simplify_refined_triangles_by_tet: vertex ID " +
-                                std::to_string(global_v_id) + " not found in v_id_map_before (bc[" +
-                                std::to_string(i) + "] != 0)");
-                        }
-                        int local_v_idx = std::distance(v_id_map_before.begin(), it);
-                        if (local_v_idx >= 0 && local_v_idx < V_before.rows()) {
-                            tet_vertices.row(i) = Eigen::Vector3d(
-                                V_before(local_v_idx, 0).to_double(),
-                                V_before(local_v_idx, 1).to_double(),
-                                V_before(local_v_idx, 2).to_double());
-                        }
-                    }
-                }
-            }
-            Eigen::Vector3d world_pos = barycentric_to_world_tet<double>(bc_double, tet_vertices);
-
-            V_before_simplify.row(local_idx) = world_pos.transpose();
-
-            point_global_ids_before(local_idx) = p_idx;
-            local_idx++;
-        }
-        // Build F using local indices (0, 1, 2, ...) corresponding to rows in V_before_simplify
-        for (size_t i = 0; i < tri_indices.size(); ++i) {
-            size_t tri_idx = tri_indices[i];
-            const auto& tri = surface.query_triangles[tri_idx];
-            F_before_simplify.row(i) = Eigen::Vector3i(
-                original_to_local_before[tri(0)],
-                original_to_local_before[tri(1)],
-                original_to_local_before[tri(2)]);
-        }
-        std::string filename_before = "simplify_before_op" + std::to_string(operation_id) + "_tet" +
-                                      std::to_string(tet_id) + ".vtu";
-        std::cout << "    Writing before simplification: V.rows()=" << V_before_simplify.rows()
-                  << ", F.rows()=" << F_before_simplify.rows()
-                  << ", point_global_ids.size()=" << point_global_ids_before.size() << std::endl;
-        write_triangle_mesh_to_vtu_with_point_data(
-            V_before_simplify,
-            F_before_simplify,
-            point_global_ids_before,
-            filename_before);
-        std::cout << "    Saved before simplification to: " << filename_before << std::endl;
-
-
-        std::set<int> local_points;
-        for (size_t tri_idx : tri_indices) {
-            const auto& tri = surface.query_triangles[tri_idx];
-            local_points.insert(tri(0));
-            local_points.insert(tri(1));
-            local_points.insert(tri(2));
-        }
-        std::map<std::pair<int, int>, int> edge_count;
-        for (size_t tri_idx : tri_indices) {
-            const auto& tri = surface.query_triangles[tri_idx];
-            for (int j = 0; j < 3; ++j) {
-                int v0 = tri(j);
-                int v1 = tri((j + 1) % 3);
-                if (v0 > v1) std::swap(v0, v1);
-                edge_count[{v0, v1}]++;
-            }
-        }
-        std::set<int> boundary_points;
-        std::vector<std::pair<int, int>> boundary_edges;
-        for (const auto& [edge, count] : edge_count) {
-            if (count == 1) {
-                boundary_edges.push_back(edge);
-                boundary_points.insert(edge.first);
-                boundary_points.insert(edge.second);
-            }
-        }
-        std::set<int> interior_points;
-        for (int p : local_points) {
-            if (boundary_points.find(p) == boundary_points.end()) {
-                interior_points.insert(p);
-            }
-        }
-        std::cout << "    Boundary points: " << boundary_points.size()
-                  << ", Interior points: " << interior_points.size() << std::endl;
-        // If there is only one or zero interior points, no need to simplify
-        if (interior_points.size() <= 1) {
-            std::cout << "    Only " << interior_points.size()
-                      << " interior points, skipping simplification for tet_id " << tet_id
+            std::cout << "    Collapsed edge (" << v0 << "," << v1 << ") -> keep " << v_keep
                       << std::endl;
-            continue;
+            total_collapses++;
+            collapsed_any = true;
+            // Update patch for next iteration
+            update_patch_after_collapse(patch, working_triangles, surface);
+            break; // Restart edge iteration
         }
-
-        if (boundary_edges.empty()) {
-            throw std::runtime_error(
-                "Error: simplify_refined_triangles_by_tet: no boundary edges found for tet_id " +
-                std::to_string(tet_id));
-        }
-        std::cout << "    Found interior points, processing connected components using BFS..."
-                  << std::endl;
-        // Build point-to-triangles map
-        std::map<int, std::vector<size_t>> point_to_triangles;
-        for (size_t tri_idx : tri_indices) {
-            const auto& tri = surface.query_triangles[tri_idx];
-            for (int j = 0; j < 3; ++j) {
-                point_to_triangles[tri(j)].push_back(tri_idx);
-            }
-        }
-        // Build adjacency map between interior points (through triangles)
-        std::map<int, std::set<int>> interior_adjacency;
-        for (size_t tri_idx : tri_indices) {
-            const auto& tri = surface.query_triangles[tri_idx];
-            std::vector<int> tri_interior_points;
-            for (int j = 0; j < 3; ++j) {
-                int v = tri(j);
-                if (interior_points.find(v) != interior_points.end()) {
-                    tri_interior_points.push_back(v);
-                }
-            }
-            // Connect all interior points in this triangle
-            for (size_t i = 0; i < tri_interior_points.size(); ++i) {
-                for (size_t j = i + 1; j < tri_interior_points.size(); ++j) {
-                    interior_adjacency[tri_interior_points[i]].insert(tri_interior_points[j]);
-                    interior_adjacency[tri_interior_points[j]].insert(tri_interior_points[i]);
-                }
-            }
-        }
-        // Process connected components of interior points using BFS
-        std::vector<Eigen::Vector3i> all_triangulated_triangles;
-        std::set<size_t> triangles_to_remove_set;
-        std::set<int>
-            interior_points_to_remove; // Only interior points that are part of fan triangulation
-        std::set<int> visited_interior;
-        std::vector<int>
-            new_centroid_point_indices; // Track newly added centroid points for rollback
-        for (int start_interior : interior_points) {
-            if (visited_interior.find(start_interior) != visited_interior.end()) {
-                continue;
-            }
-            std::cout << "    Processing connected component starting from interior point "
-                      << start_interior << std::endl;
-            // BFS to collect all connected interior points
-            std::queue<int> bfs_queue;
-            std::set<int> component_interior_points;
-            bfs_queue.push(start_interior);
-            visited_interior.insert(start_interior);
-            component_interior_points.insert(start_interior);
-            while (!bfs_queue.empty()) {
-                int current_interior = bfs_queue.front();
-                bfs_queue.pop();
-                auto adj_it = interior_adjacency.find(current_interior);
-                if (adj_it != interior_adjacency.end()) {
-                    for (int neighbor : adj_it->second) {
-                        if (visited_interior.find(neighbor) == visited_interior.end()) {
-                            visited_interior.insert(neighbor);
-                            component_interior_points.insert(neighbor);
-                            bfs_queue.push(neighbor);
-                        }
-                    }
-                }
-            }
-            std::cout << "      Component contains " << component_interior_points.size()
-                      << " interior point(s): [";
-            bool first = true;
-            for (int p : component_interior_points) {
-                if (!first) {
-                    std::cout << ", ";
-                }
-                std::cout << p;
-                first = false;
-            }
-            std::cout << "]" << std::endl;
-            if (component_interior_points.size() == 1) {
-                std::cout
-                    << "      Component has only one interior point (already fan shape), skipping"
-                    << std::endl;
-                continue;
-            }
-            // For each interior point in the component, look at its triangles
-            // For each triangle, find the opposite edge (the edge not containing the interior
-            // point) If both endpoints of the opposite edge are boundary points, add to loop
-            std::set<std::pair<int, int>> component_boundary_edges;
-            std::set<size_t> component_triangles;
-            // Debug: count triangles by number of interior points they contain
-            int tri_with_1_interior = 0;
-            int tri_with_2_interior = 0;
-            int tri_with_3_interior = 0;
-            std::vector<std::tuple<size_t, int, int, int>> tris_with_2plus_interior;
-            for (int interior_point : component_interior_points) {
-                auto it = point_to_triangles.find(interior_point);
-                if (it == point_to_triangles.end()) {
-                    throw std::runtime_error(
-                        "Error: simplify_refined_triangles_by_tet: interior point " +
-                        std::to_string(interior_point) + " not found in point_to_triangles");
-                }
-                const auto& incident_tris = it->second;
-                for (size_t tri_idx : incident_tris) {
-                    component_triangles.insert(tri_idx);
-                }
-            }
-            // Analyze all component triangles
-            for (size_t tri_idx : component_triangles) {
-                const auto& tri = surface.query_triangles[tri_idx];
-                int interior_count = 0;
-                for (int j = 0; j < 3; ++j) {
-                    if (component_interior_points.find(tri(j)) != component_interior_points.end()) {
-                        interior_count++;
-                    }
-                }
-                if (interior_count == 1) {
-                    tri_with_1_interior++;
-                } else if (interior_count == 2) {
-                    tri_with_2_interior++;
-                    tris_with_2plus_interior.push_back({tri_idx, tri(0), tri(1), tri(2)});
-                } else if (interior_count == 3) {
-                    tri_with_3_interior++;
-                    tris_with_2plus_interior.push_back({tri_idx, tri(0), tri(1), tri(2)});
-                }
-            }
-            std::cout << "      Triangle analysis: " << tri_with_1_interior << " with 1 interior, "
-                      << tri_with_2_interior << " with 2 interior, " << tri_with_3_interior
-                      << " with 3 interior" << std::endl;
-            if (!tris_with_2plus_interior.empty()) {
-                std::cout
-                    << "      Triangles with 2+ interior points (may cause disconnected loops):"
-                    << std::endl;
-                for (const auto& t : tris_with_2plus_interior) {
-                    std::cout << "        tri[" << std::get<0>(t) << "]: (" << std::get<1>(t)
-                              << ", " << std::get<2>(t) << ", " << std::get<3>(t) << ")"
-                              << std::endl;
-                }
-            }
-            // Now collect boundary edges
-            for (size_t tri_idx : component_triangles) {
-                const auto& tri = surface.query_triangles[tri_idx];
-                // Find all edges where both endpoints are boundary points
-                for (int j = 0; j < 3; ++j) {
-                    int v0 = tri(j);
-                    int v1 = tri((j + 1) % 3);
-                    if (boundary_points.find(v0) != boundary_points.end() &&
-                        boundary_points.find(v1) != boundary_points.end()) {
-                        std::pair<int, int> edge =
-                            (v0 < v1) ? std::make_pair(v0, v1) : std::make_pair(v1, v0);
-                        component_boundary_edges.insert(edge);
-                    }
-                }
-            }
-            // Print component_boundary_edges
-            std::cout << "      Component boundary edges (" << component_boundary_edges.size()
-                      << " edges): [";
-            bool first_edge = true;
-            for (const auto& edge : component_boundary_edges) {
-                if (!first_edge) {
-                    std::cout << ", ";
-                }
-                std::cout << "(" << edge.first << "-" << edge.second << ")";
-                first_edge = false;
-            }
-            std::cout << "]" << std::endl;
-            // Check if edges form a valid loop (each vertex should appear exactly twice)
-            std::map<int, int> vertex_degree;
-            for (const auto& edge : component_boundary_edges) {
-                vertex_degree[edge.first]++;
-                vertex_degree[edge.second]++;
-            }
-            bool is_valid_loop = true;
-            std::vector<int> invalid_vertices;
-            for (const auto& vd : vertex_degree) {
-                if (vd.second != 2) {
-                    is_valid_loop = false;
-                    invalid_vertices.push_back(vd.first);
-                }
-            }
-            if (!is_valid_loop) {
-                std::cout << "      WARNING: Boundary edges do NOT form a valid loop!" << std::endl;
-                std::cout << "        Vertices with invalid degree:" << std::endl;
-                for (int v : invalid_vertices) {
-                    std::cout << "          Vertex " << v << " has degree " << vertex_degree[v]
-                              << " (expected 2)" << std::endl;
-                }
-                std::cout << "        Skipping fan triangulation for this component" << std::endl;
-                continue;
-            }
-            // Check if edges form a single connected loop (not multiple disconnected loops)
-            if (!component_boundary_edges.empty()) {
-                std::map<int, std::set<int>> adj;
-                for (const auto& edge : component_boundary_edges) {
-                    adj[edge.first].insert(edge.second);
-                    adj[edge.second].insert(edge.first);
-                }
-                std::set<int> visited_vertices;
-                std::queue<int> bfs_q;
-                int start_v = adj.begin()->first;
-                bfs_q.push(start_v);
-                visited_vertices.insert(start_v);
-                while (!bfs_q.empty()) {
-                    int curr = bfs_q.front();
-                    bfs_q.pop();
-                    for (int neighbor : adj[curr]) {
-                        if (visited_vertices.find(neighbor) == visited_vertices.end()) {
-                            visited_vertices.insert(neighbor);
-                            bfs_q.push(neighbor);
-                        }
-                    }
-                }
-                if (visited_vertices.size() != adj.size()) {
-                    std::cout << "      WARNING: Boundary edges form multiple disconnected loops!"
-                              << std::endl;
-                    std::cout << "        Connected: " << visited_vertices.size()
-                              << " vertices, Total: " << adj.size() << " vertices" << std::endl;
-                    std::cout << "        Skipping fan triangulation for this component"
-                              << std::endl;
-                    continue;
-                }
-                std::cout << "      Boundary edges form a valid single loop with "
-                          << vertex_degree.size() << " vertices" << std::endl;
-            }
-            // Compute centroid of all interior points using rational arithmetic
-            // Sum up all barycentric coordinates (they must be in the same tet)
-            Eigen::Matrix<wmtk::Rational, 4, 1> sum_bc;
-            sum_bc.setZero();
-            int64_t ref_tet_id = -1;
-            Eigen::Vector4i ref_tv_ids;
-            int num_interior_points = 0;
-            for (int interior_p_idx : component_interior_points) {
-                const auto& qp = surface.points[interior_p_idx];
-                if (ref_tet_id == -1) {
-                    ref_tet_id = qp.t_id;
-                    ref_tv_ids = qp.tv_ids;
-                }
-                // Add barycentric coordinates
-                for (int i = 0; i < 4; ++i) {
-                    sum_bc(i) += qp.bc(i);
-                }
-                num_interior_points++;
-            }
-            if (num_interior_points == 0) {
-                std::cout << "      No interior points to average, skipping" << std::endl;
-                continue;
-            }
-            // Compute average: divide by number of points
-            wmtk::Rational num_points_r(num_interior_points);
-            Eigen::Matrix<wmtk::Rational, 4, 1> avg_bc;
-            for (int i = 0; i < 4; ++i) {
-                avg_bc(i) = sum_bc(i) / num_points_r;
-            }
-            // Normalize barycentric coordinates exactly using rational arithmetic
-            wmtk::Rational bc_sum = avg_bc(0) + avg_bc(1) + avg_bc(2) + avg_bc(3);
-            Eigen::Matrix<wmtk::Rational, 4, 1> new_bc_rational;
-            if (bc_sum != wmtk::Rational(0)) {
-                for (int i = 0; i < 4; ++i) {
-                    new_bc_rational(i) = avg_bc(i) / bc_sum;
-                }
-            } else {
-                // Fallback to center of tet
-                wmtk::Rational quarter(1, 4);
-                for (int i = 0; i < 4; ++i) {
-                    new_bc_rational(i) = quarter;
-                }
-            }
-            std::cout << "      Computed centroid bc (rational): ["
-                      << new_bc_rational(0).to_double() << ", " << new_bc_rational(1).to_double()
-                      << ", " << new_bc_rational(2).to_double() << ", "
-                      << new_bc_rational(3).to_double() << "]" << std::endl;
-            // Create new point with exact rational coordinates
-            query_point_tet_r new_point;
-            new_point.t_id = ref_tet_id;
-            new_point.tv_ids = ref_tv_ids;
-            new_point.bc = new_bc_rational;
-            int new_point_idx = surface.points.size();
-            surface.points.push_back(new_point);
-            new_centroid_point_indices.push_back(new_point_idx);
-            std::cout << "      Created new point at index " << new_point_idx << std::endl;
-            // Create fan triangles: for each boundary edge, create a triangle with the new point
-            std::cout << "      Creating fan triangles from " << component_boundary_edges.size()
-                      << " boundary edges" << std::endl;
-            for (const auto& edge : component_boundary_edges) {
-                Eigen::Vector3i fan_tri;
-                fan_tri(0) = edge.first;
-                fan_tri(1) = edge.second;
-                fan_tri(2) = new_point_idx;
-                all_triangulated_triangles.push_back(fan_tri);
-                std::cout << "        Fan triangle: [" << fan_tri(0) << "," << fan_tri(1) << ","
-                          << fan_tri(2) << "]" << std::endl;
-            }
-            // Mark triangles incident to this component for removal
-            for (size_t tri_idx : component_triangles) {
-                triangles_to_remove_set.insert(tri_idx);
-            }
-            // Mark interior points of this component for removal (only if fan triangulation was
-            // performed)
-            for (int interior_p : component_interior_points) {
-                interior_points_to_remove.insert(interior_p);
-            }
-        }
-        if (all_triangulated_triangles.empty()) {
-            std::cout << "    No fan triangles created, skipping tet_id " << tet_id << std::endl;
-            continue;
-        }
-        // Save triangles after simplification
-        // Collect all triangles that will remain: new triangulated triangles + triangles not
-        // removed
-        std::vector<Eigen::Vector3i> all_final_triangles;
-        all_final_triangles.reserve(all_triangulated_triangles.size() + tri_indices.size());
-        // Add new triangulated triangles from ear clipping
-        for (const auto& tri : all_triangulated_triangles) {
-            all_final_triangles.push_back(tri);
-        }
-        // Add triangles that are not removed (for this tet_id)
-        // These are triangles that belong to this tet_id but are not marked for removal
-        for (size_t tri_idx : tri_indices) {
-            if (triangles_to_remove_set.find(tri_idx) == triangles_to_remove_set.end()) {
-                all_final_triangles.push_back(surface.query_triangles[tri_idx]);
-            }
-        }
-        std::cout << "    After simplification: " << all_triangulated_triangles.size()
-                  << " new triangles from fan triangulation, "
-                  << (all_final_triangles.size() - all_triangulated_triangles.size())
-                  << " preserved triangles, total: " << all_final_triangles.size() << " triangles"
-                  << std::endl;
-        // Self-intersection check using CGAL with exact rational arithmetic
-        // Use first 3 components of bc as positions
-        {
-            // Collect unique points and build position map using bc(0:3)
-            std::set<int> check_points;
-            for (const auto& tri : all_final_triangles) {
-                check_points.insert(tri(0));
-                check_points.insert(tri(1));
-                check_points.insert(tri(2));
-            }
-            std::map<int, std::size_t> point_to_cgal_idx;
-            std::vector<RationalPoint> cgal_points;
-            cgal_points.reserve(check_points.size());
-            for (int p_idx : check_points) {
-                point_to_cgal_idx[p_idx] = cgal_points.size();
-                const auto& qp = surface.points[p_idx];
-                // Use first 3 barycentric coordinates as position with exact rational arithmetic
-                RationalKernel::FT x = rational_to_gmpq(qp.bc(0));
-                RationalKernel::FT y = rational_to_gmpq(qp.bc(1));
-                RationalKernel::FT z = rational_to_gmpq(qp.bc(2));
-                cgal_points.emplace_back(x, y, z);
-            }
-            // Build triangle soup
-            std::vector<CgalTriangle> cgal_triangles;
-            cgal_triangles.reserve(all_final_triangles.size());
-            for (const auto& tri : all_final_triangles) {
-                cgal_triangles.push_back(CgalTriangle{
-                    point_to_cgal_idx[tri(0)],
-                    point_to_cgal_idx[tri(1)],
-                    point_to_cgal_idx[tri(2)]});
-            }
-            // Check for self-intersection
-            bool has_self_intersection =
-                PMP::does_triangle_soup_self_intersect(cgal_points, cgal_triangles);
-            if (has_self_intersection) {
-                std::cout
-                    << "    WARNING: Self-intersection detected after simplification for tet_id "
-                    << tet_id << ". Rolling back simplification." << std::endl;
-                // Rollback: remove newly added centroid points from surface.points
-                // Remove in reverse order to keep indices valid
-                std::sort(
-                    new_centroid_point_indices.begin(),
-                    new_centroid_point_indices.end(),
-                    std::greater<int>());
-                for (int remove_idx : new_centroid_point_indices) {
-                    if (remove_idx >= 0 && remove_idx < static_cast<int>(surface.points.size())) {
-                        surface.points.erase(surface.points.begin() + remove_idx);
-                        std::cout << "      Removed centroid point at index " << remove_idx
-                                  << std::endl;
-                    }
-                }
-                std::cout << "    Skipping tet_id " << tet_id << " due to self-intersection"
-                          << std::endl;
-                continue; // Skip this tet's simplification
-            }
-            std::cout << "    Self-intersection check passed for tet_id " << tet_id << std::endl;
-        }
-        // Collect all points used by final triangles
-        std::set<int> local_points_after;
-        for (const auto& tri : all_final_triangles) {
-            local_points_after.insert(tri(0));
-            local_points_after.insert(tri(1));
-            local_points_after.insert(tri(2));
-        }
-        Eigen::MatrixXd V_after_simplify(local_points_after.size(), 3);
-        Eigen::MatrixXi F_after_simplify(all_final_triangles.size(), 3);
-        Eigen::VectorXi point_global_ids_after(local_points_after.size());
-        // Map from original point index (in surface.points) to local index (0, 1, 2, ...) in
-        // V_after_simplify
-        std::map<int, int> original_to_local_after;
-        int local_idx_after = 0;
-        for (int p_idx : local_points_after) {
-            original_to_local_after[p_idx] = local_idx_after;
-            const auto& qp = surface.points[p_idx];
-            Eigen::Matrix<double, 4, 3> tet_vertices;
-            Eigen::Vector4d bc_double;
-            for (int i = 0; i < 4; ++i) {
-                bc_double(i) = qp.bc(i).to_double();
-            }
-            // Map global tet ID to local index in T_before
-            int local_tet_idx = -1;
-            if (qp.t_id >= 0) {
-                auto it = std::find(id_map_before.begin(), id_map_before.end(), qp.t_id);
-                if (it != id_map_before.end()) {
-                    local_tet_idx = std::distance(id_map_before.begin(), it);
-                }
-            }
-            if (local_tet_idx >= 0 && local_tet_idx < T_before.rows()) {
-                // Use tet ID to get vertices
-                for (int i = 0; i < 4; ++i) {
-                    int v_id = T_before(local_tet_idx, i);
-                    if (v_id >= 0 && v_id < V_before.rows()) {
-                        tet_vertices.row(i) = Eigen::Vector3d(
-                            V_before(v_id, 0).to_double(),
-                            V_before(v_id, 1).to_double(),
-                            V_before(v_id, 2).to_double());
-                    }
-                }
-            } else {
-                // Fallback: use tv_ids and v_id_map_before to get vertex coordinates
-                if (qp.tv_ids.size() != 4) {
-                    throw std::runtime_error(
-                        "Error: simplify_refined_triangles_by_tet: qp.tv_ids.size() != 4");
-                }
-                for (int i = 0; i < 4; ++i) {
-                    if (bc_double(i) != 0.0) {
-                        int64_t global_v_id = qp.tv_ids(i);
-                        auto it =
-                            std::find(v_id_map_before.begin(), v_id_map_before.end(), global_v_id);
-                        if (it == v_id_map_before.end()) {
-                            throw std::runtime_error(
-                                "Error: simplify_refined_triangles_by_tet: vertex ID " +
-                                std::to_string(global_v_id) + " not found in v_id_map_before (bc[" +
-                                std::to_string(i) + "] != 0)");
-                        }
-                        int local_v_idx = std::distance(v_id_map_before.begin(), it);
-                        if (local_v_idx >= 0 && local_v_idx < V_before.rows()) {
-                            tet_vertices.row(i) = Eigen::Vector3d(
-                                V_before(local_v_idx, 0).to_double(),
-                                V_before(local_v_idx, 1).to_double(),
-                                V_before(local_v_idx, 2).to_double());
-                        }
-                    }
-                }
-            }
-            Eigen::Vector3d world_pos = barycentric_to_world_tet<double>(bc_double, tet_vertices);
-            V_after_simplify.row(local_idx_after) = world_pos.transpose();
-
-            point_global_ids_after(local_idx_after) = p_idx;
-            local_idx_after++;
-        }
-        // Build F using local indices (0, 1, 2, ...) corresponding to rows in V_after_simplify
-        for (size_t i = 0; i < all_final_triangles.size(); ++i) {
-            const auto& tri = all_final_triangles[i];
-            F_after_simplify.row(i) = Eigen::Vector3i(
-                original_to_local_after[tri(0)],
-                original_to_local_after[tri(1)],
-                original_to_local_after[tri(2)]);
-        }
-        std::string filename_after = "simplify_after_op" + std::to_string(operation_id) + "_tet" +
-                                     std::to_string(tet_id) + ".vtu";
-        std::cout << "    Writing after simplification: V.rows()=" << V_after_simplify.rows()
-                  << ", F.rows()=" << F_after_simplify.rows()
-                  << ", point_global_ids.size()=" << point_global_ids_after.size() << std::endl;
-        write_triangle_mesh_to_vtu_with_point_data(
-            V_after_simplify,
-            F_after_simplify,
-            point_global_ids_after,
-            filename_after);
-        std::cout << "    Saved after simplification to: " << filename_after << std::endl;
-        for (const auto& tri : all_triangulated_triangles) {
-            new_triangles.push_back(tri);
-            new_tet_ids.push_back(static_cast<int>(tet_id));
-        }
-        // Mark triangles for removal
-        for (size_t tri_idx : triangles_to_remove_set) {
-            triangle_to_remove[tri_idx] = true;
-        }
-        // Only remove interior points that were part of fan triangulation
-        for (int p : interior_points_to_remove) {
-            points_to_remove.insert(p);
+        if (!collapsed_any) {
+            std::cout << "    No more edges can be collapsed" << std::endl;
+            break;
         }
     }
-    std::cout << "\n  Removing " << points_to_remove.size() << " interior points" << std::endl;
-    std::cout << "  Removed point IDs: [";
-    bool first_point = true;
-    for (int p : points_to_remove) {
-        if (!first_point) {
-            std::cout << ", ";
-        }
-        std::cout << p;
-        first_point = false;
+    std::cout << "    Total collapses performed: " << total_collapses << std::endl;
+    // Write local patch AFTER simplification
+    std::string after_filename = "simplify_after_op" + std::to_string(operation_id) + ".vtu";
+    write_local_patch_to_vtu(
+        surface.points,
+        working_triangles,
+        working_tet_ids,
+        V_before,
+        T_before,
+        id_map_before,
+        v_id_map_before,
+        after_filename);
+    if (total_collapses == 0) {
+        std::cout << "  No simplification performed, keeping original triangles" << std::endl;
+        return;
     }
-    std::cout << "]" << std::endl;
-    int num_triangles_to_remove =
-        std::count(triangle_to_remove.begin(), triangle_to_remove.end(), true);
-    std::cout << "  Removing " << num_triangles_to_remove << " old refined triangles:" << std::endl;
-    for (size_t i = 0; i < triangle_to_remove.size(); ++i) {
-        if (triangle_to_remove[i]) {
-            const auto& tri = surface.query_triangles[i];
-            int tet_id = (i < surface.tet_ids.size()) ? surface.tet_ids[i] : -1;
-            std::cout << "    Removing triangle [" << tri(0) << "," << tri(1) << "," << tri(2)
-                      << "] with tet_id " << tet_id << std::endl;
-        }
+    // Step 4: Update surface with simplified triangles (remove unreferenced points first)
+    std::cout << "\n  Step 4: Updating surface..." << std::endl;
+    // Points used before the patch (must be preserved)
+    std::set<int> points_used_before_patch;
+    for (size_t i = 0; i < start_tri_idx; ++i) {
+        const auto& tri = surface.query_triangles[i];
+        points_used_before_patch.insert(tri(0));
+        points_used_before_patch.insert(tri(1));
+        points_used_before_patch.insert(tri(2));
     }
-    std::vector<int> old_to_new_point_map(surface.points.size(), -1);
-    int new_point_idx = 0;
+    // Points used in simplified patch
+    std::set<int> points_used_in_patch;
+    for (const auto& tri : working_triangles) {
+        points_used_in_patch.insert(tri(0));
+        points_used_in_patch.insert(tri(1));
+        points_used_in_patch.insert(tri(2));
+    }
+    // Build global used set: before-patch + simplified patch
+    std::set<int> used_points_global = points_used_before_patch;
+    used_points_global.insert(points_used_in_patch.begin(), points_used_in_patch.end());
+    // Build remap for all points; remove unreferenced points globally
+    std::vector<int> old_to_new(surface.points.size(), -1);
+    int new_idx = 0;
     for (size_t i = 0; i < surface.points.size(); ++i) {
-        if (points_to_remove.find(static_cast<int>(i)) == points_to_remove.end()) {
-            old_to_new_point_map[i] = new_point_idx++;
+        if (used_points_global.find(static_cast<int>(i)) != used_points_global.end()) {
+            old_to_new[i] = new_idx++;
         }
     }
+    // Remap triangles before patch
+    std::vector<Eigen::Vector3i> remapped_before_tris;
+    remapped_before_tris.reserve(start_tri_idx);
+    for (size_t i = 0; i < start_tri_idx; ++i) {
+        const auto& tri = surface.query_triangles[i];
+        Eigen::Vector3i new_tri(old_to_new[tri(0)], old_to_new[tri(1)], old_to_new[tri(2)]);
+        if (new_tri(0) >= 0 && new_tri(1) >= 0 && new_tri(2) >= 0) {
+            remapped_before_tris.push_back(new_tri);
+        }
+    }
+    // Remap simplified patch triangles
+    std::vector<Eigen::Vector3i> remapped_patch_tris;
+    remapped_patch_tris.reserve(working_triangles.size());
+    for (const auto& tri : working_triangles) {
+        Eigen::Vector3i new_tri(old_to_new[tri(0)], old_to_new[tri(1)], old_to_new[tri(2)]);
+        if (new_tri(0) >= 0 && new_tri(1) >= 0 && new_tri(2) >= 0) {
+            remapped_patch_tris.push_back(new_tri);
+        }
+    }
+    // Combined triangles for final manifold check (after removing unused points)
+    std::vector<Eigen::Vector3i> combined_triangles = remapped_before_tris;
+    combined_triangles.insert(
+        combined_triangles.end(),
+        remapped_patch_tris.begin(),
+        remapped_patch_tris.end());
+    if (!check_manifold(combined_triangles)) {
+        throw std::runtime_error("Surface is not manifold after simplification.");
+    }
+    // Build new points vector
     std::vector<query_point_tet_r> new_points;
-    new_points.reserve(new_point_idx);
+    new_points.reserve(new_idx);
     for (size_t i = 0; i < surface.points.size(); ++i) {
-        if (points_to_remove.find(static_cast<int>(i)) == points_to_remove.end()) {
+        if (old_to_new[i] >= 0) {
             new_points.push_back(surface.points[i]);
         }
     }
-    std::vector<Eigen::Vector3i> final_triangles;
-    final_triangles.reserve(surface.query_triangles.size() + new_triangles.size());
-    std::vector<int> final_tet_ids;
-    final_tet_ids.reserve(surface.tet_ids.size() + new_tet_ids.size());
-    for (size_t i = 0; i < surface.query_triangles.size(); ++i) {
-        if (!triangle_to_remove[i]) {
-            const auto& tri = surface.query_triangles[i];
-            Eigen::Vector3i new_tri;
-            new_tri(0) = old_to_new_point_map[tri(0)];
-            new_tri(1) = old_to_new_point_map[tri(1)];
-            new_tri(2) = old_to_new_point_map[tri(2)];
-            if (new_tri(0) >= 0 && new_tri(1) >= 0 && new_tri(2) >= 0) {
-                final_triangles.push_back(new_tri);
-                if (i < surface.tet_ids.size()) {
-                    final_tet_ids.push_back(surface.tet_ids[i]);
-                }
-            }
+    // Build new triangles/tet_ids
+    std::vector<Eigen::Vector3i> new_triangles;
+    std::vector<int> new_tet_ids;
+    // Add remapped before-patch triangles
+    for (size_t i = 0; i < remapped_before_tris.size(); ++i) {
+        new_triangles.push_back(remapped_before_tris[i]);
+        if (i < surface.tet_ids.size()) {
+            new_tet_ids.push_back(surface.tet_ids[i]);
         }
     }
-    std::cout << "  Adding " << new_triangles.size() << " new triangles:" << std::endl;
-    for (size_t i = 0; i < new_triangles.size(); ++i) {
-        const auto& tri = new_triangles[i];
-        Eigen::Vector3i new_tri;
-        new_tri(0) = old_to_new_point_map[tri(0)];
-        new_tri(1) = old_to_new_point_map[tri(1)];
-        new_tri(2) = old_to_new_point_map[tri(2)];
-        if (new_tri(0) >= 0 && new_tri(1) >= 0 && new_tri(2) >= 0) {
-            int tet_id = (i < new_tet_ids.size()) ? new_tet_ids[i] : -1;
-            std::cout << "    Adding triangle [" << new_tri(0) << "," << new_tri(1) << ","
-                      << new_tri(2) << "] (before map: [" << tri(0) << "," << tri(1) << ","
-                      << tri(2) << "]) with tet_id " << tet_id << std::endl;
-            final_triangles.push_back(new_tri);
+    // Add remapped simplified patch triangles
+    for (size_t i = 0; i < remapped_patch_tris.size(); ++i) {
+        new_triangles.push_back(remapped_patch_tris[i]);
+        if (i < working_tet_ids.size()) {
+            new_tet_ids.push_back(working_tet_ids[i]);
         }
     }
-    for (int tet_id : new_tet_ids) {
-        final_tet_ids.push_back(tet_id);
-    }
+    // Update surface
     surface.points = std::move(new_points);
-    surface.query_triangles = std::move(final_triangles);
-    surface.tet_ids = std::move(final_tet_ids);
-    std::cout << "  Final surface after simplification: " << surface.points.size() << " points, "
+    surface.query_triangles = std::move(new_triangles);
+    surface.tet_ids = std::move(new_tet_ids);
+    std::cout << "  Final surface: " << surface.points.size() << " points, "
               << surface.query_triangles.size() << " triangles" << std::endl;
-
-    // check manifold property after simplification
+    // Final manifold diagnostics (edge-only, optional)
     std::map<std::pair<int, int>, int> final_edge_count;
     for (const auto& tri : surface.query_triangles) {
         for (int j = 0; j < 3; ++j) {
@@ -1083,7 +679,7 @@ void simplify_refined_triangles_by_tet(
     } else {
         std::cout << "  Surface is edge-manifold after simplification" << std::endl;
     }
-    std::cout << "=== Refined triangles simplification completed ===" << std::endl;
+    std::cout << "=== Edge collapse simplification completed ===" << std::endl;
 }
 
 } // namespace tet_surface_tracking_with_connectivity
