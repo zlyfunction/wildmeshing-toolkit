@@ -177,19 +177,18 @@ int can_collapse_edge(int v0, int v1, const LocalPatch& patch)
     return 0;
 }
 
-// Compute world position from barycentric coordinates (double version for VTU output)
-Eigen::Vector3d compute_world_position(
+// Compute world position from barycentric coordinates using exact rational arithmetic
+Eigen::Matrix<wmtk::Rational, 3, 1> compute_world_position(
     const query_point_tet_r& point,
     const MatrixXr& V_before,
     const Eigen::MatrixXi& T_before,
     const std::vector<int64_t>& id_map_before,
     const std::vector<int64_t>& v_id_map_before)
 {
-    Eigen::Matrix<double, 4, 3> tet_vertices;
-    Eigen::Vector4d bc_double;
-    for (int i = 0; i < 4; ++i) {
-        bc_double(i) = point.bc(i).to_double();
-    }
+    Eigen::Matrix<wmtk::Rational, 4, 3> tet_vertices;
+    tet_vertices.setZero();
+    Eigen::Matrix<wmtk::Rational, 4, 1> bc_r;
+    for (int i = 0; i < 4; ++i) bc_r(i) = point.bc(i);
     // Map global tet ID to local index in T_before
     int local_tet_idx = -1;
     if (point.t_id >= 0) {
@@ -202,31 +201,25 @@ Eigen::Vector3d compute_world_position(
         for (int i = 0; i < 4; ++i) {
             int v_id = T_before(local_tet_idx, i);
             if (v_id >= 0 && v_id < V_before.rows()) {
-                tet_vertices.row(i) = Eigen::Vector3d(
-                    V_before(v_id, 0).to_double(),
-                    V_before(v_id, 1).to_double(),
-                    V_before(v_id, 2).to_double());
+                tet_vertices.row(i) = V_before.row(v_id);
             }
         }
     } else {
         // Fallback: use tv_ids and v_id_map_before
         for (int i = 0; i < 4; ++i) {
-            if (bc_double(i) != 0.0) {
+            if (bc_r(i) != wmtk::Rational(0)) {
                 int64_t global_v_id = point.tv_ids(i);
                 auto it = std::find(v_id_map_before.begin(), v_id_map_before.end(), global_v_id);
                 if (it != v_id_map_before.end()) {
                     int local_v_idx = std::distance(v_id_map_before.begin(), it);
                     if (local_v_idx >= 0 && local_v_idx < V_before.rows()) {
-                        tet_vertices.row(i) = Eigen::Vector3d(
-                            V_before(local_v_idx, 0).to_double(),
-                            V_before(local_v_idx, 1).to_double(),
-                            V_before(local_v_idx, 2).to_double());
+                        tet_vertices.row(i) = V_before.row(local_v_idx);
                     }
                 }
             }
         }
     }
-    return barycentric_to_world_tet<double>(bc_double, tet_vertices);
+    return barycentric_to_world_tet<wmtk::Rational>(bc_r, tet_vertices);
 }
 
 // Check for self-intersection using CGAL with world coordinates
@@ -252,11 +245,11 @@ bool check_self_intersection(
         point_to_cgal_idx[p_idx] = cgal_points.size();
         const auto& qp = points[p_idx];
         // Compute world position using barycentric coordinates and tet vertices
-        Eigen::Vector3d world_pos =
+        Eigen::Matrix<wmtk::Rational, 3, 1> world_pos =
             compute_world_position(qp, V_before, T_before, id_map_before, v_id_map_before);
-        RationalKernel::FT x(world_pos(0));
-        RationalKernel::FT y(world_pos(1));
-        RationalKernel::FT z(world_pos(2));
+        RationalKernel::FT x = rational_to_gmpq(world_pos(0));
+        RationalKernel::FT y = rational_to_gmpq(world_pos(1));
+        RationalKernel::FT z = rational_to_gmpq(world_pos(2));
         cgal_points.emplace_back(x, y, z);
     }
     std::vector<CgalTriangle> cgal_triangles;
@@ -389,9 +382,11 @@ void write_local_patch_to_vtu(
     for (size_t i = 0; i < local_to_global.size(); ++i) {
         int global_idx = local_to_global[i];
         const auto& qp = all_points[global_idx];
-        Eigen::Vector3d world_pos =
+        Eigen::Matrix<wmtk::Rational, 3, 1> world_pos =
             compute_world_position(qp, V_before, T_before, id_map_before, v_id_map_before);
-        V.row(i) = world_pos.transpose();
+        V(i, 0) = world_pos(0).to_double();
+        V(i, 1) = world_pos(1).to_double();
+        V(i, 2) = world_pos(2).to_double();
         point_global_ids(i) = global_idx;
     }
     // Build F matrix with local indices
