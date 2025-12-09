@@ -13,7 +13,9 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <sstream>
 #include <vector>
+// #define DEBUG_SAMPLE_SELF_INTERSECTION
 
 namespace PMP = CGAL::Polygon_mesh_processing;
 
@@ -125,7 +127,10 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     sampled_vertices.reserve(sampled_points.size());
     std::vector<std::size_t> sampled_point_global_indices;
     sampled_point_global_indices.reserve(sampled_points.size());
-
+#ifdef DEBUG_SAMPLE_SELF_INTERSECTION
+    std::vector<Triangle> sampled_only_triangles;
+    sampled_only_triangles.reserve(static_cast<std::size_t>(sampled_faces.rows()));
+#endif
     for (const auto& point_input : sampled_points) {
         if (point_input.tet_index < 0 || point_input.tet_index >= T.rows()) {
             throw std::runtime_error("Sampled point references invalid tetrahedron index.");
@@ -179,10 +184,20 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
             tri[corner] = global_index;
         }
         triangles.push_back(tri);
+#ifdef DEBUG_SAMPLE_SELF_INTERSECTION
+        sampled_only_triangles.push_back(tri);
+#endif
         triangle_parent_tets.emplace_back();
         triangle_sample_ids.push_back(static_cast<int>(face_id));
     }
 
+#ifdef DEBUG_SAMPLE_SELF_INTERSECTION
+    if (!sampled_only_triangles.empty()) {
+        if (PMP::does_triangle_soup_self_intersect(points, sampled_only_triangles)) {
+            throw std::runtime_error("Sampled faces self-intersect.");
+        }
+    }
+#endif
     result.original_points = points;
     result.original_triangles = triangles;
     result.original_triangle_parent_tets = triangle_parent_tets;
@@ -195,6 +210,11 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     result.initial_soup_had_intersections =
         PMP::does_triangle_soup_self_intersect(points, triangles);
+    if (!result.initial_soup_had_intersections) {
+        std::cout << "Initial soup don't have self intersections" << std::endl;
+    }
+
+
     // std::cout << "Points:\n";
     // for (size_t i = 0; i < points.size(); ++i) {
     //     const auto& pt = points[i];
