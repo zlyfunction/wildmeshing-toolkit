@@ -11,6 +11,7 @@
 #include <array>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <queue>
 #include <set>
@@ -125,9 +126,61 @@ LocalPatch build_local_patch(
     return patch;
 }
 
-// Check if edge collapse is valid based on point classifications
+bool satisfies_link_condition(int v0, int v1, const std::vector<Eigen::Vector3i>& triangles)
+{
+    std::set<int> link_v0;
+    std::set<int> link_v1;
+    std::set<int> link_edge;
+    int edge_tri_count = 0;
+    for (const auto& tri : triangles) {
+        bool has_v0 = (tri(0) == v0 || tri(1) == v0 || tri(2) == v0);
+        bool has_v1 = (tri(0) == v1 || tri(1) == v1 || tri(2) == v1);
+        if (has_v0) {
+            for (int j = 0; j < 3; ++j) {
+                int vid = tri(j);
+                if (vid != v0 && vid != v1) {
+                    link_v0.insert(vid);
+                }
+            }
+        }
+        if (has_v1) {
+            for (int j = 0; j < 3; ++j) {
+                int vid = tri(j);
+                if (vid != v0 && vid != v1) {
+                    link_v1.insert(vid);
+                }
+            }
+        }
+        if (has_v0 && has_v1) {
+            edge_tri_count++;
+            for (int j = 0; j < 3; ++j) {
+                int vid = tri(j);
+                if (vid != v0 && vid != v1) {
+                    link_edge.insert(vid);
+                }
+            }
+        }
+    }
+    if (edge_tri_count == 0 || edge_tri_count > 2) {
+        return false;
+    }
+    std::set<int> intersection;
+    std::set_intersection(
+        link_v0.begin(),
+        link_v0.end(),
+        link_v1.begin(),
+        link_v1.end(),
+        std::inserter(intersection, intersection.begin()));
+    return intersection == link_edge;
+}
+
+// Check if edge collapse is valid based on point classifications and link condition
 // Returns: 0 = cannot collapse, 1 = collapse to v0, 2 = collapse to v1
-int can_collapse_edge(int v0, int v1, const LocalPatch& patch)
+int can_collapse_edge(
+    int v0,
+    int v1,
+    const LocalPatch& patch,
+    const std::vector<Eigen::Vector3i>& triangles)
 {
     const auto& class0 = patch.point_classifications.at(v0);
     const auto& class1 = patch.point_classifications.at(v1);
@@ -138,6 +191,9 @@ int can_collapse_edge(int v0, int v1, const LocalPatch& patch)
     auto is_subset = [](const std::set<int>& a, const std::set<int>& b) {
         return std::includes(b.begin(), b.end(), a.begin(), a.end());
     };
+    if (!satisfies_link_condition(v0, v1, triangles)) {
+        return 0;
+    }
     // Rule 1: Both interior -> can collapse, keep first vertex
     if (class0.location == PointLocation::Interior && class1.location == PointLocation::Interior) {
         return 1; // Collapse to v0
@@ -308,6 +364,118 @@ std::vector<std::pair<int, int>> get_all_edges(const std::vector<Eigen::Vector3i
         }
     }
     return std::vector<std::pair<int, int>>(edge_set.begin(), edge_set.end());
+}
+
+// Retrieve the four vertex ids of a tet by its global tet_id
+std::array<int64_t, 4> get_tet_vertices_by_id(
+    int tet_id,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before)
+{
+    std::array<int64_t, 4> tet_vids = {-1, -1, -1, -1};
+    auto it = std::find(id_map_before.begin(), id_map_before.end(), tet_id);
+    if (it == id_map_before.end()) {
+        return tet_vids;
+    }
+    int local_idx = static_cast<int>(std::distance(id_map_before.begin(), it));
+    if (local_idx < 0 || local_idx >= T_before.rows()) {
+        return tet_vids;
+    }
+    for (int i = 0; i < 4; ++i) {
+        int local_vid = T_before(local_idx, i);
+        if (local_vid >= 0 && local_vid < static_cast<int>(v_id_map_before.size())) {
+            tet_vids[i] = v_id_map_before[local_vid];
+        }
+    }
+    return tet_vids;
+}
+
+// Collect tet_ids that should be considered for self-intersection around v_keep
+std::set<int> find_relevant_tets_for_point(
+    int v_keep,
+    const LocalPatch& patch,
+    const query_surface_tet_with_connectivity& surface,
+    const std::vector<int>& working_tet_ids,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before)
+{
+    std::set<int> relevant_tets;
+    auto class_it = patch.point_classifications.find(v_keep);
+    if (class_it == patch.point_classifications.end()) {
+        return relevant_tets;
+    }
+    const auto& classification = class_it->second;
+    const auto& qp = surface.points[v_keep];
+
+    // Interior: only the tet the point lies in
+    if (classification.location == PointLocation::Interior) {
+        relevant_tets.insert(qp.t_id);
+        return relevant_tets;
+    }
+
+    // Build the target vertex set defined by the barycentric non-zero entries
+    std::set<int64_t> target_vids;
+    for (int vid : classification.constraint_vids) {
+        target_vids.insert(static_cast<int64_t>(vid));
+    }
+    if (target_vids.empty()) {
+        return relevant_tets;
+    }
+
+
+    // For boundary cases, pick tets in the patch that contain the target face/edge/vertex
+    for (int tet_id : working_tet_ids) {
+        if (tet_id < 0) continue;
+        auto tet_vids = get_tet_vertices_by_id(tet_id, T_before, id_map_before, v_id_map_before);
+        if (tet_vids[0] < 0) continue;
+        std::set<int64_t> tet_set(tet_vids.begin(), tet_vids.end());
+        bool contains_all =
+            std::includes(tet_set.begin(), tet_set.end(), target_vids.begin(), target_vids.end());
+
+        if (contains_all) {
+            relevant_tets.insert(tet_id);
+        }
+    }
+
+    return relevant_tets;
+}
+
+// Filter triangles to those belonging to the relevant tets for v_keep
+std::vector<Eigen::Vector3i> select_triangles_for_self_intersection(
+    int v_keep,
+    const LocalPatch& patch,
+    const query_surface_tet_with_connectivity& surface,
+    const std::vector<Eigen::Vector3i>& working_triangles,
+    const std::vector<int>& working_tet_ids,
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& id_map_before,
+    const std::vector<int64_t>& v_id_map_before)
+{
+    auto relevant_tets = find_relevant_tets_for_point(
+        v_keep,
+        patch,
+        surface,
+        working_tet_ids,
+        T_before,
+        id_map_before,
+        v_id_map_before);
+    if (relevant_tets.empty()) {
+        return working_triangles; // Fallback to conservative check
+    }
+    std::vector<Eigen::Vector3i> filtered;
+    filtered.reserve(working_triangles.size());
+    for (size_t i = 0; i < working_triangles.size(); ++i) {
+        int tet_id = (i < working_tet_ids.size()) ? working_tet_ids[i] : -1;
+        if (relevant_tets.find(tet_id) != relevant_tets.end()) {
+            filtered.push_back(working_triangles[i]);
+        }
+    }
+    if (filtered.empty()) {
+        return working_triangles; // Ensure we always check something
+    }
+    return filtered;
 }
 
 // Update local patch after collapse
@@ -625,15 +793,28 @@ void simplify_refined_triangles_by_tet(
         id_map_before,
         v_id_map_before,
         before_filename);
+
+
     // Step 3: Edge collapse loop
     std::cout << "\n  Step 3: Starting edge collapse..." << std::endl;
     int total_collapses = 0;
     int max_iterations = static_cast<int>(patch.all_points.size() * 2);
+    // int max_iterations = 5;
     for (int iter = 0; iter < max_iterations; ++iter) {
         auto edges = get_all_edges(working_triangles);
+        std::vector<Eigen::Vector3i> full_triangles;
+        full_triangles.reserve(start_tri_idx + working_triangles.size());
+        full_triangles.insert(
+            full_triangles.end(),
+            surface.query_triangles.begin(),
+            surface.query_triangles.begin() + start_tri_idx);
+        full_triangles.insert(
+            full_triangles.end(),
+            working_triangles.begin(),
+            working_triangles.end());
         bool collapsed_any = false;
         for (const auto& [v0, v1] : edges) {
-            int collapse_direction = can_collapse_edge(v0, v1, patch);
+            int collapse_direction = can_collapse_edge(v0, v1, patch, full_triangles);
             if (collapse_direction == 0) continue;
             int v_keep = (collapse_direction == 1) ? v0 : v1;
             int v_remove = (collapse_direction == 1) ? v1 : v0;
@@ -642,10 +823,21 @@ void simplify_refined_triangles_by_tet(
             auto backup_tet_ids = working_tet_ids;
             // Perform collapse
             perform_edge_collapse(working_triangles, working_tet_ids, v_remove, v_keep);
-            // Check self-intersection
+            // Check self-intersection on the minimal relevant set of triangles
+            auto triangles_to_check = select_triangles_for_self_intersection(
+                v_keep,
+                patch,
+                surface,
+                working_triangles,
+                working_tet_ids,
+                T_before,
+                id_map_before,
+                v_id_map_before);
+            std::cout << "    Self-intersection check on " << triangles_to_check.size()
+                      << " triangles (total " << working_triangles.size() << ")" << std::endl;
             if (check_self_intersection(
                     surface.points,
-                    working_triangles,
+                    triangles_to_check,
                     V_before,
                     T_before,
                     id_map_before,
@@ -738,6 +930,7 @@ void simplify_refined_triangles_by_tet(
         combined_triangles.end(),
         remapped_patch_tris.begin(),
         remapped_patch_tris.end());
+
     if (!check_manifold(combined_triangles)) {
         throw std::runtime_error("Surface is not manifold after simplification.");
     }
