@@ -151,7 +151,6 @@ struct query_triangle_tet
 struct query_surface_tet
 {
     std::vector<query_triangle_tet> triangles;
-    // TODO: embed the connectivity of the triangles here
 };
 
 // new query_surface_tet structure,
