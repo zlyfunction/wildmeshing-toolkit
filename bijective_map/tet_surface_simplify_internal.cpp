@@ -629,7 +629,6 @@ bool check_manifold(const std::vector<Eigen::Vector3i>& triangles)
 // Throws runtime_error on failure.
 void sanity_check_triangles(
     const query_surface_tet_with_connectivity& surface,
-    const Eigen::MatrixXi& T_before,
     const std::vector<int64_t>& id_map_before)
 {
     // Deduplicate triangles (with sorted vertex order)
@@ -976,7 +975,7 @@ void simplify_refined_triangles_by_tet(
             patch_only.tet_ids.end(),
             surface.tet_ids.begin() + remapped_before_tris.size(),
             surface.tet_ids.end());
-        sanity_check_triangles(patch_only, T_before, id_map_before);
+        sanity_check_triangles(patch_only, id_map_before);
     }
     std::cout << "  Final surface: " << surface.points.size() << " points, "
               << surface.query_triangles.size() << " triangles" << std::endl;

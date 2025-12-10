@@ -26,6 +26,11 @@ namespace PMP = CGAL::Polygon_mesh_processing;
 
 namespace tet_surface_tracking_with_connectivity {
 
+// Forward declaration for triangle sanity checks implemented in tet_surface_simplify_internal.cpp
+void sanity_check_triangles(
+    const query_surface_tet_with_connectivity& surface,
+    const std::vector<int64_t>& id_map_before);
+
 std::pair<MatrixXr, Eigen::MatrixXi> surface_to_world_positions_rational(
     const query_surface_tet_with_connectivity& query_surface,
     const MatrixXr& V)
@@ -182,6 +187,7 @@ void surface_triangle_arrangement(
     bool save_debug_meshes,
     bool do_simplify)
 {
+    // verbose = true;
     std::vector<int> face_ids;
     for (int i = 0; i < surface.query_triangles.size(); i++) {
         if (std::find(id_map_after.begin(), id_map_after.end(), surface.tet_ids[i]) !=
@@ -351,6 +357,105 @@ void surface_triangle_arrangement(
     std::cout << "Autorefine took " << autorefine_duration.count() << " ms" << std::endl;
     std::cout << "Sampled fragment indices size: "
               << autorefine_result.sampled_fragment_indices.size() << std::endl;
+    if (save_debug_meshes == true) {
+        auto to_vertex_matrix = [](const std::vector<cgal_autorefine_demo::RationalPoint>& pts) {
+            Eigen::MatrixXd V(pts.size(), 3);
+            for (Eigen::Index i = 0; i < static_cast<Eigen::Index>(pts.size()); ++i) {
+                V(i, 0) = CGAL::to_double(pts[i].x());
+                V(i, 1) = CGAL::to_double(pts[i].y());
+                V(i, 2) = CGAL::to_double(pts[i].z());
+            }
+            return V;
+        };
+        auto to_face_matrix = [](const std::vector<cgal_autorefine_demo::Triangle>& tris) {
+            Eigen::MatrixXi F(tris.size(), 3);
+            for (Eigen::Index i = 0; i < static_cast<Eigen::Index>(tris.size()); ++i) {
+                F(i, 0) = static_cast<int>(tris[i][0]);
+                F(i, 1) = static_cast<int>(tris[i][1]);
+                F(i, 2) = static_cast<int>(tris[i][2]);
+            }
+            return F;
+        };
+        Eigen::MatrixXd V_original = to_vertex_matrix(autorefine_result.original_points);
+        Eigen::MatrixXi F_original = to_face_matrix(autorefine_result.original_triangles);
+        Eigen::MatrixXd V_refined = to_vertex_matrix(autorefine_result.refined_points);
+        Eigen::MatrixXi F_refined = to_face_matrix(autorefine_result.refined_triangles);
+        Eigen::VectorXi original_triangle_parent_vec =
+            Eigen::VectorXi::Constant(autorefine_result.original_triangles.size(), -1);
+        for (Eigen::Index i = 0; i < original_triangle_parent_vec.size(); ++i) {
+            const auto& parents =
+                autorefine_result.original_triangle_parent_tets[static_cast<std::size_t>(i)];
+            if (!parents.empty()) {
+                original_triangle_parent_vec(i) = parents.front();
+            }
+        }
+        const Eigen::VectorXi& triangle_origin_ids = autorefine_result.origin_triangle_ids;
+        const Eigen::VectorXi& triangle_origin_tet = autorefine_result.origin_tet_ids;
+        std::string before_path =
+            "surface_arrangement_op" + std::to_string(operation_id) + "_before.vtu";
+        std::string after_path =
+            "surface_arrangement_op" + std::to_string(operation_id) + "_after.vtu";
+        std::string before_tet_path =
+            "surface_arrangement_op" + std::to_string(operation_id) + "_before_tet.vtu";
+        std::string after_tet_path =
+            "surface_arrangement_op" + std::to_string(operation_id) + "_after_tet.vtu";
+        vtu_utils::write_triangle_mesh_to_vtu(V_original, F_original, before_path);
+        vtu_utils::write_triangle_mesh_to_vtu(
+            V_refined,
+            F_refined,
+            after_path,
+            triangle_origin_ids.size() == F_refined.rows() ? &triangle_origin_ids : nullptr,
+            "origin_triangle_id");
+        vtu_utils::write_triangle_mesh_to_vtu(
+            V_original,
+            F_original,
+            before_tet_path,
+            original_triangle_parent_vec.size() == F_original.rows() ? &original_triangle_parent_vec
+                                                                     : nullptr,
+            "origin_tet_id");
+        vtu_utils::write_triangle_mesh_to_vtu(
+            V_refined,
+            F_refined,
+            after_tet_path,
+            triangle_origin_tet.size() == F_refined.rows() ? &triangle_origin_tet : nullptr,
+            "origin_tet_id");
+        if (local_triangles_F.rows() > 0 && local_triangles_F.rows() <= F_original.rows()) {
+            Eigen::Index sampled_count = local_triangles_F.rows();
+            Eigen::Index start_idx = F_original.rows() - sampled_count;
+            Eigen::MatrixXi F_sampled(sampled_count, 3);
+            for (Eigen::Index i = 0; i < sampled_count; ++i) {
+                F_sampled.row(i) = F_original.row(start_idx + i);
+            }
+            std::string sampled_before_path =
+                "surface_arrangement_op" + std::to_string(operation_id) + "_sampled_before.vtu";
+            vtu_utils::write_triangle_mesh_to_vtu(V_original, F_sampled, sampled_before_path);
+            std::cout << "  sampled (before refine) -> " << sampled_before_path << std::endl;
+        }
+        if (!autorefine_result.sampled_fragment_triangles.empty()) {
+            Eigen::MatrixXi F_subset(autorefine_result.sampled_fragment_triangles.size(), 3);
+            for (Eigen::Index i = 0; i < F_subset.rows(); ++i) {
+                const auto& tri =
+                    autorefine_result.sampled_fragment_triangles[static_cast<size_t>(i)];
+                F_subset(i, 0) = static_cast<int>(tri[0]);
+                F_subset(i, 1) = static_cast<int>(tri[1]);
+                F_subset(i, 2) = static_cast<int>(tri[2]);
+            }
+            const Eigen::VectorXi& subset_tet_ids = autorefine_result.sampled_fragment_tet_ids;
+            std::string sampled_path =
+                "surface_arrangement_op" + std::to_string(operation_id) + "_refined_sampled.vtu";
+            vtu_utils::write_triangle_mesh_to_vtu(
+                V_refined,
+                F_subset,
+                sampled_path,
+                subset_tet_ids.size() == F_subset.rows() ? &subset_tet_ids : nullptr,
+                "sampled_tet_id");
+            std::cout << "  refined sampled only -> " << sampled_path << std::endl;
+        }
+        std::cout << "Saved arrangement VTUs:\n  initial soup -> " << before_path
+                  << "\n  initial soup (origin_tet_id) -> " << before_tet_path
+                  << "\n  refined soup -> " << after_path << "\n  refined soup (origin_tet_id) -> "
+                  << after_tet_path << std::endl;
+    }
     if (verbose) {
         if (!autorefine_result.sampled_fragment_triangles.empty()) {
             std::cout << "\n=== Refined Sampled Triangles ===" << std::endl;
@@ -998,6 +1103,9 @@ void track_one_operation(
     std::string operation_name = operation_log["operation_name"];
     std::cout << "Tracking operation: " << operation_name << " (ID: " << operation_id << ")"
               << std::endl;
+    Eigen::MatrixXi T_after, T_before;
+    std::vector<int64_t> id_map_after, id_map_before;
+    bool has_tet_context = false;
     if (operation_name == "MeshConsolidate") {
         std::cout << "  This operation is Consolidate" << std::endl;
         std::vector<int64_t> tet_ids_maps;
@@ -1006,9 +1114,7 @@ void track_one_operation(
         handle_consolidate_operation(tet_ids_maps, vertex_ids_maps, surface, do_forward);
     } else {
         std::cout << "  This operation is " << operation_name << std::endl;
-        Eigen::MatrixXi T_after, T_before;
         Eigen::MatrixXd V_after_double, V_before_double;
-        std::vector<int64_t> id_map_after, id_map_before;
         std::vector<int64_t> v_id_map_after, v_id_map_before;
         parse_non_collapse_file_tet(
             operation_log,
@@ -1021,6 +1127,7 @@ void track_one_operation(
             id_map_after,
             v_id_map_after,
             operation_id);
+        has_tet_context = true;
         MatrixXr V_before(V_before_double.rows(), V_before_double.cols());
         MatrixXr V_after(V_after_double.rows(), V_after_double.cols());
         for (int i = 0; i < V_before_double.rows(); i++) {
@@ -1066,6 +1173,16 @@ void track_one_operation(
         }
     }
     std::cout << "  Operation " << operation_id << " completed" << std::endl;
+
+    if (has_tet_context) {
+        // const auto& sanity_T = do_forward ? T_after : T_before;
+        const auto& sanity_id_map = do_forward ? id_map_after : id_map_before;
+        sanity_check_triangles(surface, sanity_id_map);
+        std::cout << "  Triangle sanity check completed" << std::endl;
+    } else {
+        std::cout << "  Skipping triangle sanity check (no tet context for consolidate)"
+                  << std::endl;
+    }
 
     {
         bool is_manifold = check_surface_manifold_property(surface.query_triangles);
