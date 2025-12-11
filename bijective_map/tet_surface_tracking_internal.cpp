@@ -1148,7 +1148,8 @@ void handle_local_mapping_operation(
     std::cout << "Step1 (point mapping) took " << step1_duration.count() << " ms" << std::endl;
     if (!only_do_arrangement_once) {
         auto step2_start = std::chrono::high_resolution_clock::now();
-        bool save_debug_meshes = true;
+        bool save_debug_meshes = false;
+        bool verbose = false;
         surface_triangle_arrangement(
             V_before,
             T_before,
@@ -1158,7 +1159,7 @@ void handle_local_mapping_operation(
             surface,
             operation_id,
             do_rounding,
-            false,
+            verbose,
             save_debug_meshes,
             do_simplify);
         auto step2_end = std::chrono::high_resolution_clock::now();
