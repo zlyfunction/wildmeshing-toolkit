@@ -782,16 +782,16 @@ void simplify_refined_triangles_by_tet(
         }
     }
     // Write local patch BEFORE simplification
-    std::string before_filename = "simplify_before_op" + std::to_string(operation_id) + ".vtu";
-    write_local_patch_to_vtu(
-        surface.points,
-        working_triangles,
-        working_tet_ids,
-        V_before,
-        T_before,
-        id_map_before,
-        v_id_map_before,
-        before_filename);
+    // std::string before_filename = "simplify_before_op" + std::to_string(operation_id) + ".vtu";
+    // write_local_patch_to_vtu(
+    //     surface.points,
+    //     working_triangles,
+    //     working_tet_ids,
+    //     V_before,
+    //     T_before,
+    //     id_map_before,
+    //     v_id_map_before,
+    //     before_filename);
 
 
     // Step 3: Edge collapse loop
@@ -862,16 +862,16 @@ void simplify_refined_triangles_by_tet(
     }
     std::cout << "    Total collapses performed: " << total_collapses << std::endl;
     // Write local patch AFTER simplification
-    std::string after_filename = "simplify_after_op" + std::to_string(operation_id) + ".vtu";
-    write_local_patch_to_vtu(
-        surface.points,
-        working_triangles,
-        working_tet_ids,
-        V_before,
-        T_before,
-        id_map_before,
-        v_id_map_before,
-        after_filename);
+    // std::string after_filename = "simplify_after_op" + std::to_string(operation_id) + ".vtu";
+    // write_local_patch_to_vtu(
+    //     surface.points,
+    //     working_triangles,
+    //     working_tet_ids,
+    //     V_before,
+    //     T_before,
+    //     id_map_before,
+    //     v_id_map_before,
+    //     after_filename);
     if (total_collapses == 0) {
         std::cout << "  No simplification performed, keeping original triangles" << std::endl;
         return;
