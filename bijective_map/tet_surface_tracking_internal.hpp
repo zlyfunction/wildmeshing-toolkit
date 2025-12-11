@@ -44,6 +44,16 @@ bool check_surface_self_intersection(
     const MatrixXr& surface_V,
     const std::vector<Eigen::Vector3i>& surface_F);
 
+/**
+ * @brief Check if the surface has self-intersection using intrinsic metho
+ *
+ * @param query_surface The query surface with connectivity structure
+ * @param T Tetrahedral connectivity
+ * @return bool True if the surface has self-intersection (intrinsically)
+ */
+bool check_surface_self_intersection_intrinsic(
+    const query_surface_tet_with_connectivity& query_surface,
+    const Eigen::MatrixXi& T);
 
 /**
  * @brief Handle consolidate operation for surface with connectivity

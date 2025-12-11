@@ -141,6 +141,90 @@ bool check_surface_self_intersection(
     return PMP::does_triangle_soup_self_intersect(points, triangles);
 }
 
+bool check_surface_self_intersection_intrinsic(
+    const query_surface_tet_with_connectivity& query_surface,
+    const Eigen::MatrixXi& T)
+{
+    // group all tet_ids that are in the query_surface by tet_id
+    std::map<int, std::vector<int>> tet_ids_by_tet_id;
+    for (int i = 0; i < query_surface.query_triangles.size(); i++) {
+        int tet_id = query_surface.tet_ids[i];
+        tet_ids_by_tet_id[tet_id].push_back(i);
+    }
+    bool has_self_intersection = false;
+    // for each tet_id, check if it has self-intersection
+    for (const auto& [tet_id, tri_ids] : tet_ids_by_tet_id) {
+        // get local points and triangles
+        std::vector<RationalPoint> local_points;
+        std::vector<Triangle> local_triangles;
+        std::map<int, int> global_to_local_point_map;
+
+        auto tet_vids = T.row(tet_id);
+
+        for (int tri_id : tri_ids) {
+            const auto& tri = query_surface.query_triangles[tri_id];
+            Eigen::Vector3i local_tri;
+            for (int vi = 0; vi < 3; vi++) {
+                int global_point_idx = tri[vi];
+
+                if (global_to_local_point_map.find(global_point_idx) ==
+                    global_to_local_point_map.end()) {
+                    const auto& pt = query_surface.points[global_point_idx];
+                    Eigen::Matrix<wmtk::Rational, 4, 1> real_bc;
+                    real_bc.setZero();
+                    for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
+                        if (pt.bc(bc_idx) != 0) {
+                            int real_vid = pt.tv_ids(bc_idx);
+                            auto it = std::find(tet_vids.begin(), tet_vids.end(), real_vid);
+                            if (it != tet_vids.end()) {
+                                real_bc(it - tet_vids.begin()) = pt.bc(bc_idx);
+                            } else {
+                                std::cout << "Error: non-zero bc vertex not found in tet_vids"
+                                          << std::endl;
+                                std::cout << "global_point_idx: " << global_point_idx << std::endl;
+                                std::cout << "tet_vids: " << tet_vids.transpose() << std::endl;
+                                std::cout << "pt.t_id: " << pt.t_id << std::endl;
+                                std::cout << "pt.tv_ids: ";
+                                for (int bc_print = 0; bc_print < 4; ++bc_print) {
+                                    std::cout << pt.tv_ids(bc_print);
+                                    if (bc_print < 3) std::cout << ", ";
+                                }
+                                std::cout << std::endl;
+                                std::cout << "pt.bc: ";
+                                for (int bc_print = 0; bc_print < 4; ++bc_print) {
+                                    std::cout << pt.bc(bc_print).to_double();
+                                    if (bc_print < 3) std::cout << ", ";
+                                }
+                                std::cout << std::endl;
+                            }
+                        }
+                    }
+
+                    RationalKernel::FT x = rational_to_gmpq(real_bc(0));
+                    RationalKernel::FT y = rational_to_gmpq(real_bc(1));
+                    RationalKernel::FT z = rational_to_gmpq(real_bc(2));
+                    local_points.emplace_back(x, y, z);
+                    global_to_local_point_map[global_point_idx] = local_points.size() - 1;
+                }
+
+                local_tri[vi] = global_to_local_point_map[global_point_idx];
+            }
+            local_triangles.emplace_back(Triangle{
+                static_cast<std::size_t>(local_tri[0]),
+                static_cast<std::size_t>(local_tri[1]),
+                static_cast<std::size_t>(local_tri[2])});
+        }
+        bool has_self_intersection_in_this_tet =
+            PMP::does_triangle_soup_self_intersect(local_points, local_triangles);
+        if (has_self_intersection_in_this_tet) {
+            has_self_intersection = true;
+            std::cout << "Self-intersection detected in tet_id " << tet_id << std::endl;
+        }
+    }
+
+    return has_self_intersection;
+}
+
 void handle_consolidate_operation(
     const std::vector<int64_t>& tet_ids_maps,
     const std::vector<int64_t>& vertex_ids_maps,

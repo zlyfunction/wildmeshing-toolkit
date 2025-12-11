@@ -467,16 +467,25 @@ void run_backward_tracking_surface(
     // check self intersection
     // TODO: make it a intrinsic one
     {
-        MatrixXr V_before_rational(V_before.rows(), V_before.cols());
-        for (int i = 0; i < V_before.rows(); i++) {
-            for (int j = 0; j < V_before.cols(); j++) {
-                V_before_rational(i, j) = wmtk::Rational(V_before(i, j));
-            }
-        }
-        auto [surface_V, surface_F_matrix] =
-            surface_to_world_positions_rational(query_surface, V_before_rational);
+        // MatrixXr V_before_rational(V_before.rows(), V_before.cols());
+        // for (int i = 0; i < V_before.rows(); i++) {
+        //     for (int j = 0; j < V_before.cols(); j++) {
+        //         V_before_rational(i, j) = wmtk::Rational(V_before(i, j));
+        //     }
+        // }
+        // auto [surface_V, surface_F_matrix] =
+        //     surface_to_world_positions_rational(query_surface,
+        //     V_before_rational);self_intersection
+        // bool has_ =
+        //     check_surface_self_intersection(surface_V, query_surface.query_triangles);
+        // if (has_self_intersection) {
+        //     std::cout << "Output query surface has self-intersection" << std::endl;
+        //     throw std::runtime_error("Error: output query_surface has self-intersection");
+        // } else {
+        //     std::cout << "Output query surface has no self-intersection" << std::endl;
+        // }
         bool has_self_intersection =
-            check_surface_self_intersection(surface_V, query_surface.query_triangles);
+            check_surface_self_intersection_intrinsic(query_surface, T_before);
         if (has_self_intersection) {
             std::cout << "Output query surface has self-intersection" << std::endl;
             throw std::runtime_error("Error: output query_surface has self-intersection");
