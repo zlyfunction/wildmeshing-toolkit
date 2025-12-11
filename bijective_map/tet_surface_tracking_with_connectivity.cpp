@@ -405,6 +405,7 @@ void run_backward_tracking_surface(
     if (!save_dir.empty()) {
         std::filesystem::create_directories(save_dir);
     }
+    auto tracking_block_start = std::chrono::high_resolution_clock::now();
     for (int i = start_operation; i < total_ops; ++i) {
         int operation_index = i;
         if (!do_forward) {
@@ -433,6 +434,11 @@ void run_backward_tracking_surface(
             write_surface_connectivity_to_binary(query_surface, save_file.string());
         }
     }
+    auto tracking_block_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> tracking_block_duration =
+        tracking_block_end - tracking_block_start;
+    std::cout << "Total tracking block took " << tracking_block_duration.count() << " seconds"
+              << std::endl;
 
 
     // TODO: a experimental version of only do arrangement once
