@@ -228,16 +228,39 @@ query_surface_tet_with_connectivity slice_tet_mesh_with_axis_plane(
         }
         centroid /= Rational(static_cast<int>(tet_point_ids.size()));
 
+        auto vector_from_centroid = [&](int pid) {
+            const auto& p = point_positions[pid];
+            return Eigen::Matrix<Rational, 2, 1>(
+                p(uv_axes[0]) - centroid(0),
+                p(uv_axes[1]) - centroid(1));
+        };
+        auto is_upper_half = [&](const Eigen::Matrix<Rational, 2, 1>& v) {
+            return v(1) > Rational(0) || (v(1) == Rational(0) && v(0) >= Rational(0));
+        };
+
         std::sort(tet_point_ids.begin(), tet_point_ids.end(), [&](int a, int b) {
-            const auto& pa = point_positions[a];
-            const auto& pb = point_positions[b];
-            double angle_a = std::atan2(
-                (pa(uv_axes[1]) - centroid(1)).to_double(),
-                (pa(uv_axes[0]) - centroid(0)).to_double());
-            double angle_b = std::atan2(
-                (pb(uv_axes[1]) - centroid(1)).to_double(),
-                (pb(uv_axes[0]) - centroid(0)).to_double());
-            return angle_a < angle_b;
+            const auto va = vector_from_centroid(a);
+            const auto vb = vector_from_centroid(b);
+
+            const bool upper_a = is_upper_half(va);
+            const bool upper_b = is_upper_half(vb);
+            if (upper_a != upper_b) {
+                return upper_a; // upper half-plane first
+            }
+
+            const Rational cross = va(0) * vb(1) - va(1) * vb(0);
+            if (cross != Rational(0)) {
+                return cross > Rational(0); // counterclockwise order
+            }
+
+            // Colinear with centroid: use distance as deterministic tie-breaker
+            const Rational dist2_a = va.squaredNorm();
+            const Rational dist2_b = vb.squaredNorm();
+            if (dist2_a != dist2_b) {
+                return dist2_a < dist2_b;
+            }
+
+            return a < b; // final tie-breaker to maintain strict weak ordering
         });
 
         // Ensure consistent orientation (normal aligned with +axis where possible)

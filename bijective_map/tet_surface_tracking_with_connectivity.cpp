@@ -350,10 +350,10 @@ void run_backward_tracking_surface(
             for (int j = 0; j < 3; j++) {
                 const auto& pt = query_surface.points[tri[j]];
                 if (pt.t_id != tri_tet_id) {
-                    std::cout << "i: " << i << ", tri_tet_id: " << tri_tet_id
-                              << ", pt: [t_id=" << pt.t_id << ", bc=(" << pt.bc[0].to_double()
-                              << ", " << pt.bc[1].to_double() << ", " << pt.bc[2].to_double()
-                              << ", " << pt.bc[3].to_double() << ")]" << std::endl;
+                    // std::cout << "i: " << i << ", tri_tet_id: " << tri_tet_id
+                    //           << ", pt: [t_id=" << pt.t_id << ", bc=(" << pt.bc[0].to_double()
+                    //           << ", " << pt.bc[1].to_double() << ", " << pt.bc[2].to_double()
+                    //           << ", " << pt.bc[3].to_double() << ")]" << std::endl;
 
                     const auto tv_ids = pt.tv_ids;
                     for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
