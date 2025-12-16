@@ -29,5 +29,8 @@ set(SRC_FILES
 
     local_tet_joint_opt.hpp
     local_tet_joint_opt.cpp
+
+    ../../../../bijective_map/vtu_utils.hpp
+    ../../../../bijective_map/vtu_utils.cpp
 )
 target_sources(wildmeshing_toolkit PRIVATE ${SRC_FILES})

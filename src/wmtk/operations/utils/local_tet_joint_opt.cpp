@@ -341,6 +341,293 @@ double compute_energy_and_gradient_fast(
     return total_E / total_volume;
 }
 
+namespace {
+struct GradientDescentParameters
+{
+    double initial_step_size = 0.1;
+    double step_reduction_factor = 0.5;
+    int max_iterations = 100;
+    double convergence_threshold = 1e-6;
+    int max_line_search_iterations = 20;
+};
+
+const GradientDescentParameters kGradientDescentParameters{};
+
+void zero_constraint_vertex_z(
+    Eigen::MatrixXd& grad,
+    const std::vector<int>& constraint_vids,
+    bool verbose)
+{
+    for (const int vid : constraint_vids) {
+        if (vid >= 0 && vid < grad.rows()) {
+            grad(vid, 2) = 0.0;
+        } else if (verbose) {
+            std::cout << "vid: " << vid << " is out of range" << std::endl;
+        }
+    }
+}
+
+bool has_inverted_tets(
+    const Eigen::MatrixXd& V_positions,
+    const Eigen::MatrixXi& T,
+    const std::vector<int>& tets_to_check,
+    bool verbose,
+    bool check_full_when_empty = true)
+{
+    const bool check_subset = !tets_to_check.empty();
+    const int tet_count =
+        check_subset ? static_cast<int>(tets_to_check.size())
+                     : (check_full_when_empty ? T.rows() : 0);
+
+    for (int idx = 0; idx < tet_count; ++idx) {
+        const int t = check_subset ? tets_to_check[idx] : idx;
+        const int i0 = T(t, 0);
+        const int i1 = T(t, 1);
+        const int i2 = T(t, 2);
+        const int i3 = T(t, 3);
+
+        const Eigen::Vector3d p0 = V_positions.row(i0);
+        const Eigen::Vector3d p1 = V_positions.row(i1);
+        const Eigen::Vector3d p2 = V_positions.row(i2);
+        const Eigen::Vector3d p3 = V_positions.row(i3);
+
+        if (wmtk::utils::wmtk_orient3d(p0, p1, p2, p3) >= 0) {
+            if (verbose) {
+                std::cout << "Tet " << t << " is inverted" << std::endl;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+double run_naive_gradient_descent(
+    const Eigen::MatrixXi& T_joint,
+    const std::vector<TetPrecomp>& P,
+    const std::vector<int>& constraint_vids,
+    Eigen::MatrixXd& V_param,
+    bool verbose)
+{
+    Eigen::MatrixXd grad;
+    double energy = compute_energy_and_gradient_fast(
+        V_param,
+        T_joint,
+        P,
+        grad,
+        SymmetricDirichletEnergy());
+    if (verbose) {
+        std::cout << "energy: " << energy << std::endl;
+        std::cout << "grad: \n" << grad << std::endl;
+    }
+
+    zero_constraint_vertex_z(grad, constraint_vids, verbose);
+
+    if (verbose) {
+        std::cout << "After zeroing z-gradient for constraint vertices:" << std::endl;
+        std::cout << "grad: \n" << grad << std::endl;
+    }
+
+    const auto& params = kGradientDescentParameters;
+    Eigen::MatrixXd V_current = V_param;
+    double current_energy = energy;
+
+    for (int iter = 0; iter < params.max_iterations; ++iter) {
+        Eigen::MatrixXd descent_direction = -grad;
+
+        double step_size = params.initial_step_size;
+        bool valid_step_found = false;
+
+        for (int line_search_iter = 0; line_search_iter < params.max_line_search_iterations;
+             ++line_search_iter) {
+            if (verbose) {
+                std::cout << "Line search iteration " << line_search_iter
+                          << ", step size: " << step_size << std::endl;
+            }
+            Eigen::MatrixXd V_next = V_current + step_size * descent_direction;
+
+            if (has_inverted_tets(V_next, T_joint, {}, verbose)) {
+                step_size *= params.step_reduction_factor;
+                continue;
+            }
+
+            Eigen::MatrixXd new_grad;
+            double new_energy = compute_energy_and_gradient_fast(
+                V_next,
+                T_joint,
+                P,
+                new_grad,
+                SymmetricDirichletEnergy());
+
+            if (std::isnan(new_energy)) {
+                if (verbose) {
+                    std::cout << "Energy is NaN, reducing step size" << std::endl;
+                }
+                step_size *= params.step_reduction_factor;
+                continue;
+            }
+
+            if (new_energy < current_energy) {
+                V_current = V_next;
+                current_energy = new_energy;
+                grad = new_grad;
+
+                zero_constraint_vertex_z(grad, constraint_vids, verbose);
+
+                valid_step_found = true;
+                break;
+            } else {
+                if (verbose) {
+                    std::cout << "current energy: " << current_energy
+                              << " new energy: " << new_energy << std::endl;
+                }
+
+                step_size *= params.step_reduction_factor;
+            }
+        }
+
+        if (!valid_step_found) {
+            if (verbose) {
+                std::cout << "Line search failed to find a valid step at iteration " << iter
+                          << std::endl;
+            }
+            break;
+        }
+
+        double grad_norm = grad.norm();
+        if (verbose) {
+            std::cout << "Iteration " << iter << ": energy = " << current_energy
+                      << ", gradient norm = " << grad_norm << std::endl;
+        }
+
+        if (grad_norm < params.convergence_threshold) {
+            if (verbose) {
+                std::cout << "Converged after " << iter + 1 << " iterations." << std::endl;
+            }
+            break;
+        }
+    }
+
+    V_param = V_current;
+    return current_energy;
+}
+
+std::vector<std::vector<int>> build_vertex_tet_adjacency(
+    const Eigen::MatrixXi& T,
+    int vertex_count)
+{
+    std::vector<std::vector<int>> adjacency(vertex_count);
+    for (int t = 0; t < T.rows(); ++t) {
+        for (int j = 0; j < T.cols(); ++j) {
+            const int vid = T(t, j);
+            if (vid >= 0 && vid < vertex_count) {
+                adjacency[vid].push_back(t);
+            }
+        }
+    }
+    return adjacency;
+}
+
+double run_block_gradient_descent(
+    const Eigen::MatrixXi& T_joint,
+    const std::vector<TetPrecomp>& P,
+    const std::vector<int>& constraint_vids,
+    Eigen::MatrixXd& V_param,
+    bool verbose)
+{
+    Eigen::MatrixXd grad;
+    double current_energy = compute_energy_and_gradient_fast(
+        V_param,
+        T_joint,
+        P,
+        grad,
+        SymmetricDirichletEnergy());
+    zero_constraint_vertex_z(grad, constraint_vids, verbose);
+    if (verbose) {
+        std::cout << "Initial energy: " << current_energy
+                  << ", grad norm: " << grad.norm() << std::endl;
+    }
+
+    const auto& params = kGradientDescentParameters;
+    Eigen::MatrixXd V_current = V_param;
+    const std::vector<std::vector<int>> vertex_tets =
+        build_vertex_tet_adjacency(T_joint, static_cast<int>(V_param.rows()));
+
+    for (int iter = 0; iter < params.max_iterations; ++iter) {
+        bool any_step_taken = false;
+
+        for (int vid = 0; vid < V_current.rows(); ++vid) {
+            const Eigen::Vector3d descent = -grad.row(vid);
+            if (descent.squaredNorm() == 0.0) {
+                continue;
+            }
+
+            double step_size = params.initial_step_size;
+            bool block_step_found = false;
+
+            for (int line_search_iter = 0; line_search_iter < params.max_line_search_iterations;
+                 ++line_search_iter) {
+                Eigen::MatrixXd V_next = V_current;
+                V_next.row(vid) += step_size * descent;
+
+                if (has_inverted_tets(V_next, T_joint, vertex_tets[vid], verbose, false)) {
+                    step_size *= params.step_reduction_factor;
+                    continue;
+                }
+
+                Eigen::MatrixXd new_grad;
+                double new_energy = compute_energy_and_gradient_fast(
+                    V_next,
+                    T_joint,
+                    P,
+                    new_grad,
+                    SymmetricDirichletEnergy());
+
+                if (std::isnan(new_energy) || new_energy >= current_energy) {
+                    step_size *= params.step_reduction_factor;
+                    continue;
+                }
+
+                zero_constraint_vertex_z(new_grad, constraint_vids, verbose);
+
+                V_current = V_next;
+                grad = new_grad;
+                current_energy = new_energy;
+                any_step_taken = true;
+                block_step_found = true;
+                break;
+            }
+
+            if (!block_step_found && verbose) {
+                std::cout << "Line search failed for vertex " << vid << std::endl;
+            }
+        }
+
+        const double grad_norm = grad.norm();
+        if (verbose) {
+            std::cout << "Iteration " << iter << ": energy = " << current_energy
+                      << ", gradient norm = " << grad_norm << std::endl;
+        }
+
+        if (grad_norm < params.convergence_threshold) {
+            if (verbose) {
+                std::cout << "Converged after " << iter + 1 << " iterations." << std::endl;
+            }
+            break;
+        }
+
+        if (!any_step_taken) {
+            if (verbose) {
+                std::cout << "No valid block step found at iteration " << iter << std::endl;
+            }
+            break;
+        }
+    }
+
+    V_param = V_current;
+    return current_energy;
+}
+} // namespace
+
 double local_tet_joint_opt(
     const Eigen::MatrixXd& V,
     const Eigen::MatrixXi& T_before,
@@ -368,159 +655,13 @@ double local_tet_joint_opt(
         }
     }
 
-    Eigen::MatrixXd grad;
-    double energy =
-        compute_energy_and_gradient_fast(V_param, T_joint, P, grad, SymmetricDirichletEnergy());
-    if (verbose) {
-        std::cout << "energy: " << energy << std::endl;
-        std::cout << "grad: \n" << grad << std::endl;
+    const Eigen::MatrixXd V_param_before = V_param;
+    double current_energy =
+        run_block_gradient_descent(T_joint, P, constraint_vids, V_param, verbose);
+
+    if (debug_mode) {
+        debug_visualization(T_before, T_after, V, V_param_before, V_param, current_energy);
     }
-    // Set z-axis gradient to zero for all constraint vertices
-    for (const int vid : constraint_vids) {
-        if (vid >= 0 && vid < grad.rows()) {
-            // Zero out the z-component (third column) of the gradient
-            grad(vid, 2) = 0.0;
-        } else {
-            if (verbose) {
-                std::cout << "vid: " << vid << " is out of range" << std::endl;
-            }
-        }
-    }
-
-    if (verbose) {
-        std::cout << "After zeroing z-gradient for constraint vertices:" << std::endl;
-        std::cout << "grad: \n" << grad << std::endl;
-    }
-
-    // Gradient descent with line search
-    const double initial_step_size = 0.1;
-    const double step_reduction_factor = 0.5;
-    const int max_iterations = 100;
-    const double convergence_threshold = 1e-6;
-    const int max_line_search_iterations = 20;
-
-    // Create a copy of the initial parameters
-    Eigen::MatrixXd V_current = V_param;
-    double current_energy = energy;
-
-    for (int iter = 0; iter < max_iterations; ++iter) {
-        // Compute the descent direction (negative gradient)
-        Eigen::MatrixXd descent_direction = -grad;
-
-        // Line search to find appropriate step size
-        double step_size = initial_step_size;
-        bool valid_step_found = false;
-
-        for (int line_search_iter = 0; line_search_iter < max_line_search_iterations;
-             ++line_search_iter) {
-            // Print current iteration and step size
-            if (verbose) {
-                std::cout << "Line search iteration " << line_search_iter
-                          << ", step size: " << step_size << std::endl;
-            }
-            // Try the step
-            Eigen::MatrixXd V_next = V_current + step_size * descent_direction;
-
-            // Check for tet inversions
-            bool has_inverted_tets = false;
-            for (int t = 0; t < T_joint.rows(); ++t) {
-                const int i0 = T_joint(t, 0);
-                const int i1 = T_joint(t, 1);
-                const int i2 = T_joint(t, 2);
-                const int i3 = T_joint(t, 3);
-
-                const Eigen::Vector3d p0 = V_next.row(i0);
-                const Eigen::Vector3d p1 = V_next.row(i1);
-                const Eigen::Vector3d p2 = V_next.row(i2);
-                const Eigen::Vector3d p3 = V_next.row(i3);
-
-                if (wmtk::utils::wmtk_orient3d(p0, p1, p2, p3) >= 0) {
-                    has_inverted_tets = true;
-                    if (verbose) {
-                        std::cout << "Tet " << t << " is inverted" << std::endl;
-                    }
-                    break;
-                }
-            }
-
-            if (has_inverted_tets) {
-                // Reduce step size and try again
-                step_size *= step_reduction_factor;
-                continue;
-            }
-
-            // Compute energy at the new position
-            Eigen::MatrixXd new_grad;
-            double new_energy = compute_energy_and_gradient_fast(
-                V_next,
-                T_joint,
-                P,
-                new_grad,
-                SymmetricDirichletEnergy());
-            // Skip if energy is NaN
-            if (std::isnan(new_energy)) {
-                if (verbose) {
-                    std::cout << "Energy is NaN, reducing step size" << std::endl;
-                }
-                step_size *= step_reduction_factor;
-                continue;
-            }
-            // Check if energy decreased
-            if (new_energy < current_energy) {
-                // Accept the step
-                V_current = V_next;
-                current_energy = new_energy;
-                grad = new_grad;
-
-                // Set z-axis gradient to zero for all constraint vertices
-                for (const int vid : constraint_vids) {
-                    if (vid >= 0 && vid < grad.rows()) {
-                        grad(vid, 2) = 0.0;
-                    }
-                }
-
-                valid_step_found = true;
-                break;
-            } else {
-                if (verbose) {
-                    std::cout << "current energy: " << current_energy
-                              << " new energy: " << new_energy << std::endl;
-                }
-
-                // Reduce step size and try again
-                step_size *= step_reduction_factor;
-            }
-        }
-
-        if (!valid_step_found) {
-            if (verbose) {
-                std::cout << "Line search failed to find a valid step at iteration " << iter
-                          << std::endl;
-            }
-            break;
-        }
-
-        // Check for convergence
-        double grad_norm = grad.norm();
-        if (verbose) {
-            std::cout << "Iteration " << iter << ": energy = " << current_energy
-                      << ", gradient norm = " << grad_norm << std::endl;
-        }
-
-        if (grad_norm < convergence_threshold) {
-            if (verbose) {
-                std::cout << "Converged after " << iter + 1 << " iterations." << std::endl;
-            }
-            break;
-        }
-    }
-
-    if (false) {
-        // visualization for debugging
-        debug_visualization(T_before, T_after, V, V_param, V_current, current_energy);
-    }
-    // Update the output parameters
-    V_param = V_current;
     if (verbose) {
         std::cout << "Final energy: " << current_energy << std::endl;
     }

@@ -25,6 +25,11 @@
 #include <wmtk/TetMesh.hpp>
 #include <wmtk/TriMesh.hpp>
 #include <wmtk/operations/utils/TetMesh_Embedding.hpp>
+
+// VTU output utilities
+#include <sys/stat.h>
+#include "../../../bijective_map/vtu_utils.hpp"
+
 using json = nlohmann::json;
 
 // for Debugging output
@@ -931,6 +936,13 @@ bool Operation::record_tetrahedron_operation(
     const std::vector<simplex::Simplex>& mods,
     json& operation_log)
 {
+    // DEBUG: to better debug
+    {
+        std::cout << std::endl;
+        std::cout << "DEBUG: record_tetrahedron_operation" << std::endl;
+        std::cout << "Operation name: " << operation_name << std::endl;
+    }
+
     const bool is_simplex_boundary = mesh().parent_scope(
         [&](const simplex::Simplex& s) { return mesh().is_boundary(s); },
         simplex);
@@ -978,14 +990,25 @@ bool Operation::record_tetrahedron_operation(
         double min_vol_after = std::numeric_limits<double>::max();
         if (T_before.rows() > 0) {
             igl::volume(V_before, T_before, vols_before);
-            min_vol_before = vols_before.array().abs().minCoeff();
+            min_vol_before = vols_before.array().minCoeff();
         }
         if (T_after.rows() > 0) {
             igl::volume(V_after, T_after, vols_after);
-            min_vol_after = vols_after.array().abs().minCoeff();
+            min_vol_after = vols_after.array().minCoeff();
         }
         std::cout << "min vol before = " << min_vol_before << ", min vol after = " << min_vol_after
                   << std::endl;
+        // DEBUG:
+        if (min_vol_after < 1e-15) {
+            std::cout << "min vol after is too small" << std::endl;
+            return false;
+        }
+
+        // TODO:
+        if (min_vol_after / min_vol_before < 1e-3) {
+            std::cout << "operation is creating nearly degenerate tets" << std::endl;
+            return false;
+        }
     }
 
     if (operation_name == "EdgeCollapse") {
@@ -1053,6 +1076,45 @@ bool Operation::record_tetrahedron_operation(
                         return false;
                     }
                 }
+            }
+
+            // Output VTU files for T_before and T_after (synchronized with embed_mesh_lift)
+            {
+                static int edge_collapse_vtu_count = 0;
+                std::string vtu_output_dir = OperationLogPath + "/embed_mesh_lift_vtu";
+                struct stat st;
+                if (stat(vtu_output_dir.c_str(), &st) != 0) {
+                    mkdir(vtu_output_dir.c_str(), 0755);
+                }
+
+                std::string call_id = std::to_string(edge_collapse_vtu_count);
+
+                // Compute volumes
+                Eigen::VectorXd volumes_before, volumes_after;
+                igl::volume(V_before, T_before, volumes_before);
+                igl::volume(V_after, T_after, volumes_after);
+
+                double min_vol_before = volumes_before.array().abs().minCoeff();
+                double min_vol_after = volumes_after.array().abs().minCoeff();
+
+                std::cout << "\n=== BOUNDARY EDGE COLLAPSE (call " << edge_collapse_vtu_count
+                          << ") ===" << std::endl;
+                std::cout << "T_before: min_vol = " << min_vol_before
+                          << ", num_tets = " << T_before.rows() << std::endl;
+                std::cout << "T_after: min_vol = " << min_vol_after
+                          << ", num_tets = " << T_after.rows() << std::endl;
+
+                // Save T_before and V_before
+                std::string before_file = vtu_output_dir + "/T_before_embed_" + call_id + ".vtu";
+                vtu_utils::write_tet_mesh_to_vtu(V_before, T_before, before_file);
+                std::cout << "Wrote T_before to: " << before_file << std::endl;
+
+                // Save T_after and V_after
+                std::string after_file = vtu_output_dir + "/T_after_embed_" + call_id + ".vtu";
+                vtu_utils::write_tet_mesh_to_vtu(V_after, T_after, after_file);
+                std::cout << "Wrote T_after to: " << after_file << std::endl;
+
+                edge_collapse_vtu_count++;
             }
 
             const int v1 =

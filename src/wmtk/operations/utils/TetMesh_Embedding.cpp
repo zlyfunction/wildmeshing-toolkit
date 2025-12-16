@@ -4,18 +4,26 @@
 #include <igl/colormap.h>
 #include <igl/harmonic.h>
 #include <igl/map_vertices_to_circle.h>
+#include <igl/volume.h>
 #ifdef USE_IGL_VIEWER
 #include <igl/opengl/glfw/Viewer.h>
 #endif
 #include <igl/remove_unreferenced.h>
 #include <spdlog/spdlog.h>
+#include <sys/stat.h>
 #include <algorithm>
 #include <array>
 #include <map>
 #include <queue>
 #include <set>
+#include "../../../../bijective_map/vtu_utils.hpp"
 #include "local_tet_joint_opt.hpp"
 #include "to_three_connected.hpp"
+
+#ifdef WMTK_RECORD_OPERATIONS
+#include <wmtk/Record_Operations.hpp>
+#endif
+
 namespace wmtk::operations::utils {
 
 std::vector<int> embed_mesh(const Eigen::MatrixXi& T, const Eigen::MatrixXi& F_bd)
@@ -1067,6 +1075,12 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
         is_tutte_embedding_failed = true;
         // throw std::runtime_error("Invalid UV orientation detected.");
     }
+
+    if (is_tutte_embedding_failed) {
+        std::cout << "Error: Tutte embedding failed!" << std::endl;
+        return Eigen::MatrixXd();
+    }
+
     {
         std::cout << "F_list = [";
         for (const auto& face : F_list_vec) {
@@ -1133,8 +1147,10 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
     bool is_lift_failed =
         !(check_embedding_validity(T_3_connected, V_param) &&
           check_embedding_validity(T_3_connected_collapsed, V_param));
-    if (is_tutte_embedding_failed || is_lift_failed) {
-        utils::visualize_tet_mesh(V_param, T_3_connected);
+
+    if (is_lift_failed) {
+        std::cout << "Error: lift failed!" << std::endl;
+        return Eigen::MatrixXd();
     }
 
     // Get bottom plane vertices (boundary loop of F_top + v0)
@@ -1149,12 +1165,96 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
             bottom_plane_vids.push_back(boundary_loop(i));
         }
     }
+
+    // Output VTU files before optimization
+    {
+        static int embed_call_count = 0;
+        std::string vtu_output_dir = OperationLogPath + "/embed_mesh_lift_vtu";
+        struct stat st;
+        if (stat(vtu_output_dir.c_str(), &st) != 0) {
+            mkdir(vtu_output_dir.c_str(), 0755);
+        }
+
+        std::string call_id = std::to_string(embed_call_count);
+
+        // Compute volumes before optimization
+        Eigen::VectorXd volumes_3conn, volumes_collapsed;
+        igl::volume(V_param, T_3_connected, volumes_3conn);
+        igl::volume(V_param, T_3_connected_collapsed, volumes_collapsed);
+
+        double min_vol_3conn = volumes_3conn.array().abs().minCoeff();
+        double min_vol_collapsed = volumes_collapsed.array().abs().minCoeff();
+
+        std::cout << "\n=== BEFORE OPTIMIZATION (embed call " << embed_call_count
+                  << ") ===" << std::endl;
+        std::cout << "T_3_connected: min_vol = " << min_vol_3conn
+                  << ", num_tets = " << T_3_connected.rows() << std::endl;
+        std::cout << "T_3_connected_collapsed: min_vol = " << min_vol_collapsed
+                  << ", num_tets = " << T_3_connected_collapsed.rows() << std::endl;
+
+        // Save T_3_connected and V_param before optimization
+        std::string before_3conn_file =
+            vtu_output_dir + "/T_3_connected_before_opt_embed_" + call_id + ".vtu";
+        vtu_utils::write_tet_mesh_to_vtu(V_param, T_3_connected, before_3conn_file);
+        std::cout << "Wrote T_3_connected before opt to: " << before_3conn_file << std::endl;
+
+        // Save T_3_connected_collapsed and V_param before optimization
+        std::string before_collapsed_file =
+            vtu_output_dir + "/T_3_connected_collapsed_before_opt_embed_" + call_id + ".vtu";
+        vtu_utils::write_tet_mesh_to_vtu(V_param, T_3_connected_collapsed, before_collapsed_file);
+        std::cout << "Wrote T_3_connected_collapsed before opt to: " << before_collapsed_file
+                  << std::endl;
+
+        embed_call_count++;
+    }
+
     double energy = utils::local_tet_joint_opt(
         V,
         T_3_connected,
         T_3_connected_collapsed,
         V_param,
-        bottom_plane_vids);
+        bottom_plane_vids,
+        false,
+        true);
+
+    // Output VTU files after optimization
+    {
+        static int embed_call_count_after = 0;
+        std::string vtu_output_dir = OperationLogPath + "/embed_mesh_lift_vtu";
+
+        std::string call_id = std::to_string(embed_call_count_after);
+
+        // Compute volumes after optimization
+        Eigen::VectorXd volumes_3conn_after, volumes_collapsed_after;
+        igl::volume(V_param, T_3_connected, volumes_3conn_after);
+        igl::volume(V_param, T_3_connected_collapsed, volumes_collapsed_after);
+
+        double min_vol_3conn_after = volumes_3conn_after.array().abs().minCoeff();
+        double min_vol_collapsed_after = volumes_collapsed_after.array().abs().minCoeff();
+
+        std::cout << "\n=== AFTER OPTIMIZATION (embed call " << embed_call_count_after
+                  << ") ===" << std::endl;
+        std::cout << "T_3_connected: min_vol = " << min_vol_3conn_after
+                  << ", num_tets = " << T_3_connected.rows() << std::endl;
+        std::cout << "T_3_connected_collapsed: min_vol = " << min_vol_collapsed_after
+                  << ", num_tets = " << T_3_connected_collapsed.rows() << std::endl;
+        std::cout << "Optimization energy: " << energy << std::endl;
+
+        // Save T_3_connected and V_param after optimization
+        std::string after_3conn_file =
+            vtu_output_dir + "/T_3_connected_after_opt_embed_" + call_id + ".vtu";
+        vtu_utils::write_tet_mesh_to_vtu(V_param, T_3_connected, after_3conn_file);
+        std::cout << "Wrote T_3_connected after opt to: " << after_3conn_file << std::endl;
+
+        // Save T_3_connected_collapsed and V_param after optimization
+        std::string after_collapsed_file =
+            vtu_output_dir + "/T_3_connected_collapsed_after_opt_embed_" + call_id + ".vtu";
+        vtu_utils::write_tet_mesh_to_vtu(V_param, T_3_connected_collapsed, after_collapsed_file);
+        std::cout << "Wrote T_3_connected_collapsed after opt to: " << after_collapsed_file
+                  << std::endl;
+
+        embed_call_count_after++;
+    }
 
     if (energy > 1e5) {
         std::cout << "Local tet joint optimization failed with energy: " << energy << std::endl;
@@ -1164,6 +1264,8 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
     std::cout << "Total failure count: " << failure_count << std::endl;
     std::cout << "Total count: " << total_count << std::endl;
     if (edge_split_count > 0) {
+        std::cout << "Current implementation not supported for handling non 3-connected meshes"
+                  << std::endl;
         // TODO: delete this
         return Eigen::MatrixXd();
     }
