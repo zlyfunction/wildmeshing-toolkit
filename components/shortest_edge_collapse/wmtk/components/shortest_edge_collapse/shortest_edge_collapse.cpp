@@ -22,6 +22,7 @@
 #include <wmtk/operations/attribute_update/AttributeTransferStrategy.hpp>
 #include <wmtk/utils/Logger.hpp>
 
+#include <bitset>
 
 namespace wmtk::components::shortest_edge_collapse {
 
@@ -207,6 +208,17 @@ void shortest_edge_collapse(Mesh& mesh_in, const ShortestEdgeCollapseOptions& op
             std::make_shared<SimplexInversionInvariant<double>>(h.mesh(), h.as<double>()));
     }
 
+    // Prefer boundary vertex if only one endpoint is boundary; otherwise keep the first endpoint
+    // instead of averaging. This avoids mid-edge snapping even when both endpoints share the same
+    // boundary status.
+    auto position_collapse_no_mean =
+        [](const Eigen::VectorXd& a, const Eigen::VectorXd& b, const std::bitset<2>& bs) {
+            if (bs[0] != bs[1]) {
+                return bs[0] ? a : b;
+            }
+            return b; // compatible with local tet patch fetching
+        };
+
     collapse->set_new_attribute_strategy(
         visited_edge_flag,
         wmtk::operations::CollapseBasicStrategy::None);
@@ -224,7 +236,7 @@ void shortest_edge_collapse(Mesh& mesh_in, const ShortestEdgeCollapseOptions& op
             auto pos_collapse_strategy =
                 std::make_shared<wmtk::operations::CollapseNewAttributeStrategy<double>>(
                     pos_handle);
-            pos_collapse_strategy->set_strategy(wmtk::operations::CollapseBasicStrategy::Default);
+            pos_collapse_strategy->set_strategy(position_collapse_no_mean);
             pos_collapse_strategy->set_simplex_predicate(
                 wmtk::operations::BasicSimplexPredicate::IsInterior);
             collapse->set_new_attribute_strategy(pos_handle, pos_collapse_strategy);
@@ -235,7 +247,7 @@ void shortest_edge_collapse(Mesh& mesh_in, const ShortestEdgeCollapseOptions& op
             auto pos_collapse_strategy =
                 std::make_shared<wmtk::operations::CollapseNewAttributeStrategy<double>>(
                     pos_handle);
-            pos_collapse_strategy->set_strategy(wmtk::operations::CollapseBasicStrategy::Default);
+            pos_collapse_strategy->set_strategy(position_collapse_no_mean);
             pos_collapse_strategy->set_simplex_predicate(
                 wmtk::operations::BasicSimplexPredicate::IsInterior);
             collapse->set_new_attribute_strategy(pos_handle, pos_collapse_strategy);
