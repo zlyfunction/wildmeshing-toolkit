@@ -3,6 +3,8 @@
 
 #include <wmtk/utils/tetmesh_topology_initialization.h>
 #include <numeric>
+#include <queue>
+#include <set>
 #include <wmtk/autogen/tet_mesh/is_ccw.hpp>
 #include <wmtk/autogen/tet_mesh/local_switch_tuple.hpp>
 #include <wmtk/simplex/SimplexCollection.hpp>
@@ -394,6 +396,101 @@ bool TetMesh::is_boundary_vertex(const Tuple& vertex) const
     }
 
     return false;
+}
+
+bool TetMesh::is_vertex_manifold(const Tuple& vertex) const
+{
+    // A vertex is manifold if the set of tetrahedra around it forms a single connected component
+    // We use a flood-fill algorithm to check if all tets around the vertex are connected through face adjacency
+
+    // Get all tetrahedra incident to this vertex
+    const simplex::SimplexCollection neigh =
+        wmtk::simplex::open_star(*this, simplex::Simplex::vertex(*this, vertex));
+    const std::vector<simplex::Simplex>& tets = neigh.simplex_vector(PrimitiveType::Tetrahedron);
+
+    if (tets.empty()) {
+        return true; // No tets around vertex - technically manifold
+    }
+
+    // Create a set of unvisited tet IDs
+    std::set<int64_t> unvisited;
+    for (const simplex::Simplex& s : tets) {
+        unvisited.insert(id(s.tuple(), PrimitiveType::Tetrahedron));
+    }
+
+    // Start flood-fill from the first tet
+    std::queue<int64_t> to_visit;
+    int64_t start_tet_id = *unvisited.begin();
+    to_visit.push(start_tet_id);
+    unvisited.erase(start_tet_id);
+
+    // Flood-fill through face-adjacent tets that share this vertex
+    const int64_t vertex_id = id(vertex, PrimitiveType::Vertex);
+
+    while (!to_visit.empty()) {
+        int64_t current_tet_id = to_visit.front();
+        to_visit.pop();
+
+        // Check all 4 faces of current tet
+        Tuple current_tuple = tet_tuple_from_id(current_tet_id);
+        for (int i = 0; i < 4; ++i) {
+            // Get tuple for face i
+            const auto [lvid, leid, lfid] = autogen::tet_mesh::auto_3d_table_complete_face[i];
+            Tuple face_tuple = Tuple(lvid, leid, lfid, current_tet_id);
+
+            // Check if this is a boundary face
+            if (is_boundary_face(face_tuple)) {
+                continue;
+            }
+
+            // Get the neighboring tet through this face
+            Tuple neighbor_tuple = switch_tetrahedron(face_tuple);
+            int64_t neighbor_tet_id = id(neighbor_tuple, PrimitiveType::Tetrahedron);
+
+            // Check if neighbor also contains the vertex we're testing
+            bool neighbor_has_vertex = false;
+            auto tv = m_tv_accessor->index_access().const_vector_attribute<4>(neighbor_tet_id);
+            for (int j = 0; j < 4; ++j) {
+                if (tv(j) == vertex_id) {
+                    neighbor_has_vertex = true;
+                    break;
+                }
+            }
+
+            // If neighbor has the vertex and hasn't been visited, add to queue
+            if (neighbor_has_vertex && unvisited.count(neighbor_tet_id) > 0) {
+                to_visit.push(neighbor_tet_id);
+                unvisited.erase(neighbor_tet_id);
+            }
+        }
+    }
+
+    // If there are still unvisited tets, the vertex is non-manifold
+    return unvisited.empty();
+}
+
+bool TetMesh::is_vertex_manifold() const
+{
+    // Check if all vertices in the mesh are manifold
+    // Get accessors for connectivity checking
+    const attribute::Accessor<char> v_flag_accessor = get_flag_accessor(PrimitiveType::Vertex);
+
+    // Iterate through all vertices
+    for (int64_t i = 0; i < capacity(PrimitiveType::Vertex); ++i) {
+        // Skip deleted vertices
+        if (v_flag_accessor.index_access().const_scalar_attribute(i) == 0) {
+            continue;
+        }
+
+        // Get a tuple for this vertex and check if it's manifold
+        Tuple vertex_tuple = vertex_tuple_from_id(i);
+        if (!is_vertex_manifold(vertex_tuple)) {
+            wmtk::logger().info("Vertex {} is non-manifold", i);
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool TetMesh::is_connectivity_valid() const

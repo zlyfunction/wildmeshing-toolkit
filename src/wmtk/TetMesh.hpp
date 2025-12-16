@@ -77,6 +77,9 @@ public:
     bool is_boundary_edge(const Tuple& tuple) const;
     bool is_boundary_face(const Tuple& tuple) const;
 
+    bool is_vertex_manifold(const Tuple& tuple) const;
+    bool is_vertex_manifold() const; // Check if all vertices in the mesh are manifold
+
     bool is_valid(const Tuple& tuple) const final override;
 
     void initialize(

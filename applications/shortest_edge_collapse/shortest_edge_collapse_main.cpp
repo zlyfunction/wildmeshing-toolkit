@@ -4,6 +4,7 @@
 #include <nlohmann/json.hpp>
 
 #include <wmtk/Mesh.hpp>
+#include <wmtk/TetMesh.hpp>
 #include <wmtk/utils/Logger.hpp>
 
 #include <wmtk/components/input/input.hpp>
@@ -16,6 +17,11 @@
 #ifdef WMTK_RECORD_OPERATIONS
 #include <wmtk/Record_Operations.hpp>
 #endif
+
+// For volume computation
+#include <igl/volume.h>
+#include <iomanip>
+
 using namespace wmtk;
 namespace fs = std::filesystem;
 
@@ -108,6 +114,49 @@ int main(int argc, char* argv[])
     }
 
     Mesh& mesh = *mesh_in;
+
+    // Compute input mesh statistics (especially minimum volume for TetMesh)
+    if (mesh.top_simplex_type() == PrimitiveType::Tetrahedron) {
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "INPUT MESH STATISTICS" << std::endl;
+        std::cout << "========================================" << std::endl;
+
+        TetMesh& tet_mesh = static_cast<TetMesh&>(mesh);
+
+        // Get T and V matrices using built-in function
+        auto [T, V] = tet_mesh.get_TV();
+
+        std::cout << "Number of tetrahedra: " << T.rows() << std::endl;
+        std::cout << "Number of vertices: " << V.rows() << std::endl;
+
+        // Compute volumes using igl
+        Eigen::VectorXd volumes;
+        igl::volume(V, T, volumes);
+
+        double min_vol = volumes.array().abs().minCoeff();
+        double max_vol = volumes.array().abs().maxCoeff();
+        double avg_vol = volumes.array().abs().mean();
+
+        // Count negative and near-zero volumes
+        int neg_vol_count = (volumes.array() < 0).count();
+        int zero_vol_count = (volumes.array().abs() < 1e-15).count();
+
+        std::cout << std::scientific << std::setprecision(6);
+        std::cout << "Minimum absolute volume: " << min_vol << std::endl;
+        std::cout << "Maximum absolute volume: " << max_vol << std::endl;
+        std::cout << "Average absolute volume: " << avg_vol << std::endl;
+        std::cout << "Number of negative volume tets: " << neg_vol_count << std::endl;
+        std::cout << "Number of near-zero volume tets (|vol| < 1e-15): " << zero_vol_count << std::endl;
+
+        if (neg_vol_count > 0) {
+            std::cout << "WARNING: Input mesh contains inverted tetrahedra!" << std::endl;
+        }
+        if (zero_vol_count > 0) {
+            std::cout << "WARNING: Input mesh contains degenerate tetrahedra!" << std::endl;
+        }
+
+        std::cout << "========================================\n" << std::endl;
+    }
 
     // shortest-edge collapse
     {
