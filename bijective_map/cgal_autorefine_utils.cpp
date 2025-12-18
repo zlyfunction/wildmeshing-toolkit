@@ -372,6 +372,9 @@ AutorefineResult autorefine_sampled_triangles(
             common_tets.swap(temp);
         }
 
+        if (common_tets.empty()) {
+            throw std::runtime_error("No common tet found for sampled fragment triangle.");
+        }
         const int assigned_tet = common_tets.empty() ? -1 : *common_tets.begin();
         sampled_fragment_tet_list.push_back(assigned_tet);
         if (assigned_tet != -1 && tri_idx < static_cast<std::size_t>(origin_tet_ids.size())) {
