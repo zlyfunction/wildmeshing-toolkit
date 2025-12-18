@@ -13,7 +13,9 @@
 #include <limits>
 #include <map>
 #include <set>
+#include <sstream>
 #include <string>
+#include <vector>
 #include "batch_operation_log_reader.hpp"
 #include "cgal_autorefine_utils_rational.hpp"
 #include "tet_point_tracking.hpp"
@@ -91,7 +93,164 @@ bool check_surface_manifold_property(const std::vector<Eigen::Vector3i>& surface
     if (!is_vertex_manifold_result) {
         std::cout << "Surface is not vertex manifold (igl::is_vertex_manifold=false)" << std::endl;
     }
-    return is_edge_manifold_result && is_vertex_manifold_result;
+
+    // Detailed vertex-manifold diagnostics (similar spirit to igl::is_vertex_manifold)
+    int max_vid = -1;
+    for (const auto& tri : surface_F) {
+        for (int j = 0; j < 3; ++j) {
+            max_vid = std::max(max_vid, tri(j));
+        }
+    }
+    std::vector<std::vector<int>> incident_faces(max_vid + 1);
+    std::vector<std::vector<std::pair<int, int>>> star_edges(max_vid + 1);
+    for (int fid = 0; fid < static_cast<int>(surface_F.size()); ++fid) {
+        const auto& tri = surface_F[fid];
+        for (int j = 0; j < 3; ++j) {
+            const int v = tri(j);
+            const int n0 = tri((j + 1) % 3);
+            const int n1 = tri((j + 2) % 3);
+            incident_faces[v].push_back(fid);
+            star_edges[v].emplace_back(n0, n1);
+        }
+    }
+
+    auto boundary_edge_count_for_vertex = [&](int v) {
+        int count = 0;
+        for (const auto& e : edge_count) {
+            if ((e.first.first == v || e.first.second == v) && e.second == 1) {
+                count++;
+            }
+        }
+        return count;
+    };
+
+    std::vector<int> problematic_vertices;
+    std::vector<std::string> problematic_reasons;
+    for (int v = 0; v <= max_vid; ++v) {
+        if (incident_faces[v].empty()) {
+            problematic_vertices.push_back(v);
+            problematic_reasons.emplace_back("unreferenced (no incident faces)");
+            continue;
+        }
+
+        // Build adjacency of the one-ring neighbors via faces incident to v
+        std::map<int, std::set<int>> neighbor_adj;
+        std::map<std::pair<int, int>, int> local_edge_mult;
+        int degenerate_faces = 0;
+        for (const auto& nb_pair : star_edges[v]) {
+            int a = nb_pair.first;
+            int b = nb_pair.second;
+            if (a == b) {
+                degenerate_faces++;
+                continue;
+            }
+            int lo = std::min(a, b);
+            int hi = std::max(a, b);
+            local_edge_mult[{lo, hi}]++;
+            neighbor_adj[a].insert(b);
+            neighbor_adj[b].insert(a);
+        }
+
+        // Count connected components in neighbor adjacency
+        int components = 0;
+        std::set<int> visited;
+        for (const auto& kv : neighbor_adj) {
+            const int start = kv.first;
+            if (visited.count(start)) continue;
+            components++;
+            std::vector<int> stack = {start};
+            visited.insert(start);
+            while (!stack.empty()) {
+                const int cur = stack.back();
+                stack.pop_back();
+                const auto it = neighbor_adj.find(cur);
+                if (it == neighbor_adj.end()) continue;
+                for (int nb : it->second) {
+                    if (visited.insert(nb).second) {
+                        stack.push_back(nb);
+                    }
+                }
+            }
+        }
+
+        int deg_one_count = 0;
+        int deg_gt_two_count = 0;
+        for (const auto& kv : neighbor_adj) {
+            const int deg = static_cast<int>(kv.second.size());
+            if (deg == 1) deg_one_count++;
+            if (deg > 2) deg_gt_two_count++;
+        }
+
+        int duplicate_pairs = 0;
+        for (const auto& kv : local_edge_mult) {
+            if (kv.second > 1) duplicate_pairs++;
+        }
+
+        const int boundary_edges = boundary_edge_count_for_vertex(v);
+        const bool is_boundary_vertex = boundary_edges > 0;
+
+        bool is_vertex_ok = true;
+        std::ostringstream reason;
+        if (degenerate_faces > 0) {
+            is_vertex_ok = false;
+            reason << "degenerate incident faces (" << degenerate_faces
+                   << " with repeated neighbors)";
+        } else if (duplicate_pairs > 0) {
+            is_vertex_ok = false;
+            reason << "duplicate neighbor pairs around vertex (" << duplicate_pairs
+                   << " repeated fan edges)";
+        } else if (components != 1) {
+            is_vertex_ok = false;
+            reason << "incident fan splits into " << components << " components";
+        } else if (is_boundary_vertex) {
+            // Expect a single open chain: exactly two degree-1 neighbors, others degree-2
+            if (deg_one_count != 2 || deg_gt_two_count > 0) {
+                is_vertex_ok = false;
+                reason << "boundary fan not a single chain (deg1=" << deg_one_count
+                       << ", deg>2=" << deg_gt_two_count << ", boundary_edges=" << boundary_edges
+                       << ")";
+            }
+        } else {
+            // Interior vertex: expect a single cycle (all degrees = 2)
+            if (deg_one_count > 0 || deg_gt_two_count > 0) {
+                is_vertex_ok = false;
+                reason << "interior fan not a single loop (deg1=" << deg_one_count
+                       << ", deg>2=" << deg_gt_two_count << ")";
+            } else if (neighbor_adj.empty()) {
+                is_vertex_ok = false;
+                reason << "no valid neighbor adjacency after filtering degenerate faces";
+            } else {
+                // Check for any degree different from 2 explicitly
+                for (const auto& kv : neighbor_adj) {
+                    if (kv.second.size() != 2) {
+                        is_vertex_ok = false;
+                        reason << "interior neighbor degree mismatch (found " << kv.second.size()
+                               << ")";
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!is_vertex_ok) {
+            problematic_vertices.push_back(v);
+            std::ostringstream oss;
+            oss << reason.str() << " [neighbors=" << neighbor_adj.size()
+                << ", components=" << components << ", boundary_edges=" << boundary_edges << "]";
+            problematic_reasons.push_back(oss.str());
+        }
+    }
+
+    if (!problematic_vertices.empty()) {
+        std::cout << "Non-manifold vertex details:" << std::endl;
+        for (size_t i = 0; i < problematic_vertices.size(); ++i) {
+            std::cout << "  vid " << problematic_vertices[i] << ": " << problematic_reasons[i]
+                      << std::endl;
+        }
+    }
+
+    const bool detailed_vertex_ok = problematic_vertices.empty();
+    return is_edge_manifold_result && is_vertex_manifold_result && detailed_vertex_ok;
 }
 
 namespace {
@@ -1000,15 +1159,7 @@ void surface_triangle_arrangement(
             std::cout << "=== End of self-intersection check ===" << std::endl;
         }
         { // Check manifold property before simplification
-            std::cout << "\n=== Checking surface manifold property before simplification ==="
-                      << std::endl;
-            bool is_manifold = check_surface_manifold_property(surface.query_triangles);
-            std::cout << "  Surface is " << (is_manifold ? "manifold" : "NOT manifold")
-                      << std::endl;
-            if (!is_manifold) {
-                throw std::runtime_error(
-                    "Surface is not manifold before simplification. Cannot proceed.");
-            }
+
             // Check for unreferenced points
             std::set<int> referenced_points;
             for (const auto& tri : surface.query_triangles) {
@@ -1040,7 +1191,6 @@ void surface_triangle_arrangement(
             } else {
                 std::cout << "  All points are referenced by triangles" << std::endl;
             }
-            std::cout << "=== End of pre-simplification checks ===" << std::endl;
             // Remove unreferenced points before simplification
             if (!unreferenced_points.empty()) {
                 std::cout << "\n=== Removing unreferenced points before simplification ==="
@@ -1096,6 +1246,17 @@ void surface_triangle_arrangement(
                           << std::endl;
                 std::cout << "=== End of removing unreferenced points ===" << std::endl;
             }
+            std::cout << "\n=== Checking surface manifold property before simplification ==="
+                      << std::endl;
+            bool is_manifold = check_surface_manifold_property(surface.query_triangles);
+            std::cout << "  Surface is " << (is_manifold ? "manifold" : "NOT manifold")
+                      << std::endl;
+            if (!is_manifold) {
+                throw std::runtime_error(
+                    "Surface is not manifold before simplification. Cannot proceed.");
+            }
+
+            std::cout << "=== End of pre-simplification checks ===" << std::endl;
         }
 
         if (do_simplify) {
