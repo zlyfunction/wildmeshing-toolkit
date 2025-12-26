@@ -431,6 +431,7 @@ void surface_triangle_arrangement(
     bool do_simplify)
 {
     // verbose = true;
+    // save_debug_meshes = true;
     std::vector<int> face_ids;
     for (int i = 0; i < surface.query_triangles.size(); i++) {
         if (std::find(id_map_after.begin(), id_map_after.end(), surface.tet_ids[i]) !=
@@ -456,7 +457,13 @@ void surface_triangle_arrangement(
                     std::cout << std::setprecision(16) << pt.bc[bc_i].to_double();
                     if (bc_i < 3) std::cout << ", ";
                 }
+                std::cout << " ], tv_ids: [";
+                for (int tv_i = 0; tv_i < 4; ++tv_i) {
+                    std::cout << pt.tv_ids(tv_i);
+                    if (tv_i < 3) std::cout << ", ";
+                }
                 std::cout << "] }";
+
                 if (vi < 2) std::cout << ",";
                 std::cout << "\n";
             }
@@ -552,7 +559,7 @@ void surface_triangle_arrangement(
                 }
             }
             if (sampled_pt.tet_index == -1) {
-                std::cout << "Warning: failed to find the alternative representation for this "
+                std::cout << "Error: failed to find the alternative representation for this "
                              "point in this local patch"
                           << std::endl;
                 throw std::runtime_error("Failed to find the alternative representation for this "
@@ -590,7 +597,8 @@ void surface_triangle_arrangement(
             V_before,
             T_before,
             sampled_points,
-            local_triangles_F);
+            local_triangles_F,
+            verbose);
     auto autorefine_end = std::chrono::high_resolution_clock::now();
     auto autorefine_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(autorefine_end - autorefine_start);
@@ -1284,6 +1292,8 @@ void handle_local_mapping_operation(
     query_surface_tet_with_connectivity& surface,
     int operation_id,
     bool do_rounding,
+    bool verbose,
+    bool save_debug_meshes,
     bool do_simplify,
     bool only_do_arrangement_once)
 {
@@ -1309,8 +1319,6 @@ void handle_local_mapping_operation(
     std::cout << "Step1 (point mapping) took " << step1_duration.count() << " ms" << std::endl;
     if (!only_do_arrangement_once) {
         auto step2_start = std::chrono::high_resolution_clock::now();
-        bool save_debug_meshes = false;
-        bool verbose = false;
         surface_triangle_arrangement(
             V_before,
             T_before,
@@ -1343,6 +1351,8 @@ void track_one_operation(
     bool do_forward,
     int operation_id,
     bool do_rounding,
+    bool verbose,
+    bool save_debug_meshes,
     bool do_simplify,
     bool only_do_arrangement_once)
 {
@@ -1399,6 +1409,8 @@ void track_one_operation(
                 surface,
                 operation_id,
                 do_rounding,
+                verbose,
+                save_debug_meshes,
                 do_simplify,
                 only_do_arrangement_once);
         } else {
@@ -1414,6 +1426,8 @@ void track_one_operation(
                 surface,
                 operation_id,
                 do_rounding,
+                verbose,
+                save_debug_meshes,
                 do_simplify,
                 only_do_arrangement_once);
         }
@@ -1483,7 +1497,11 @@ void track_all_operations(
             surface,
             do_forward,
             static_cast<int>(operation_index),
-            do_rounding);
+            do_rounding,
+            false,
+            false,
+            false,
+            false);
     }
     std::cout << "\n=== All operations completed ===" << std::endl;
     std::cout << "Final surface state: " << surface.points.size() << " points, "

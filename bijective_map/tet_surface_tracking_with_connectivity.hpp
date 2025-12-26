@@ -61,6 +61,8 @@ void write_surface_to_vtu(
  * @param save_dir Directory to save intermediate surfaces (empty = don't save)
  * @param do_rounding Whether to round barycentric coordinates during tracking (default: false)
  * @param do_simplify Whether to simplify refined triangles by removing interior points (default: false)
+ * @param verbose Whether to print verbose output in surface arrangement (default: false)
+ * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
  * @param only_do_arrangement_once Whether to perform final autorefine on before mesh (default: true)
  */
 void run_backward_tracking_surface(
@@ -76,6 +78,8 @@ void run_backward_tracking_surface(
     const std::filesystem::path& save_dir = std::filesystem::path(),
     bool do_rounding = false,
     bool do_simplify = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
     bool only_do_arrangement_once = false);
 
 /**

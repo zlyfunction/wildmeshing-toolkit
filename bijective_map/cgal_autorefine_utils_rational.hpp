@@ -70,7 +70,7 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     const Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3>& V,
     const Eigen::MatrixXi& T,
     const std::vector<SampledPointInputRational>& sampled_points,
-    const Eigen::MatrixXi& sampled_faces);
+    const Eigen::MatrixXi& sampled_faces,
+    bool verbose = false);
 
 } // namespace cgal_autorefine_demo
-

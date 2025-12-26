@@ -35,6 +35,8 @@ int main(int argc, char** argv)
     std::filesystem::path save_dir;
     bool do_rounding = false;
     bool do_simplify = false;
+    bool surface_verbose = false;
+    bool save_debug_meshes = false;
     bool only_do_arrangement_once = false;
     // CLI options (used if no config file)
     app.add_option("-a, --app", application_name, "Application name");
@@ -50,6 +52,11 @@ int main(int argc, char** argv)
     app.add_option("--save-dir", save_dir, "Directory to save intermediate surfaces");
     app.add_option("--do-rounding", do_rounding, "Round barycentric coordinates");
     app.add_option("--do-simplify", do_simplify, "Simplify refined triangles");
+    app.add_option("--surface-verbose", surface_verbose, "Verbose output in surface arrangement");
+    app.add_option(
+        "--save-debug-meshes",
+        save_debug_meshes,
+        "Save debug meshes in surface arrangement");
     app.add_option(
         "--only-do-arrangement-once",
         only_do_arrangement_once,
@@ -80,6 +87,9 @@ int main(int argc, char** argv)
         if (config.contains("save_dir")) save_dir = config["save_dir"].get<std::string>();
         if (config.contains("do_rounding")) do_rounding = config["do_rounding"].get<bool>();
         if (config.contains("do_simplify")) do_simplify = config["do_simplify"].get<bool>();
+        if (config.contains("verbose")) surface_verbose = config["verbose"].get<bool>();
+        if (config.contains("save_debug_meshes"))
+            save_debug_meshes = config["save_debug_meshes"].get<bool>();
         if (config.contains("only_do_arrangement_once"))
             only_do_arrangement_once = config["only_do_arrangement_once"].get<bool>();
     }
@@ -101,6 +111,8 @@ int main(int argc, char** argv)
     std::cout << "  save_dir: " << save_dir << std::endl;
     std::cout << "  do_rounding: " << do_rounding << std::endl;
     std::cout << "  do_simplify: " << do_simplify << std::endl;
+    std::cout << "  verbose: " << surface_verbose << std::endl;
+    std::cout << "  save_debug_meshes: " << save_debug_meshes << std::endl;
     std::cout << "  only_do_arrangement_once: " << only_do_arrangement_once << std::endl;
     auto init_mesh_ptr = wmtk::read_mesh(initial_mesh_file);
     // Get T_before and V_before from init_mesh_ptr using get_TV()
@@ -174,6 +186,8 @@ int main(int argc, char** argv)
             save_dir,
             do_rounding,
             do_simplify,
+            surface_verbose,
+            save_debug_meshes,
             only_do_arrangement_once);
     }
     return 0;

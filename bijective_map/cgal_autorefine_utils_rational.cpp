@@ -95,11 +95,15 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     const Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3>& V,
     const Eigen::MatrixXi& T,
     const std::vector<SampledPointInputRational>& sampled_points,
-    const Eigen::MatrixXi& sampled_faces)
+    const Eigen::MatrixXi& sampled_faces,
+    bool verbose)
 {
     AutorefineResultRational result;
 
     std::vector<RationalPoint> points = rational_vertices_to_points(V);
+    // Track whether a point originated from the query/sampled vertices (true) or from the tet mesh
+    // /CGAL refinements (false).
+    std::vector<bool> vertex_from_query(points.size(), false);
     std::vector<Triangle> triangles;
     triangles.reserve(
         static_cast<std::size_t>(T.rows() * 4) + static_cast<std::size_t>(sampled_faces.rows()));
@@ -110,7 +114,9 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     const auto tet_triangles = extract_all_tet_triangles(T);
     // std::cout << "T:\n" << T << std::endl;
-    std::cout << "tet_triangles size: " << tet_triangles.size() << std::endl;
+    if (verbose) {
+        std::cout << "tet_triangles size: " << tet_triangles.size() << std::endl;
+    }
     for (const TetTriangle& face : tet_triangles) {
         triangles.push_back(face.triangle);
         std::vector<int> parent_ids;
@@ -121,8 +127,10 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         triangle_parent_tets.push_back(std::move(parent_ids));
         triangle_sample_ids.push_back(-1);
     }
-    std::cout << "TET size: " << tet_triangles.size() << std::endl;
-    std::cout << "triangles size: " << triangles.size() << std::endl;
+    if (verbose) {
+        std::cout << "TET size: " << tet_triangles.size() << std::endl;
+        std::cout << "triangles size: " << triangles.size() << std::endl;
+    }
     std::vector<SampledVertexRational> sampled_vertices;
     sampled_vertices.reserve(sampled_points.size());
     std::vector<std::size_t> sampled_point_global_indices;
@@ -151,6 +159,7 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         RationalKernel::FT y = rational_to_gmpq(position(1));
         RationalKernel::FT z = rational_to_gmpq(position(2));
         points.emplace_back(x, y, z);
+        vertex_from_query.push_back(true);
         // std::cout << "Sampled Rational Point: barycentric = [";
         // for (int j = 0; j < 4; ++j) {
         //     std::cout << bc[j];
@@ -211,7 +220,9 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
     result.initial_soup_had_intersections =
         PMP::does_triangle_soup_self_intersect(points, triangles);
     if (!result.initial_soup_had_intersections) {
-        std::cout << "Initial soup don't have self intersections" << std::endl;
+        if (verbose) {
+            std::cout << "Initial soup don't have self intersections" << std::endl;
+        }
     }
 
 
@@ -232,6 +243,9 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         points,
         working_triangles,
         CGAL::parameters::visitor(visitor).apply_iterative_snap_rounding(false));
+    if (points.size() > vertex_from_query.size()) {
+        vertex_from_query.resize(points.size(), false);
+    }
 
     const std::size_t invalid_id = static_cast<std::size_t>(-1);
 
@@ -246,12 +260,7 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     for (std::size_t i = 0; i < working_triangles.size(); ++i) {
         const auto& tri = working_triangles[i];
-        if (tri.size() != 3) {
-            std::cerr << "Warning: encountered triangle with " << tri.size()
-                      << " vertices after autorefinement; skipping.\n";
-            continue;
-        }
-
+        
         triangles.push_back(Triangle{tri[0], tri[1], tri[2]});
 
         const std::size_t src_id =
@@ -296,8 +305,45 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
 
     std::vector<std::set<int>> vertex_tet_sets(points.size());
     for (const SampledVertexRational& vertex : sampled_vertices) {
-        if (vertex.point_index < vertex_tet_sets.size()) {
+        if (vertex.point_index >= vertex_tet_sets.size()) {
+            continue;
+        }
+        if (vertex.tet_index < 0 || vertex.tet_index >= T.rows()) {
+            continue;
+        }
+
+        Eigen::Vector4i tet_vs = T.row(vertex.tet_index);
+        std::vector<int> active_vertices;
+        active_vertices.reserve(4);
+        for (int i = 0; i < 4; ++i) {
+            if (vertex.barycentric(i) != wmtk::Rational(0)) {
+                active_vertices.push_back(tet_vs(i));
+            }
+        }
+        if (active_vertices.empty()) {
             vertex_tet_sets[vertex.point_index].insert(static_cast<int>(vertex.tet_index));
+            continue;
+        }
+
+        // Collect all tets in the local T that contain all active (non-zero BC) vertices.
+        for (int tet_id = 0; tet_id < T.rows(); ++tet_id) {
+            bool contains_all = true;
+            for (int v : active_vertices) {
+                bool found = false;
+                for (int j = 0; j < 4; ++j) {
+                    if (T(tet_id, j) == v) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    contains_all = false;
+                    break;
+                }
+            }
+            if (contains_all) {
+                vertex_tet_sets[vertex.point_index].insert(tet_id);
+            }
         }
     }
 
@@ -324,6 +370,48 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         }
     }
 
+    auto print_int_container = [](const auto& s) {
+        std::ostringstream oss;
+        oss << "{";
+        bool first = true;
+        for (const auto& v : s) {
+            if (!first) oss << ",";
+            oss << v;
+            first = false;
+        }
+        oss << "}";
+        return oss.str();
+    };
+
+    if (verbose) {
+        std::cout << "\n=== Refined triangle summary (type: sampled=query vs tet_face) ==="
+                  << std::endl;
+        for (std::size_t tri_idx = 0; tri_idx < triangles.size(); ++tri_idx) {
+            const int sample_id = (tri_idx < refined_triangle_sample_ids.size())
+                                      ? refined_triangle_sample_ids[tri_idx]
+                                      : -1;
+            const bool is_sampled = sample_id >= 0;
+            const auto& parents =
+                tri_idx < refined_triangle_parent_tets.size() ? refined_triangle_parent_tets[tri_idx]
+                                                              : std::vector<int>{};
+            std::cout << "[tri " << tri_idx << "] type="
+                      << (is_sampled ? "sampled_query" : "tet_face") << " sample_id=" << sample_id
+                      << " parents=" << print_int_container(parents) << " verts=("
+                      << triangles[tri_idx][0] << "," << triangles[tri_idx][1] << ","
+                      << triangles[tri_idx][2] << ")" << std::endl;
+            for (int corner = 0; corner < 3; ++corner) {
+                const std::size_t v_id = triangles[tri_idx][static_cast<std::size_t>(corner)];
+                const bool from_query =
+                    (v_id < vertex_from_query.size()) ? vertex_from_query[v_id] : false;
+                const std::set<int>& tet_set = vertex_tet_sets[v_id];
+                std::cout << "    v" << corner << "=" << v_id << " origin="
+                          << (from_query ? "query_sampled" : "tet_mesh_or_new")
+                          << " tet_set=" << print_int_container(tet_set) << std::endl;
+            }
+        }
+        std::cout << "=== End triangle summary ===" << std::endl;
+    }
+
     std::vector<Triangle> sampled_fragment_triangles;
     std::vector<std::size_t> sampled_fragment_indices;
     std::vector<int> sampled_fragment_source_ids;
@@ -339,6 +427,19 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
         sampled_fragment_indices.push_back(tri_idx);
         sampled_fragment_source_ids.push_back(sample_id);
 
+        if (verbose) {
+            std::cout << "[assign tet] tri_idx=" << tri_idx << " sample_id=" << sample_id
+                      << " tri=(" << triangles[tri_idx][0] << "," << triangles[tri_idx][1] << ","
+                      << triangles[tri_idx][2] << ")\n";
+            if (tri_idx < refined_triangle_parent_tets.size()) {
+                std::cout << "  parent tets: "
+                          << print_int_container(refined_triangle_parent_tets[tri_idx])
+                          << std::endl;
+            } else {
+                std::cout << "  parent tets: <out of range>" << std::endl;
+            }
+        }
+
         std::set<int> common_tets = vertex_tet_sets[triangles[tri_idx][0]];
         for (int corner = 1; corner < 3 && !common_tets.empty(); ++corner) {
             std::set<int> temp;
@@ -352,11 +453,25 @@ AutorefineResultRational autorefine_sampled_triangles_rational(
                 std::inserter(temp, temp.begin()));
             common_tets.swap(temp);
         }
-
+        if (verbose) {
+            for (int corner = 0; corner < 3; ++corner) {
+                const std::size_t v_id = triangles[tri_idx][static_cast<std::size_t>(corner)];
+                const std::set<int>& tet_set = vertex_tet_sets[v_id];
+                std::cout << "  v" << corner << " id=" << v_id << " tet_set="
+                          << print_int_container(tet_set) << std::endl;
+            }
+            std::cout << "  common_tets=" << print_int_container(common_tets) << std::endl;
+        }
+        if (common_tets.empty()) {
+            throw std::runtime_error("No common tet found for sampled triangle.");
+        }
         const int assigned_tet = common_tets.empty() ? -1 : *common_tets.begin();
         sampled_fragment_tet_list.push_back(assigned_tet);
         if (assigned_tet != -1 && tri_idx < static_cast<std::size_t>(origin_tet_ids.size())) {
             origin_tet_ids(static_cast<Eigen::Index>(tri_idx)) = assigned_tet;
+        }
+        if (verbose) {
+            std::cout << "  assigned_tet=" << assigned_tet << std::endl;
         }
     }
 

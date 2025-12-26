@@ -110,6 +110,8 @@ void surface_triangle_arrangement(
  * @param surface The query surface to update
  * @param operation_id Operation ID for file naming
  * @param do_rounding Whether to round barycentric coordinates
+ * @param verbose Whether to print verbose output
+ * @param save_debug_meshes Whether to save debug mesh files
  * @param do_simplify Whether to simplify refined triangles by removing interior points
  * @param only_do_arrangement_once Whether to skip per-operation arrangement (default: false)
  */
@@ -125,6 +127,8 @@ void handle_local_mapping_operation(
     query_surface_tet_with_connectivity& surface,
     int operation_id,
     bool do_rounding = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
     bool do_simplify = false,
     bool only_do_arrangement_once = false);
 
@@ -136,6 +140,8 @@ void handle_local_mapping_operation(
  * @param do_forward Whether to track forward or backward
  * @param operation_id Operation ID for debugging
  * @param do_rounding Whether to round barycentric coordinates
+ * @param verbose Whether to print verbose output
+ * @param save_debug_meshes Whether to save debug mesh files
  * @param do_simplify Whether to simplify refined triangles by removing interior points
  * @param only_do_arrangement_once Whether to skip per-operation arrangement (default: false)
  */
@@ -145,6 +151,8 @@ void track_one_operation(
     bool do_forward,
     int operation_id,
     bool do_rounding = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
     bool do_simplify = false,
     bool only_do_arrangement_once = false);
 

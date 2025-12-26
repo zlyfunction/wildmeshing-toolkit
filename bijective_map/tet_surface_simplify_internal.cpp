@@ -28,6 +28,7 @@ namespace {
 using RationalKernel = CGAL::Exact_predicates_exact_constructions_kernel;
 using RationalPoint = RationalKernel::Point_3;
 using CgalTriangle = std::array<std::size_t, 3>;
+using BoundaryFace = std::array<int64_t, 3>;
 
 RationalKernel::FT rational_to_gmpq(const wmtk::Rational& r)
 {
@@ -89,6 +90,40 @@ struct LocalPatch
     std::vector<std::pair<int, int>> boundary_edges;
     std::map<int, PointClassification> point_classifications;
 };
+
+// Collect tet-mesh boundary faces (faces that appear only once), expressed with global vertex ids.
+std::vector<BoundaryFace> compute_tetmesh_boundary_faces(
+    const Eigen::MatrixXi& T_before,
+    const std::vector<int64_t>& v_id_map_before)
+{
+    std::map<BoundaryFace, int> face_count;
+    auto add_face = [&](int a, int b, int c) {
+        if (a < 0 || b < 0 || c < 0) return;
+        if (a >= v_id_map_before.size() || b >= v_id_map_before.size() ||
+            c >= v_id_map_before.size()) {
+            return;
+        }
+        BoundaryFace face = {
+            v_id_map_before[static_cast<size_t>(a)],
+            v_id_map_before[static_cast<size_t>(b)],
+            v_id_map_before[static_cast<size_t>(c)]};
+        std::sort(face.begin(), face.end());
+        face_count[face]++;
+    };
+    for (int i = 0; i < T_before.rows(); ++i) {
+        add_face(T_before(i, 0), T_before(i, 1), T_before(i, 2));
+        add_face(T_before(i, 0), T_before(i, 1), T_before(i, 3));
+        add_face(T_before(i, 0), T_before(i, 2), T_before(i, 3));
+        add_face(T_before(i, 1), T_before(i, 2), T_before(i, 3));
+    }
+    std::vector<BoundaryFace> boundary_faces;
+    for (const auto& [face, count] : face_count) {
+        if (count == 1) {
+            boundary_faces.push_back(face);
+        }
+    }
+    return boundary_faces;
+}
 
 // Build local patch from triangles starting at start_tri_idx
 LocalPatch build_local_patch(
@@ -180,7 +215,8 @@ int can_collapse_edge(
     int v0,
     int v1,
     const LocalPatch& patch,
-    const std::vector<Eigen::Vector3i>& triangles)
+    const std::vector<Eigen::Vector3i>& triangles,
+    const std::vector<BoundaryFace>& boundary_faces)
 {
     const auto& class0 = patch.point_classifications.at(v0);
     const auto& class1 = patch.point_classifications.at(v1);
@@ -191,32 +227,54 @@ int can_collapse_edge(
     auto is_subset = [](const std::set<int>& a, const std::set<int>& b) {
         return std::includes(b.begin(), b.end(), a.begin(), a.end());
     };
+    // Reject collapsing any edge incident to a tet-mesh boundary face. This avoids moving boundary
+    // geometry without checking patch-external triangles.
+    auto is_on_tet_boundary = [&](const PointClassification& pc) {
+        if (pc.constraint_vids.empty() || pc.constraint_vids.size() > 3) return false;
+        std::vector<int64_t> cv;
+        cv.reserve(pc.constraint_vids.size());
+        for (int vid : pc.constraint_vids) cv.push_back(static_cast<int64_t>(vid));
+        std::sort(cv.begin(), cv.end());
+        for (const auto& face : boundary_faces) {
+            if (std::includes(face.begin(), face.end(), cv.begin(), cv.end())) {
+                return true;
+            }
+        }
+        return false;
+    };
+    if (is_on_tet_boundary(class0) || is_on_tet_boundary(class1)) {
+        return 0;
+    }
     if (!satisfies_link_condition(v0, v1, triangles)) {
         return 0;
     }
+    bool c0_subset_c1 = is_subset(c0, c1);
+    bool c1_subset_c0 = is_subset(c1, c0);
+    
     // Rule 1: Both interior -> can collapse, keep first vertex
     if (class0.location == PointLocation::Interior && class1.location == PointLocation::Interior) {
+        // std::cout << "    Both interior, collapsing to v0" << std::endl;
         return 1; // Collapse to v0
     }
     // Rule 2: One on boundary face/edge/vertex, one interior -> collapse towards constrained point
     if (class0.location != PointLocation::Interior && class1.location == PointLocation::Interior) {
+        // std::cout << "    v0 constrained, v1 interior, collapsing to v0" << std::endl;
         return 1; // keep v0 (more constrained)
     }
     if (class0.location == PointLocation::Interior && class1.location != PointLocation::Interior) {
+        // std::cout << "    v1 constrained, v0 interior, collapsing to v1" << std::endl;
         return 2; // keep v1 (more constrained)
     }
     // Rule 3: Both constrained (face/edge/vertex)
-    if ((class0.location == PointLocation::OnFace || class0.location == PointLocation::OnEdge ||
-         class0.location == PointLocation::OnVertex) &&
-        (class1.location == PointLocation::OnFace || class1.location == PointLocation::OnEdge ||
-         class1.location == PointLocation::OnVertex)) {
+    if ((class0.location != PointLocation::Interior) &&
+        (class1.location != PointLocation::Interior)) {
+        
         // Either is boundary point -> cannot collapse
         if (v0_is_boundary || v1_is_boundary) {
             return 0;
         }
         // If one constraint set is subset of the other, collapse to the more constrained (smaller)
-        bool c0_subset_c1 = is_subset(c0, c1);
-        bool c1_subset_c0 = is_subset(c1, c0);
+        
         if (c0_subset_c1 && c1_subset_c0) {
             // identical constraint sets -> keep v0
             return 1;
@@ -796,6 +854,7 @@ void simplify_refined_triangles_by_tet(
 
     // Step 3: Edge collapse loop
     std::cout << "\n  Step 3: Starting edge collapse..." << std::endl;
+    const auto boundary_faces = compute_tetmesh_boundary_faces(T_before, v_id_map_before);
     int total_collapses = 0;
     int max_iterations = static_cast<int>(patch.all_points.size() * 2);
     // int max_iterations = 5;
@@ -813,7 +872,8 @@ void simplify_refined_triangles_by_tet(
             working_triangles.end());
         bool collapsed_any = false;
         for (const auto& [v0, v1] : edges) {
-            int collapse_direction = can_collapse_edge(v0, v1, patch, full_triangles);
+            int collapse_direction =
+                can_collapse_edge(v0, v1, patch, full_triangles, boundary_faces);
             if (collapse_direction == 0) continue;
             int v_keep = (collapse_direction == 1) ? v0 : v1;
             int v_remove = (collapse_direction == 1) ? v1 : v0;

@@ -273,6 +273,8 @@ void run_backward_tracking_surface(
     const std::filesystem::path& save_dir,
     bool do_rounding,
     bool do_simplify,
+    bool verbose,
+    bool save_debug_meshes,
     bool only_do_arrangement_once)
 {
     std::cout << "Backward tracking surface with connectivity" << std::endl;
@@ -425,6 +427,8 @@ void run_backward_tracking_surface(
             do_forward,
             static_cast<int>(operation_index),
             do_rounding,
+            verbose,
+            save_debug_meshes,
             do_simplify,
             only_do_arrangement_once);
         if (save_interval > 0 && !save_dir.empty() &&
