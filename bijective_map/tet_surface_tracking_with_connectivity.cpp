@@ -294,7 +294,9 @@ void run_backward_tracking_surface(
         BatchOperationLogReader temp_reader(operation_logs_dir);
         int temp_total_ops = temp_reader.get_total_operations();
         if (start_operation < temp_total_ops) {
-            int checkpoint_op_index = temp_total_ops - 1 - start_operation;
+            // We have already processed start_operation ops, so the latest checkpoint we can load
+            // is the one saved right after processing operation (temp_total_ops - start_operation).
+            int checkpoint_op_index = temp_total_ops - start_operation;
             std::filesystem::path checkpoint_file =
                 save_dir / ("surface_op_" + std::to_string(checkpoint_op_index) + ".bin");
             if (std::filesystem::exists(checkpoint_file)) {
