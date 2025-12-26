@@ -35,6 +35,8 @@ set(SRC_FILES
     TetMeshSubstructureTopologyPreservingInvariant.cpp
     SimplexInversionInvariant.hpp
     SimplexInversionInvariant.cpp
+    SelfIntersectionInvariant.hpp
+    SelfIntersectionInvariant.cpp
     TodoInvariant.hpp
     TodoInvariant.cpp
     ValenceImprovementInvariant.hpp

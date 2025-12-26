@@ -9,6 +9,7 @@
 #include <wmtk/invariants/MaxEdgeLengthInvariant.hpp>
 #include <wmtk/invariants/MultiMeshLinkConditionInvariant.hpp>
 #include <wmtk/invariants/MultiMeshMapValidInvariant.hpp>
+#include <wmtk/invariants/SelfIntersectionInvariant.hpp>
 #include <wmtk/invariants/SimplexInversionInvariant.hpp>
 #include <wmtk/invariants/TodoInvariant.hpp>
 #include <wmtk/invariants/uvEdgeInvariant.hpp>
@@ -206,6 +207,10 @@ void shortest_edge_collapse(Mesh& mesh_in, const ShortestEdgeCollapseOptions& op
     for (auto& h : inversion_position_handles) {
         collapse->add_invariant(
             std::make_shared<SimplexInversionInvariant<double>>(h.mesh(), h.as<double>()));
+    }
+    for (auto& h : inversion_position_handles) {
+        collapse->add_invariant(
+            std::make_shared<SelfIntersectionInvariant<double>>(h.mesh(), h.as<double>()));
     }
 
     // Prefer boundary vertex if only one endpoint is boundary; otherwise keep the first endpoint
