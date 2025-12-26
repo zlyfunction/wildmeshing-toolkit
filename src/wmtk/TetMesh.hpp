@@ -4,6 +4,8 @@
 #include <wmtk/operations/tet_mesh/EdgeOperationData.hpp>
 #include "MeshCRTP.hpp"
 namespace wmtk {
+template <typename T>
+class SelfIntersectionInvariant;
 namespace operations::utils {
 class MultiMeshEdgeSplitFunctor;
 class MultiMeshEdgeCollapseFunctor;
@@ -35,6 +37,8 @@ public:
     friend class operations::utils::MultiMeshEdgeSplitFunctor;
     friend class operations::utils::MultiMeshEdgeCollapseFunctor;
     friend class operations::utils::UpdateEdgeOperationMultiMeshMapFunctor;
+    template <typename T>
+    friend class SelfIntersectionInvariant;
 
     friend std::tuple<
         Eigen::MatrixXi,
