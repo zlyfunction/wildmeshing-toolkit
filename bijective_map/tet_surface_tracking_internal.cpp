@@ -868,6 +868,31 @@ void surface_triangle_arrangement(
             refined_vertex_ids_used.insert(tri[1]);
             refined_vertex_ids_used.insert(tri[2]);
         }
+        // Map global mesh vertex ids -> existing surface point indices (for one-hot BC points).
+        std::map<int64_t, std::size_t> global_vertex_to_surface_point;
+        for (int global_idx : unique_point_indices) {
+            if (global_idx < 0 || global_idx >= static_cast<int>(surface.points.size())) {
+                continue;
+            }
+            const auto& pt = surface.points[global_idx];
+            int one_hot_idx = -1;
+            bool is_one_hot = true;
+            for (int bc_i = 0; bc_i < 4; ++bc_i) {
+                const auto& bc_val = pt.bc(bc_i);
+                if (bc_val != wmtk::Rational(0)) {
+                    if (one_hot_idx != -1 || bc_val != wmtk::Rational(1)) {
+                        is_one_hot = false;
+                        break;
+                    }
+                    one_hot_idx = bc_i;
+                }
+            }
+            if (is_one_hot && one_hot_idx != -1) {
+                int64_t global_vid = pt.tv_ids(one_hot_idx);
+                global_vertex_to_surface_point[global_vid] =
+                    static_cast<std::size_t>(global_idx);
+            }
+        }
         auto barycentric_total_time = std::chrono::milliseconds(0);
         // Track new points and their original (unrounded) barycentric coordinates for fallback
         std::set<std::size_t> new_point_indices;
@@ -957,6 +982,29 @@ void surface_triangle_arrangement(
                       << barycentric_coords(1).to_double() << ","
                       << barycentric_coords(2).to_double() << ","
                       << barycentric_coords(3).to_double() << "]" << std::endl;
+            // If this refined point coincides with a mesh vertex, reuse the existing surface point.
+            int one_hot_idx = -1;
+            bool is_one_hot = true;
+            for (int bc_i = 0; bc_i < 4; ++bc_i) {
+                const auto& bc_val = barycentric_coords(bc_i);
+                if (bc_val != wmtk::Rational(0)) {
+                    if (one_hot_idx != -1 || bc_val != wmtk::Rational(1)) {
+                        is_one_hot = false;
+                        break;
+                    }
+                    one_hot_idx = bc_i;
+                }
+            }
+            if (is_one_hot && one_hot_idx != -1) {
+                int64_t global_vid = global_tv_ids(one_hot_idx);
+                auto it = global_vertex_to_surface_point.find(global_vid);
+                if (it != global_vertex_to_surface_point.end()) {
+                    refined_point_to_surface_point[refined_v_id] = it->second;
+                    std::cout << "    Reusing existing surface point " << it->second
+                              << " for mesh vertex " << global_vid << std::endl;
+                    continue;
+                }
+            }
             query_point_tet_r new_point;
             new_point.t_id = global_tet_id;
             std::size_t new_surface_point_idx = surface.points.size();
