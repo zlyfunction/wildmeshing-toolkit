@@ -2,6 +2,7 @@
 
 #include <Eigen/Core>
 #include <filesystem>
+#include <vector>
 #include <wmtk/utils/Rational.hpp>
 #include "tet_track_operations.hpp"
 
@@ -64,6 +65,7 @@ void write_surface_to_vtu(
  * @param verbose Whether to print verbose output in surface arrangement (default: false)
  * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
  * @param only_do_arrangement_once Whether to perform final autorefine on before mesh (default: true)
+ * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
  */
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
@@ -80,7 +82,46 @@ void run_backward_tracking_surface(
     bool do_simplify = false,
     bool verbose = false,
     bool save_debug_meshes = false,
-    bool only_do_arrangement_once = false);
+    bool only_do_arrangement_once = false,
+    bool sample_new_surfaces = true);
+
+/**
+ * @brief Run back-tracking surface application for multiple surfaces
+ *
+ * @param T_after Tetrahedral connectivity after operations
+ * @param V_after Vertex positions after operations
+ * @param T_before Tetrahedral connectivity before operations
+ * @param V_before Vertex positions before operations
+ * @param operation_logs_dir Directory containing operation logs
+ * @param surface_files Paths to surface files
+ * @param check_manifold Whether to check manifold property (default: false)
+ * @param start_operation Start from operation N (default: 0)
+ * @param save_interval Save surface every N operations (default: 1, save every operation)
+ * @param save_dir Directory to save intermediate surfaces (empty = don't save)
+ * @param do_rounding Whether to round barycentric coordinates during tracking (default: false)
+ * @param do_simplify Whether to simplify refined triangles by removing interior points (default: false)
+ * @param verbose Whether to print verbose output in surface arrangement (default: false)
+ * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
+ * @param only_do_arrangement_once Whether to perform final autorefine on before mesh (default: true)
+ * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ */
+void run_backward_tracking_surfaces(
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const Eigen::MatrixXi& T_before,
+    const Eigen::MatrixXd& V_before,
+    const std::filesystem::path& operation_logs_dir,
+    const std::vector<std::filesystem::path>& surface_files,
+    bool check_manifold = false,
+    int start_operation = 0,
+    int save_interval = 1,
+    const std::filesystem::path& save_dir = std::filesystem::path(),
+    bool do_rounding = false,
+    bool do_simplify = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
+    bool only_do_arrangement_once = false,
+    bool sample_new_surfaces = true);
 
 /**
  * @brief Write query surface with connectivity to file

@@ -3,6 +3,7 @@
 #include <Eigen/Core>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <string>
 #include <vector>
 #include <wmtk/utils/Rational.hpp>
 #include "tet_track_operations.hpp"
@@ -155,6 +156,43 @@ void track_one_operation(
     bool save_debug_meshes = false,
     bool do_simplify = false,
     bool only_do_arrangement_once = false);
+
+struct OperationContext
+{
+    std::string operation_name;
+    bool is_consolidate = false;
+    bool has_tet_context = false;
+    Eigen::MatrixXi T_after;
+    Eigen::MatrixXi T_before;
+    std::vector<int64_t> id_map_after;
+    std::vector<int64_t> id_map_before;
+    std::vector<int64_t> v_id_map_after;
+    std::vector<int64_t> v_id_map_before;
+    MatrixXr V_after;
+    MatrixXr V_before;
+    std::vector<int64_t> tet_ids_maps;
+    std::vector<int64_t> vertex_ids_maps;
+};
+
+OperationContext parse_operation_context(
+    const nlohmann::json& operation_log,
+    int operation_id);
+
+void apply_operation_context(
+    const OperationContext& context,
+    query_surface_tet_with_connectivity& surface,
+    bool do_forward,
+    int operation_id,
+    bool do_rounding = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
+    bool do_simplify = false,
+    bool only_do_arrangement_once = false);
+
+void post_operation_checks(
+    const OperationContext& context,
+    query_surface_tet_with_connectivity& surface,
+    bool do_forward);
 
 /**
  * @brief Track surface through all operations in a directory

@@ -589,6 +589,44 @@ void surface_triangle_arrangement(
             std::cout << std::endl;
         }
     }
+    // Save debug meshes that can be written before autorefine call
+    if (save_debug_meshes == true) {
+        // Save T_before mesh
+        Eigen::MatrixXd V_before_double(V_before.rows(), V_before.cols());
+        for (int i = 0; i < V_before.rows(); i++) {
+            for (int j = 0; j < V_before.cols(); j++) {
+                V_before_double(i, j) = V_before(i, j).to_double();
+            }
+        }
+        std::string t_before_filename = "T_before_op" + std::to_string(operation_id) + ".vtu";
+        vtu_utils::write_tet_mesh_to_vtu(V_before_double, T_before, t_before_filename);
+        std::cout << "Saved V_before and T_before to: " << t_before_filename << std::endl;
+
+        // Save surface_arrangement_op*_before.vtu from sampled_points and local_triangles_F
+        // Convert sampled_points to world positions
+        Eigen::MatrixXd V_surface_before(sampled_points.size(), 3);
+        for (size_t i = 0; i < sampled_points.size(); i++) {
+            const auto& sp = sampled_points[i];
+            if (sp.tet_index >= 0 && sp.tet_index < T_before.rows()) {
+                Eigen::Vector4i tet_vids = T_before.row(sp.tet_index);
+                Vector3r world_pos = Vector3r::Zero();
+                for (int j = 0; j < 4; j++) {
+                    if (tet_vids(j) >= 0 && tet_vids(j) < V_before.rows()) {
+                        world_pos += sp.barycentric(j) * V_before.row(tet_vids(j)).transpose();
+                    }
+                }
+                V_surface_before(i, 0) = world_pos(0).to_double();
+                V_surface_before(i, 1) = world_pos(1).to_double();
+                V_surface_before(i, 2) = world_pos(2).to_double();
+            } else {
+                V_surface_before.row(i).setZero();
+            }
+        }
+        std::string surface_before_path =
+            "surface_arrangement_op" + std::to_string(operation_id) + "_before.vtu";
+        vtu_utils::write_triangle_mesh_to_vtu(V_surface_before, local_triangles_F, surface_before_path);
+        std::cout << "Saved surface_arrangement before to: " << surface_before_path << std::endl;
+    }
     std::cout << "Calling autorefine_sampled_triangles_rational on V_before and T_before..."
               << std::endl;
     auto autorefine_start = std::chrono::high_resolution_clock::now();
@@ -642,15 +680,13 @@ void surface_triangle_arrangement(
         }
         const Eigen::VectorXi& triangle_origin_ids = autorefine_result.origin_triangle_ids;
         const Eigen::VectorXi& triangle_origin_tet = autorefine_result.origin_tet_ids;
-        std::string before_path =
-            "surface_arrangement_op" + std::to_string(operation_id) + "_before.vtu";
+        // Note: surface_arrangement_op*_before.vtu is already saved before autorefine call
         std::string after_path =
             "surface_arrangement_op" + std::to_string(operation_id) + "_after.vtu";
         std::string before_tet_path =
             "surface_arrangement_op" + std::to_string(operation_id) + "_before_tet.vtu";
         std::string after_tet_path =
             "surface_arrangement_op" + std::to_string(operation_id) + "_after_tet.vtu";
-        vtu_utils::write_triangle_mesh_to_vtu(V_original, F_original, before_path);
         vtu_utils::write_triangle_mesh_to_vtu(
             V_refined,
             F_refined,
@@ -702,8 +738,7 @@ void surface_triangle_arrangement(
                 "sampled_tet_id");
             std::cout << "  refined sampled only -> " << sampled_path << std::endl;
         }
-        std::cout << "Saved arrangement VTUs:\n  initial soup -> " << before_path
-                  << "\n  initial soup (origin_tet_id) -> " << before_tet_path
+        std::cout << "Saved arrangement VTUs:\n  initial soup (origin_tet_id) -> " << before_tet_path
                   << "\n  refined soup -> " << after_path << "\n  refined soup (origin_tet_id) -> "
                   << after_tet_path << std::endl;
     }
@@ -835,15 +870,6 @@ void surface_triangle_arrangement(
             std::cout << "\nSaved refined sampled triangles to: " << refined_sampled_filename
                       << std::endl;
         }
-        Eigen::MatrixXd V_before_double(V_before.rows(), V_before.cols());
-        for (int i = 0; i < V_before.rows(); i++) {
-            for (int j = 0; j < V_before.cols(); j++) {
-                V_before_double(i, j) = V_before(i, j).to_double();
-            }
-        }
-        std::string t_before_filename = "T_before_op" + std::to_string(operation_id) + ".vtu";
-        vtu_utils::write_tet_mesh_to_vtu(V_before_double, T_before, t_before_filename);
-        std::cout << "Saved V_before and T_before to: " << t_before_filename << std::endl;
     }
     if (!autorefine_result.sampled_fragment_triangles.empty()) {
         std::cout << "\n=== Updating query_surface with refined sampled triangles ===" << std::endl;
@@ -1393,8 +1419,61 @@ void handle_local_mapping_operation(
     std::cout << "handle_local_mapping_operation took " << duration.count() << " ms" << std::endl;
 }
 
-void track_one_operation(
+OperationContext parse_operation_context(
     const nlohmann::json& operation_log,
+    int operation_id)
+{
+    if (operation_log.empty()) {
+        throw std::runtime_error("Error: empty operation log");
+    }
+    if (!operation_log.contains("operation_name")) {
+        throw std::runtime_error("Error: operation_log missing operation_name");
+    }
+    OperationContext context;
+    context.operation_name = operation_log["operation_name"].get<std::string>();
+    if (context.operation_name == "MeshConsolidate") {
+        context.is_consolidate = true;
+        parse_consolidate_file_tet(
+            operation_log,
+            context.tet_ids_maps,
+            context.vertex_ids_maps);
+        return context;
+    }
+    context.has_tet_context = true;
+    Eigen::MatrixXd V_after_double;
+    Eigen::MatrixXd V_before_double;
+    Eigen::MatrixXi T_after;
+    Eigen::MatrixXi T_before;
+    parse_non_collapse_file_tet(
+        operation_log,
+        V_before_double,
+        T_before,
+        context.id_map_before,
+        context.v_id_map_before,
+        V_after_double,
+        T_after,
+        context.id_map_after,
+        context.v_id_map_after,
+        operation_id);
+    context.T_after = std::move(T_after);
+    context.T_before = std::move(T_before);
+    context.V_before = MatrixXr(V_before_double.rows(), V_before_double.cols());
+    context.V_after = MatrixXr(V_after_double.rows(), V_after_double.cols());
+    for (int i = 0; i < V_before_double.rows(); i++) {
+        for (int j = 0; j < V_before_double.cols(); j++) {
+            context.V_before(i, j) = wmtk::Rational(V_before_double(i, j));
+        }
+    }
+    for (int i = 0; i < V_after_double.rows(); i++) {
+        for (int j = 0; j < V_after_double.cols(); j++) {
+            context.V_after(i, j) = wmtk::Rational(V_after_double(i, j));
+        }
+    }
+    return context;
+}
+
+void apply_operation_context(
+    const OperationContext& context,
     query_surface_tet_with_connectivity& surface,
     bool do_forward,
     int operation_id,
@@ -1404,94 +1483,67 @@ void track_one_operation(
     bool do_simplify,
     bool only_do_arrangement_once)
 {
-    std::string operation_name = operation_log["operation_name"];
-    std::cout << "Tracking operation: " << operation_name << " (ID: " << operation_id << ")"
-              << std::endl;
-    Eigen::MatrixXi T_after, T_before;
-    std::vector<int64_t> id_map_after, id_map_before;
-    bool has_tet_context = false;
-    if (operation_name == "MeshConsolidate") {
-        std::cout << "  This operation is Consolidate" << std::endl;
-        std::vector<int64_t> tet_ids_maps;
-        std::vector<int64_t> vertex_ids_maps;
-        parse_consolidate_file_tet(operation_log, tet_ids_maps, vertex_ids_maps);
-        handle_consolidate_operation(tet_ids_maps, vertex_ids_maps, surface, do_forward);
-    } else {
-        std::cout << "  This operation is " << operation_name << std::endl;
-        Eigen::MatrixXd V_after_double, V_before_double;
-        std::vector<int64_t> v_id_map_after, v_id_map_before;
-        parse_non_collapse_file_tet(
-            operation_log,
-            V_before_double,
-            T_before,
-            id_map_before,
-            v_id_map_before,
-            V_after_double,
-            T_after,
-            id_map_after,
-            v_id_map_after,
-            operation_id);
-        has_tet_context = true;
-        MatrixXr V_before(V_before_double.rows(), V_before_double.cols());
-        MatrixXr V_after(V_after_double.rows(), V_after_double.cols());
-        for (int i = 0; i < V_before_double.rows(); i++) {
-            for (int j = 0; j < V_before_double.cols(); j++) {
-                V_before(i, j) = wmtk::Rational(V_before_double(i, j));
-            }
-        }
-        for (int i = 0; i < V_after_double.rows(); i++) {
-            for (int j = 0; j < V_after_double.cols(); j++) {
-                V_after(i, j) = wmtk::Rational(V_after_double(i, j));
-            }
-        }
-        if (do_forward) {
-            handle_local_mapping_operation(
-                V_after,
-                T_after,
-                id_map_after,
-                v_id_map_after,
-                V_before,
-                T_before,
-                id_map_before,
-                v_id_map_before,
-                surface,
-                operation_id,
-                do_rounding,
-                verbose,
-                save_debug_meshes,
-                do_simplify,
-                only_do_arrangement_once);
-        } else {
-            handle_local_mapping_operation(
-                V_before,
-                T_before,
-                id_map_before,
-                v_id_map_before,
-                V_after,
-                T_after,
-                id_map_after,
-                v_id_map_after,
-                surface,
-                operation_id,
-                do_rounding,
-                verbose,
-                save_debug_meshes,
-                do_simplify,
-                only_do_arrangement_once);
-        }
+    if (context.is_consolidate) {
+        handle_consolidate_operation(
+            context.tet_ids_maps,
+            context.vertex_ids_maps,
+            surface,
+            do_forward);
+        return;
     }
-    std::cout << "  Operation " << operation_id << " completed" << std::endl;
+    if (!context.has_tet_context) {
+        throw std::runtime_error("Error: missing tet context for non-consolidate operation");
+    }
+    if (do_forward) {
+        handle_local_mapping_operation(
+            context.V_after,
+            context.T_after,
+            context.id_map_after,
+            context.v_id_map_after,
+            context.V_before,
+            context.T_before,
+            context.id_map_before,
+            context.v_id_map_before,
+            surface,
+            operation_id,
+            do_rounding,
+            verbose,
+            save_debug_meshes,
+            do_simplify,
+            only_do_arrangement_once);
+    } else {
+        handle_local_mapping_operation(
+            context.V_before,
+            context.T_before,
+            context.id_map_before,
+            context.v_id_map_before,
+            context.V_after,
+            context.T_after,
+            context.id_map_after,
+            context.v_id_map_after,
+            surface,
+            operation_id,
+            do_rounding,
+            verbose,
+            save_debug_meshes,
+            do_simplify,
+            only_do_arrangement_once);
+    }
+}
 
-    if (has_tet_context) {
-        // const auto& sanity_T = do_forward ? T_after : T_before;
-        const auto& sanity_id_map = do_forward ? id_map_after : id_map_before;
+void post_operation_checks(
+    const OperationContext& context,
+    query_surface_tet_with_connectivity& surface,
+    bool do_forward)
+{
+    if (context.has_tet_context) {
+        const auto& sanity_id_map = do_forward ? context.id_map_after : context.id_map_before;
         sanity_check_triangles(surface, sanity_id_map);
         std::cout << "  Triangle sanity check completed" << std::endl;
     } else {
         std::cout << "  Skipping triangle sanity check (no tet context for consolidate)"
                   << std::endl;
     }
-
     {
         bool is_manifold = check_surface_manifold_property(surface.query_triangles);
         if (is_manifold) {
@@ -1511,6 +1563,39 @@ void track_one_operation(
             throw std::runtime_error("Error: surface is not manifold");
         }
     }
+}
+
+void track_one_operation(
+    const nlohmann::json& operation_log,
+    query_surface_tet_with_connectivity& surface,
+    bool do_forward,
+    int operation_id,
+    bool do_rounding,
+    bool verbose,
+    bool save_debug_meshes,
+    bool do_simplify,
+    bool only_do_arrangement_once)
+{
+    OperationContext context = parse_operation_context(operation_log, operation_id);
+    std::cout << "Tracking operation: " << context.operation_name << " (ID: " << operation_id << ")"
+              << std::endl;
+    if (context.operation_name == "MeshConsolidate") {
+        std::cout << "  This operation is Consolidate" << std::endl;
+    } else {
+        std::cout << "  This operation is " << context.operation_name << std::endl;
+    }
+    apply_operation_context(
+        context,
+        surface,
+        do_forward,
+        operation_id,
+        do_rounding,
+        verbose,
+        save_debug_meshes,
+        do_simplify,
+        only_do_arrangement_once);
+    std::cout << "  Operation " << operation_id << " completed" << std::endl;
+    post_operation_checks(context, surface, do_forward);
 }
 
 void track_all_operations(

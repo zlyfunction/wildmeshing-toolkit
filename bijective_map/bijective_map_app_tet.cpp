@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <vector>
 // wmtk
 #include <wmtk/TetMesh.hpp>
 #include <wmtk/TriMesh.hpp>
@@ -30,6 +31,7 @@ int main(int argc, char** argv)
     std::filesystem::path output_mesh_file;
     std::string application_name = "back";
     std::filesystem::path surface_file = "query_surface.json";
+    std::vector<std::filesystem::path> surface_files;
     size_t start_operation = 0;
     size_t save_interval = 1;
     std::filesystem::path save_dir;
@@ -38,6 +40,7 @@ int main(int argc, char** argv)
     bool surface_verbose = false;
     bool save_debug_meshes = false;
     bool only_do_arrangement_once = false;
+    bool sample_new_surfaces = true;
     // CLI options (used if no config file)
     app.add_option("-a, --app", application_name, "Application name");
     app.add_option("-i, --input", initial_mesh_file, "Initial mesh file");
@@ -81,6 +84,12 @@ int main(int argc, char** argv)
             output_mesh_file = config["output_mesh_file"].get<std::string>();
         if (config.contains("surface_file"))
             surface_file = config["surface_file"].get<std::string>();
+        if (config.contains("surface_files")) {
+            surface_files.clear();
+            for (const auto& entry : config["surface_files"]) {
+                surface_files.emplace_back(entry.get<std::string>());
+            }
+        }
         if (config.contains("start_operation"))
             start_operation = config["start_operation"].get<size_t>();
         if (config.contains("save_interval")) save_interval = config["save_interval"].get<size_t>();
@@ -92,6 +101,8 @@ int main(int argc, char** argv)
             save_debug_meshes = config["save_debug_meshes"].get<bool>();
         if (config.contains("only_do_arrangement_once"))
             only_do_arrangement_once = config["only_do_arrangement_once"].get<bool>();
+        if (config.contains("sample_new_surfaces"))
+            sample_new_surfaces = config["sample_new_surfaces"].get<bool>();
     }
     // Validate required parameters
     if (initial_mesh_file.empty() || operation_logs_dir.empty() || output_mesh_file.empty()) {
@@ -106,6 +117,12 @@ int main(int argc, char** argv)
     std::cout << "  operation_logs_dir: " << operation_logs_dir << std::endl;
     std::cout << "  output_mesh_file: " << output_mesh_file << std::endl;
     std::cout << "  surface_file: " << surface_file << std::endl;
+    if (!surface_files.empty()) {
+        std::cout << "  surface_files: " << surface_files.size() << std::endl;
+        for (size_t i = 0; i < surface_files.size(); ++i) {
+            std::cout << "    [" << i << "]: " << surface_files[i] << std::endl;
+        }
+    }
     std::cout << "  start_operation: " << start_operation << std::endl;
     std::cout << "  save_interval: " << save_interval << std::endl;
     std::cout << "  save_dir: " << save_dir << std::endl;
@@ -114,6 +131,7 @@ int main(int argc, char** argv)
     std::cout << "  verbose: " << surface_verbose << std::endl;
     std::cout << "  save_debug_meshes: " << save_debug_meshes << std::endl;
     std::cout << "  only_do_arrangement_once: " << only_do_arrangement_once << std::endl;
+    std::cout << "  sample_new_surfaces: " << sample_new_surfaces << std::endl;
     auto init_mesh_ptr = wmtk::read_mesh(initial_mesh_file);
     // Get T_before and V_before from init_mesh_ptr using get_TV()
     std::cout << "\n=== Reading T_before and V_before from init_mesh_ptr ===" << std::endl;
@@ -173,22 +191,43 @@ int main(int argc, char** argv)
             surface_file,
             false);
     } else if (application_name == "back_surface_connectivity") {
-        tet_surface_tracking_with_connectivity::run_backward_tracking_surface(
-            T_after,
-            V_after,
-            T_before,
-            V_before,
-            operation_logs_dir,
-            surface_file,
-            false,
-            start_operation,
-            save_interval,
-            save_dir,
-            do_rounding,
-            do_simplify,
-            surface_verbose,
-            save_debug_meshes,
-            only_do_arrangement_once);
+        if (!surface_files.empty()) {
+            tet_surface_tracking_with_connectivity::run_backward_tracking_surfaces(
+                T_after,
+                V_after,
+                T_before,
+                V_before,
+                operation_logs_dir,
+                surface_files,
+                false,
+                start_operation,
+                save_interval,
+                save_dir,
+                do_rounding,
+                do_simplify,
+                surface_verbose,
+                save_debug_meshes,
+                only_do_arrangement_once,
+                sample_new_surfaces);
+        } else {
+            tet_surface_tracking_with_connectivity::run_backward_tracking_surface(
+                T_after,
+                V_after,
+                T_before,
+                V_before,
+                operation_logs_dir,
+                surface_file,
+                false,
+                start_operation,
+                save_interval,
+                save_dir,
+                do_rounding,
+                do_simplify,
+                surface_verbose,
+                save_debug_meshes,
+                only_do_arrangement_once,
+                sample_new_surfaces);
+        }
     }
     return 0;
 }
