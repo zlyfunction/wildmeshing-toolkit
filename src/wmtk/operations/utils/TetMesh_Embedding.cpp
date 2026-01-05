@@ -988,6 +988,9 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
     int edge_split_count = utils::make_3_connected(F_top, V);
     Eigen::MatrixXi T_3_connected;
     if (edge_split_count > 0) {
+        // DEBUG: cannot do with not 3-connected surface
+        return Eigen::MatrixXd();
+
         // utils::visualize_tet_mesh(V, T);
         T_3_connected = Eigen::MatrixXi::Zero(F_top.rows(), 4);
         // For each tetrahedron, connect it to vertex 0 (v0)

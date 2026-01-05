@@ -1079,6 +1079,7 @@ bool Operation::record_tetrahedron_operation(
             }
 
             // Output VTU files for T_before and T_after (synchronized with embed_mesh_lift)
+            if (false)
             {
                 static int edge_collapse_vtu_count = 0;
                 std::string vtu_output_dir = OperationLogPath + "/embed_mesh_lift_vtu";
