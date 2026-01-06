@@ -1170,6 +1170,7 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
     }
 
     // Output VTU files before optimization
+    if (false)
     {
         static int embed_call_count = 0;
         std::string vtu_output_dir = OperationLogPath + "/embed_mesh_lift_vtu";
@@ -1221,6 +1222,7 @@ Eigen::MatrixXd embed_mesh_lift(const Eigen::MatrixXi& T, Eigen::MatrixXd& V, in
         true);
 
     // Output VTU files after optimization
+    if (false)
     {
         static int embed_call_count_after = 0;
         std::string vtu_output_dir = OperationLogPath + "/embed_mesh_lift_vtu";
