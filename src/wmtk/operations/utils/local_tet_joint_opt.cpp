@@ -346,9 +346,9 @@ struct GradientDescentParameters
 {
     double initial_step_size = 0.1;
     double step_reduction_factor = 0.5;
-    int max_iterations = 100;
+    int max_iterations = 20;
     double convergence_threshold = 1e-6;
-    int max_line_search_iterations = 20;
+    int max_line_search_iterations = 50;
 };
 
 const GradientDescentParameters kGradientDescentParameters{};
@@ -375,9 +375,8 @@ bool has_inverted_tets(
     bool check_full_when_empty = true)
 {
     const bool check_subset = !tets_to_check.empty();
-    const int tet_count =
-        check_subset ? static_cast<int>(tets_to_check.size())
-                     : (check_full_when_empty ? T.rows() : 0);
+    const int tet_count = check_subset ? static_cast<int>(tets_to_check.size())
+                                       : (check_full_when_empty ? T.rows() : 0);
 
     for (int idx = 0; idx < tet_count; ++idx) {
         const int t = check_subset ? tets_to_check[idx] : idx;
@@ -409,12 +408,8 @@ double run_naive_gradient_descent(
     bool verbose)
 {
     Eigen::MatrixXd grad;
-    double energy = compute_energy_and_gradient_fast(
-        V_param,
-        T_joint,
-        P,
-        grad,
-        SymmetricDirichletEnergy());
+    double energy =
+        compute_energy_and_gradient_fast(V_param, T_joint, P, grad, SymmetricDirichletEnergy());
     if (verbose) {
         std::cout << "energy: " << energy << std::endl;
         std::cout << "grad: \n" << grad << std::endl;
@@ -511,9 +506,7 @@ double run_naive_gradient_descent(
     return current_energy;
 }
 
-std::vector<std::vector<int>> build_vertex_tet_adjacency(
-    const Eigen::MatrixXi& T,
-    int vertex_count)
+std::vector<std::vector<int>> build_vertex_tet_adjacency(const Eigen::MatrixXi& T, int vertex_count)
 {
     std::vector<std::vector<int>> adjacency(vertex_count);
     for (int t = 0; t < T.rows(); ++t) {
@@ -535,16 +528,12 @@ double run_block_gradient_descent(
     bool verbose)
 {
     Eigen::MatrixXd grad;
-    double current_energy = compute_energy_and_gradient_fast(
-        V_param,
-        T_joint,
-        P,
-        grad,
-        SymmetricDirichletEnergy());
+    double current_energy =
+        compute_energy_and_gradient_fast(V_param, T_joint, P, grad, SymmetricDirichletEnergy());
     zero_constraint_vertex_z(grad, constraint_vids, verbose);
     if (verbose) {
-        std::cout << "Initial energy: " << current_energy
-                  << ", grad norm: " << grad.norm() << std::endl;
+        std::cout << "Initial energy: " << current_energy << ", grad norm: " << grad.norm()
+                  << std::endl;
     }
 
     const auto& params = kGradientDescentParameters;
@@ -569,7 +558,7 @@ double run_block_gradient_descent(
                 Eigen::MatrixXd V_next = V_current;
                 V_next.row(vid) += step_size * descent;
 
-                if (has_inverted_tets(V_next, T_joint, vertex_tets[vid], verbose, false)) {
+                if (has_inverted_tets(V_next, T_joint, vertex_tets[vid], false, false)) {
                     step_size *= params.step_reduction_factor;
                     continue;
                 }
@@ -585,6 +574,9 @@ double run_block_gradient_descent(
                 if (std::isnan(new_energy) || new_energy >= current_energy) {
                     step_size *= params.step_reduction_factor;
                     continue;
+                } else {
+                    std::cout << "new energy: " << new_energy
+                              << " current energy: " << current_energy << std::endl;
                 }
 
                 zero_constraint_vertex_z(new_grad, constraint_vids, verbose);
