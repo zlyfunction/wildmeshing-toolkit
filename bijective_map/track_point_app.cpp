@@ -7,8 +7,8 @@
 #include <igl/stb/write_image.h>
 #endif
 #include <igl/parallel_for.h>
-#include "render_utils.hpp"
 #include "batch_operation_log_reader.hpp"
+#include "render_utils.hpp"
 
 void track_point_one_operation(
     const json& operation_log,
@@ -174,13 +174,13 @@ void track_point(
 {
     BatchOperationLogReader reader(dirPath);
     size_t total_ops = reader.get_total_operations();
-    
+
     if (total_ops == 0) {
         std::cerr << "No operation logs found in " << dirPath << std::endl;
         return;
     }
-    
-    std::cout << "Found " << total_ops << " operations in " 
+
+    std::cout << "Found " << total_ops << " operations in "
               << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
 
     for (size_t i = 0; i < total_ops; ++i) {
@@ -576,8 +576,17 @@ void transfer_texture_app(
     });
     // write the output image
 #ifdef USE_IGL_VIEWER
+    std::string output_name = operation_logs_dir.filename().string();
+    if (output_name.empty()) {
+        output_name = "operation_logs";
+    }
+    const std::string prefix = "operation_log_";
+    if (output_name.rfind(prefix, 0) == 0 && output_name.size() > prefix.size()) {
+        output_name = output_name.substr(prefix.size());
+    }
+    output_name = "output_texture_" + output_name + ".png";
     igl::stb::write_image(
-        "output_texture.png",
+        output_name,
         R_out.transpose(),
         G_out.transpose(),
         B_out.transpose(),
