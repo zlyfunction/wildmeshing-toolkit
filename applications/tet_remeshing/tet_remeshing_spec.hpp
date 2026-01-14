@@ -19,6 +19,7 @@ nlohmann::json tet_remeshing_spec = R"(
       "check_inversion",
       "enable_split",
       "enable_collapse",
+      "enable_swap",
       "iterations"
     ]
   },
@@ -74,6 +75,12 @@ nlohmann::json tet_remeshing_spec = R"(
     "type": "bool",
     "default": true,
     "doc": "Enable edge collapse operations"
+  },
+  {
+    "pointer": "/enable_swap",
+    "type": "bool",
+    "default": true,
+    "doc": "Enable edge swap operations"
   },
   {
     "pointer": "/iterations",

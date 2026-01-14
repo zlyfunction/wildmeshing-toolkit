@@ -30,6 +30,7 @@ void tet_remeshing(
     bool check_inversion = false,
     bool enable_split = true,
     bool enable_collapse = true,
+    bool enable_swap = true,
     int iterations = 10,
     const std::vector<attribute::MeshAttributeHandle>& pass_through = {});
 } // namespace wmtk::components::tet_remeshing

@@ -109,6 +109,7 @@ int main(int argc, char* argv[])
         options.check_inversions = j["check_inversion"];
         options.enable_split = j["enable_split"];
         options.enable_collapse = j["enable_collapse"];
+        options.enable_swap = j["enable_swap"];
         options.iterations = j["iterations"];
         tet_remeshing(mesh, options);
     }

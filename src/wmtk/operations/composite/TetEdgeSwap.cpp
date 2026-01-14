@@ -1,11 +1,11 @@
 #include "TetEdgeSwap.hpp"
+#include <wmtk/Mesh.hpp>
 #include <wmtk/simplex/closed_star.hpp>
 #include <wmtk/simplex/open_star.hpp>
 #include <wmtk/simplex/utils/SimplexComparisons.hpp>
-
-
-#include <wmtk/Mesh.hpp>
-
+#ifdef WMTK_RECORD_OPERATIONS
+#include <wmtk/Record_Operations.hpp>
+#endif
 namespace wmtk::operations::composite {
 TetEdgeSwap::TetEdgeSwap(Mesh& m, int64_t collapse_index)
     : Operation(m)
@@ -14,14 +14,15 @@ TetEdgeSwap::TetEdgeSwap(Mesh& m, int64_t collapse_index)
     , m_collapse_index(collapse_index)
 {
     operation_name = "TetEdgeSwap";
+    // Don't record the swap itself - we record the individual split/collapse operations
+    set_not_record();
 }
-
 std::vector<simplex::Simplex> TetEdgeSwap::execute(const simplex::Simplex& simplex)
 {
-    // TODO: set it not to record for now
-    m_split.set_not_record();
-    m_collapse.set_not_record();
-
+    // Track batch size before split for potential rollback
+#ifdef WMTK_RECORD_OPERATIONS
+    size_t batch_size_before_split = getOperationBatchSize();
+#endif
     const auto split_simplicies = m_split(simplex);
     if (split_simplicies.empty()) return {};
     assert(split_simplicies.size() == 1);
@@ -40,8 +41,13 @@ std::vector<simplex::Simplex> TetEdgeSwap::execute(const simplex::Simplex& simpl
         }
     }
 
-    // collapse index failed, return empty
-    if (m_collapse_index >= candidate_edge_tuples.size()) return {};
+    // collapse index failed, rollback and return empty
+    if (m_collapse_index >= candidate_edge_tuples.size()) {
+#ifdef WMTK_RECORD_OPERATIONS
+        rollbackOperationBatch(batch_size_before_split);
+#endif
+        return {};
+    }
 
     const Tuple& collapse_tuple = candidate_edge_tuples[m_collapse_index];
 
@@ -142,7 +148,13 @@ std::vector<simplex::Simplex> TetEdgeSwap::execute(const simplex::Simplex& simpl
     // do collapse
     const auto collapse_simplicies =
         m_collapse(simplex::Simplex(mesh(), m_collapse.primitive_type(), collapse_tuple));
-    if (collapse_simplicies.empty()) return {};
+    if (collapse_simplicies.empty()) {
+#ifdef WMTK_RECORD_OPERATIONS
+        // Collapse failed after split succeeded - rollback split record
+        rollbackOperationBatch(batch_size_before_split);
+#endif
+        return {};
+    }
     assert(collapse_simplicies.size() == 1);
 
     if (able_to_return_edges) {

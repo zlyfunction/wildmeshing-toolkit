@@ -38,6 +38,10 @@ struct TetRemeshingOptions
      */
     bool enable_collapse = true;
     /**
+     * Enable swap operations
+     */
+    bool enable_swap = true;
+    /**
      * Number of remeshing iterations
      */
     int iterations = 10;

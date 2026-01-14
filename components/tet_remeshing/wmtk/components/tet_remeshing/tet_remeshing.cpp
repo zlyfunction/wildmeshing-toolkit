@@ -3,6 +3,7 @@
 #include <wmtk/Mesh.hpp>
 #include <wmtk/Scheduler.hpp>
 #include <wmtk/components/utils/get_attributes.hpp>
+#include <wmtk/invariants/EdgeValenceInvariant.hpp>
 #include <wmtk/invariants/EnvelopeInvariant.hpp>
 #include <wmtk/invariants/InteriorSimplexInvariant.hpp>
 #include <wmtk/invariants/InvariantCollection.hpp>
@@ -11,6 +12,9 @@
 #include <wmtk/invariants/MultiMeshMapValidInvariant.hpp>
 #include <wmtk/invariants/SelfIntersectionInvariant.hpp>
 #include <wmtk/invariants/SimplexInversionInvariant.hpp>
+#include <wmtk/invariants/Swap32EnergyBeforeInvariantDouble.hpp>
+#include <wmtk/invariants/Swap44EnergyBeforeInvariantDouble.hpp>
+#include <wmtk/invariants/Swap56EnergyBeforeInvariantDouble.hpp>
 #include <wmtk/invariants/TodoInvariant.hpp>
 #include <wmtk/multimesh/MultiMeshVisitor.hpp>
 #include <wmtk/multimesh/consolidate.hpp>
@@ -18,10 +22,13 @@
 #include <wmtk/operations/EdgeCollapse.hpp>
 #include <wmtk/operations/EdgeSplit.hpp>
 #include <wmtk/operations/MeshConsolidate.hpp>
+#include <wmtk/operations/MinOperationSequence.hpp>
+#include <wmtk/operations/OrOperationSequence.hpp>
 #include <wmtk/operations/attribute_new/CollapseNewAttributeStrategy.hpp>
 #include <wmtk/operations/attribute_new/NewAttributeStrategy.hpp>
 #include <wmtk/operations/attribute_new/SplitNewAttributeStrategy.hpp>
 #include <wmtk/operations/attribute_update/AttributeTransferStrategy.hpp>
+#include <wmtk/operations/composite/TetEdgeSwap.hpp>
 #include <wmtk/utils/Logger.hpp>
 namespace wmtk::components::tet_remeshing {
 void tet_remeshing(Mesh& mesh_in, const TetRemeshingOptions& options)
@@ -297,6 +304,146 @@ void tet_remeshing(Mesh& mesh_in, const TetRemeshingOptions& options)
                 collapse_stats.number_of_successful_operations(),
                 collapse_stats.number_of_failed_operations());
         }
+        // Reset visited flags after collapse
+        {
+            auto accessor = mesh.create_accessor(visited_edge_flag.as<char>());
+            for (const auto& e : mesh.get_all(PrimitiveType::Edge)) {
+                accessor.scalar_attribute(e) = char(1);
+            }
+        }
+        edge_length_update->run_on_all();
+        //////////////////////////////////////////
+        // Swap edges
+        if (options.enable_swap) {
+            auto long_edges_first_priority = [&](const simplex::Simplex& s) {
+                assert(s.primitive_type() == PrimitiveType::Edge);
+                return -edge_length_accessor.const_scalar_attribute(s.tuple());
+            };
+            // Create inversion invariant for swap
+            auto inversion_invariant = std::make_shared<SimplexInversionInvariant<double>>(
+                mesh,
+                position_handle.as<double>());
+            // Swap 5-6 (edge valence 5)
+            auto swap56 = std::make_shared<wmtk::operations::MinOperationSequence>(mesh);
+            // Set value function for MinOperationSequence (required, tries operations in order)
+            swap56->set_value_function([](int64_t, const simplex::Simplex&) { return 0.0; });
+            for (int i = 0; i < 5; ++i) {
+                auto swap = std::make_shared<wmtk::operations::composite::TetEdgeSwap>(mesh, i);
+                swap->collapse().add_invariant(invariant_link_condition);
+                swap->collapse().set_new_attribute_strategy(
+                    position_handle,
+                    wmtk::operations::CollapseBasicStrategy::CopyOther);
+                swap->split().set_new_attribute_strategy(position_handle);
+                swap->split().set_new_attribute_strategy(
+                    visited_edge_flag,
+                    wmtk::operations::SplitBasicStrategy::None,
+                    wmtk::operations::SplitRibBasicStrategy::None);
+                swap->collapse().set_new_attribute_strategy(
+                    visited_edge_flag,
+                    wmtk::operations::CollapseBasicStrategy::None);
+                swap->add_invariant(std::make_shared<wmtk::Swap56EnergyBeforeInvariantDouble>(
+                    mesh,
+                    position_handle.as<double>(),
+                    i));
+                swap->add_transfer_strategy(edge_length_update);
+                swap->collapse().add_invariant(inversion_invariant);
+                for (const auto& attr : pass_through_attributes) {
+                    swap->split().set_new_attribute_strategy(
+                        attr,
+                        wmtk::operations::SplitBasicStrategy::None,
+                        wmtk::operations::SplitRibBasicStrategy::None);
+                    swap->collapse().set_new_attribute_strategy(
+                        attr,
+                        wmtk::operations::CollapseBasicStrategy::None);
+                }
+                swap56->add_operation(swap);
+            }
+            swap56->add_invariant(
+                std::make_shared<wmtk::invariants::EdgeValenceInvariant>(mesh, 5));
+            // Swap 4-4 (edge valence 4)
+            auto swap44 = std::make_shared<wmtk::operations::MinOperationSequence>(mesh);
+            // Set value function for MinOperationSequence (required, tries operations in order)
+            swap44->set_value_function([](int64_t, const simplex::Simplex&) { return 0.0; });
+            for (int i = 0; i < 2; ++i) {
+                auto swap = std::make_shared<wmtk::operations::composite::TetEdgeSwap>(mesh, i);
+                swap->collapse().add_invariant(invariant_link_condition);
+                swap->collapse().set_new_attribute_strategy(
+                    position_handle,
+                    wmtk::operations::CollapseBasicStrategy::CopyOther);
+                swap->split().set_new_attribute_strategy(position_handle);
+                swap->split().set_new_attribute_strategy(
+                    visited_edge_flag,
+                    wmtk::operations::SplitBasicStrategy::None,
+                    wmtk::operations::SplitRibBasicStrategy::None);
+                swap->collapse().set_new_attribute_strategy(
+                    visited_edge_flag,
+                    wmtk::operations::CollapseBasicStrategy::None);
+                swap->add_invariant(std::make_shared<wmtk::Swap44EnergyBeforeInvariantDouble>(
+                    mesh,
+                    position_handle.as<double>(),
+                    i));
+                swap->add_transfer_strategy(edge_length_update);
+                swap->collapse().add_invariant(inversion_invariant);
+                for (const auto& attr : pass_through_attributes) {
+                    swap->split().set_new_attribute_strategy(
+                        attr,
+                        wmtk::operations::SplitBasicStrategy::None,
+                        wmtk::operations::SplitRibBasicStrategy::None);
+                    swap->collapse().set_new_attribute_strategy(
+                        attr,
+                        wmtk::operations::CollapseBasicStrategy::None);
+                }
+                swap44->add_operation(swap);
+            }
+            swap44->add_invariant(
+                std::make_shared<wmtk::invariants::EdgeValenceInvariant>(mesh, 4));
+            // Swap 3-2 (edge valence 3)
+            auto swap32 = std::make_shared<wmtk::operations::composite::TetEdgeSwap>(mesh, 0);
+            swap32->add_invariant(
+                std::make_shared<wmtk::invariants::EdgeValenceInvariant>(mesh, 3));
+            swap32->add_invariant(std::make_shared<wmtk::Swap32EnergyBeforeInvariantDouble>(
+                mesh,
+                position_handle.as<double>()));
+            swap32->collapse().add_invariant(invariant_link_condition);
+            swap32->collapse().set_new_attribute_strategy(
+                position_handle,
+                wmtk::operations::CollapseBasicStrategy::CopyOther);
+            swap32->split().set_new_attribute_strategy(position_handle);
+            swap32->split().set_new_attribute_strategy(
+                visited_edge_flag,
+                wmtk::operations::SplitBasicStrategy::None,
+                wmtk::operations::SplitRibBasicStrategy::None);
+            swap32->collapse().set_new_attribute_strategy(
+                visited_edge_flag,
+                wmtk::operations::CollapseBasicStrategy::None);
+            swap32->add_transfer_strategy(edge_length_update);
+            swap32->collapse().add_invariant(inversion_invariant);
+            for (const auto& attr : pass_through_attributes) {
+                swap32->split().set_new_attribute_strategy(
+                    attr,
+                    wmtk::operations::SplitBasicStrategy::None,
+                    wmtk::operations::SplitRibBasicStrategy::None);
+                swap32->collapse().set_new_attribute_strategy(
+                    attr,
+                    wmtk::operations::CollapseBasicStrategy::None);
+            }
+            // Combine all swaps
+            auto swap_all = std::make_shared<wmtk::operations::OrOperationSequence>(mesh);
+            swap_all->add_operation(swap32);
+            swap_all->add_operation(swap44);
+            swap_all->add_operation(swap56);
+            swap_all->add_transfer_strategy(tag_update);
+            swap_all->add_invariant(invariant_interior_edge);
+            swap_all->set_priority(long_edges_first_priority);
+            Scheduler scheduler_swap;
+            SchedulerStats swap_stats =
+                scheduler_swap.run_operation_on_all(*swap_all, visited_edge_flag.as<char>());
+            logger().info(
+                "Swap: Executed {} ops (S/F) {}/{}",
+                swap_stats.number_of_performed_operations(),
+                swap_stats.number_of_successful_operations(),
+                swap_stats.number_of_failed_operations());
+        }
     }
     //////////////////////////////////////////
     auto op_consolidate = wmtk::operations::MeshConsolidate(mesh);
@@ -312,6 +459,7 @@ void tet_remeshing(
     bool check_inversion,
     bool enable_split,
     bool enable_collapse,
+    bool enable_swap,
     int iterations,
     const std::vector<attribute::MeshAttributeHandle>& pass_through)
 {
@@ -325,6 +473,7 @@ void tet_remeshing(
     options.check_inversions = check_inversion;
     options.enable_split = enable_split;
     options.enable_collapse = enable_collapse;
+    options.enable_swap = enable_swap;
     options.iterations = iterations;
     options.pass_through_attributes = pass_through;
     tet_remeshing(mesh, options);

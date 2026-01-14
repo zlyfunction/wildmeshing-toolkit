@@ -109,7 +109,20 @@ void finalizeBatchLogging()
 {
     // Flush any remaining operations
     flushCurrentBatch();
-    
     std::cout << "Finalized batch logging. Total batches written: " << current_batch_number << std::endl;
+}
+size_t getOperationBatchSize()
+{
+    return operation_batch.size();
+}
+void rollbackOperationBatch(size_t target_size)
+{
+    if (target_size < operation_batch.size()) {
+        size_t num_to_remove = operation_batch.size() - target_size;
+        operation_batch.resize(target_size);
+        // Also decrement the successful operations count
+        succ_operations_count -= static_cast<long>(num_to_remove);
+        std::cout << "Rolled back " << num_to_remove << " operations from batch" << std::endl;
+    }
 }
 #endif
