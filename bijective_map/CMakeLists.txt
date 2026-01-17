@@ -143,3 +143,36 @@ target_link_libraries(cgal_autorefine_rational_demo
     nlohmann_json::nlohmann_json
     wmtk::toolkit)
 target_compile_features(cgal_autorefine_rational_demo PUBLIC cxx_std_17)
+
+add_executable(surface_intersection_components_demo
+    surface_intersection_components_demo.cpp
+    surface_intersection_components.cpp
+    tet_track_operations.cpp
+    FindPointTetMesh.cpp
+    tet_surface_tracking_with_connectivity.cpp
+    tet_surface_tracking_internal.cpp
+    tet_surface_simplify_internal.cpp
+    tet_surface_sampling.cpp
+    tet_point_tracking.cpp
+    vtu_utils.cpp
+    cgal_autorefine_utils_rational.cpp
+    cgal_autorefine_utils.cpp
+    batch_operation_log_reader.cpp)
+target_include_directories(surface_intersection_components_demo PUBLIC
+    ./InteractiveAndRobustMeshBooleans
+    InteractiveAndRobustMeshBooleans/code/
+    InteractiveAndRobustMeshBooleans/arrangements/code/
+    InteractiveAndRobustMeshBooleans/arrangements/external/Indirect_Predicates/include/
+)
+target_link_libraries(surface_intersection_components_demo
+    wmtk::toolkit
+    wmtk::data
+    CLI11::CLI11
+    igl::core
+    nlohmann_json::nlohmann_json
+    cinolib
+    TBB::tbb
+    CGAL::CGAL
+    Eigen3::Eigen)
+target_include_directories(surface_intersection_components_demo PUBLIC ${PROJECT_SOURCE_DIR}/InteractiveAndRobustMeshBooleans/arrangements/external/abseil-cpp/)
+target_compile_features(surface_intersection_components_demo PUBLIC cxx_std_17)
