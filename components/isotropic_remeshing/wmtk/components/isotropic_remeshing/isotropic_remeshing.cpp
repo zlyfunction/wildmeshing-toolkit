@@ -28,8 +28,16 @@
 #include <wmtk/operations/utils/VertexTangentialLaplacianSmooth.hpp>
 #include <wmtk/utils/Logger.hpp>
 
+#include <wmtk/simplex/RawSimplex.hpp>
+#include <wmtk/simplex/Simplex.hpp>
+#include <wmtk/simplex/faces_single_dimension.hpp>
+#include <wmtk/simplex/link.hpp>
+#include <wmtk/simplex/top_dimension_cofaces.hpp>
 
 #include <Eigen/Geometry>
+#include <array>
+#include <map>
+#include <optional>
 #include <wmtk/invariants/InvariantCollection.hpp>
 #include "IsotropicRemeshingOptions.hpp"
 
@@ -52,6 +60,338 @@ double relative_to_absolute_length(
 
     return length_rel * diag_length;
 }
+
+namespace {
+SchedulerStats run_reference_collapse(
+    operations::EdgeCollapse& op,
+    const attribute::MeshAttributeHandle& position,
+    const double length_min,
+    const double length_max,
+    const bool lock_boundary)
+{
+    SchedulerStats stats;
+
+    auto& mesh = static_cast<TriMesh&>(op.mesh());
+    auto pos = position.mesh().create_const_accessor<double>(position);
+
+    const double short_sq = length_min * length_min;
+    const double long_sq = length_max * length_max;
+
+    auto gather_one_ring = [&](const Tuple& vertex) {
+        std::vector<Tuple> neighbors;
+        if (!mesh.is_valid(vertex)) {
+            return neighbors;
+        }
+        const auto ring = simplex::link(mesh, simplex::Simplex::vertex(mesh, vertex))
+                              .simplex_vector(PrimitiveType::Vertex);
+        neighbors.reserve(ring.size());
+        for (const auto& neighbor : ring) {
+            neighbors.emplace_back(neighbor.tuple());
+        }
+        return neighbors;
+    };
+
+    auto creates_long_edge = [&](const Tuple& removed, const Tuple& kept) {
+        const auto kept_pos = pos.const_vector_attribute(kept);
+        const simplex::RawSimplex kept_key(mesh, simplex::Simplex::vertex(mesh, kept));
+        const auto neighbors = gather_one_ring(removed);
+        for (const Tuple& nbr : neighbors) {
+            if (!mesh.is_valid(nbr)) {
+                continue;
+            }
+            const simplex::RawSimplex nbr_key(mesh, simplex::Simplex::vertex(mesh, nbr));
+            if (nbr_key == kept_key) {
+                continue;
+            }
+            const auto pn = pos.const_vector_attribute(nbr);
+            if ((pn - kept_pos).squaredNorm() > long_sq) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto vertex_valence = [&](const Tuple& vertex) -> int64_t {
+        return static_cast<int64_t>(gather_one_ring(vertex).size());
+    };
+
+    bool changed = true;
+    int sweep = 0;
+    while (changed && sweep < 10) {
+        changed = false;
+        ++sweep;
+
+        const auto edges = mesh.get_all(PrimitiveType::Edge);
+        for (const Tuple& edge : edges) {
+            if (!mesh.is_valid(edge)) {
+                continue;
+            }
+
+            const Tuple v0 = edge;
+            const Tuple v1 = mesh.switch_tuple(edge, PrimitiveType::Vertex);
+            if (!mesh.is_valid(v0) || !mesh.is_valid(v1)) {
+                continue;
+            }
+
+            const auto p0 = pos.const_vector_attribute(v0);
+            const auto p1 = pos.const_vector_attribute(v1);
+            if ((p0 - p1).squaredNorm() >= short_sq) {
+                continue;
+            }
+
+            const bool b0 = mesh.is_boundary(PrimitiveType::Vertex, v0);
+            const bool b1 = mesh.is_boundary(PrimitiveType::Vertex, v1);
+            const bool boundary_edge = mesh.is_boundary(PrimitiveType::Edge, edge);
+
+            if (lock_boundary && (b0 || b1 || boundary_edge)) {
+                continue;
+            }
+
+            if (b0 && b1 && !boundary_edge) {
+                continue;
+            }
+
+            bool collapse_v0_to_v1 = true;
+            bool collapse_v1_to_v0 = true;
+
+            if (b0 && !b1) {
+                collapse_v0_to_v1 = false;
+            } else if (b1 && !b0) {
+                collapse_v1_to_v0 = false;
+            }
+
+            if (collapse_v0_to_v1 && creates_long_edge(v0, v1)) {
+                collapse_v0_to_v1 = false;
+            }
+            if (collapse_v1_to_v0 && creates_long_edge(v1, v0)) {
+                collapse_v1_to_v0 = false;
+            }
+
+            if (!collapse_v0_to_v1 && !collapse_v1_to_v0) {
+                continue;
+            }
+
+            if (collapse_v0_to_v1 && collapse_v1_to_v0) {
+                if (vertex_valence(v0) < vertex_valence(v1)) {
+                    collapse_v0_to_v1 = false;
+                } else {
+                    collapse_v1_to_v0 = false;
+                }
+            }
+
+            Tuple collapse_tuple;
+            if (collapse_v0_to_v1) {
+                collapse_tuple = v0;
+            } else if (collapse_v1_to_v0) {
+                collapse_tuple = v1;
+            } else {
+                continue;
+            }
+
+            auto mods = op(simplex::Simplex(mesh, PrimitiveType::Edge, collapse_tuple));
+            if (mods.empty()) {
+                stats.fail();
+                continue;
+            }
+
+            stats.succeed();
+            changed = true;
+        }
+    }
+
+    return stats;
+}
+
+SchedulerStats run_reference_split(
+    operations::EdgeSplit& op,
+    const attribute::MeshAttributeHandle& position,
+    const double length_max,
+    const bool lock_boundary)
+{
+    SchedulerStats stats;
+    auto& mesh = static_cast<TriMesh&>(op.mesh());
+    auto pos = position.mesh().create_const_accessor<double>(position);
+    const double long_sq = length_max * length_max;
+
+    bool changed = true;
+    int sweep = 0;
+    while (changed && sweep < 10) {
+        changed = false;
+        ++sweep;
+
+        const auto edges = mesh.get_all(PrimitiveType::Edge);
+        for (const Tuple& edge : edges) {
+            if (!mesh.is_valid(edge)) {
+                continue;
+            }
+
+            const Tuple v0 = edge;
+            const Tuple v1 = mesh.switch_tuple(edge, PrimitiveType::Vertex);
+            if (!mesh.is_valid(v0) || !mesh.is_valid(v1)) {
+                continue;
+            }
+
+            const bool boundary_edge = mesh.is_boundary(PrimitiveType::Edge, edge);
+            const bool b0 = mesh.is_boundary(PrimitiveType::Vertex, v0);
+            const bool b1 = mesh.is_boundary(PrimitiveType::Vertex, v1);
+            if (lock_boundary && (boundary_edge || b0 || b1)) {
+                continue;
+            }
+
+            const auto p0 = pos.const_vector_attribute(v0);
+            const auto p1 = pos.const_vector_attribute(v1);
+            if ((p0 - p1).squaredNorm() <= long_sq) {
+                continue;
+            }
+
+            auto mods = op(simplex::Simplex(mesh, PrimitiveType::Edge, edge));
+            if (mods.empty()) {
+                stats.fail();
+                continue;
+            }
+
+            stats.succeed();
+            changed = true;
+        }
+    }
+
+    return stats;
+}
+
+SchedulerStats run_reference_swap(operations::composite::TriEdgeSwap& op, const bool lock_boundary)
+{
+    SchedulerStats stats;
+    auto& mesh = static_cast<TriMesh&>(op.mesh());
+
+    std::map<simplex::RawSimplex, int64_t> valence_cache;
+
+    auto ensure_valence = [&](const Tuple& vertex, const simplex::RawSimplex& key) -> int64_t {
+        auto [it, inserted] = valence_cache.try_emplace(key, 0);
+        if (inserted) {
+            it->second =
+                static_cast<int64_t>(simplex::link(mesh, simplex::Simplex::vertex(mesh, vertex))
+                                         .simplex_vector(PrimitiveType::Vertex)
+                                         .size());
+        }
+        return it->second;
+    };
+
+    auto opposite_vertex = [&](const Tuple& face,
+                               const simplex::RawSimplex& key0,
+                               const simplex::RawSimplex& key1) -> std::optional<Tuple> {
+        const auto vertices = simplex::faces_single_dimension_tuples(
+            mesh,
+            simplex::Simplex(mesh, PrimitiveType::Triangle, face),
+            PrimitiveType::Vertex);
+        for (const Tuple& v : vertices) {
+            const simplex::RawSimplex candidate_key(mesh, simplex::Simplex::vertex(mesh, v));
+            if (candidate_key == key0 || candidate_key == key1) {
+                continue;
+            }
+            return v;
+        }
+        return std::nullopt;
+    };
+
+    auto valence_energy = [](int64_t val, int opt) {
+        const int64_t diff = val - opt;
+        return diff * diff;
+    };
+
+    auto optimal_valence = [&](const Tuple& vertex) {
+        return mesh.is_boundary(PrimitiveType::Vertex, vertex) ? 4 : 6;
+    };
+
+    bool changed = true;
+    int sweep = 0;
+    while (changed && sweep < 10) {
+        changed = false;
+        ++sweep;
+
+        const auto edges = mesh.get_all(PrimitiveType::Edge);
+        for (const Tuple& edge : edges) {
+            if (!mesh.is_valid(edge)) {
+                continue;
+            }
+            if (mesh.is_boundary(PrimitiveType::Edge, edge)) {
+                continue;
+            }
+
+            const Tuple v0 = edge;
+            const Tuple v1 = mesh.switch_tuple(edge, PrimitiveType::Vertex);
+            if (!mesh.is_valid(v0) || !mesh.is_valid(v1)) {
+                continue;
+            }
+
+            if (lock_boundary && (mesh.is_boundary(PrimitiveType::Vertex, v0) ||
+                                  mesh.is_boundary(PrimitiveType::Vertex, v1))) {
+                continue;
+            }
+
+            const simplex::Simplex edge_simplex(mesh, PrimitiveType::Edge, edge);
+            const auto faces = simplex::top_dimension_cofaces_tuples(mesh, edge_simplex);
+            if (faces.size() != 2) {
+                continue;
+            }
+
+            const simplex::RawSimplex key0(mesh, simplex::Simplex::vertex(mesh, v0));
+            const simplex::RawSimplex key1(mesh, simplex::Simplex::vertex(mesh, v1));
+
+            auto opt_v2 = opposite_vertex(faces[0], key0, key1);
+            auto opt_v3 = opposite_vertex(faces[1], key0, key1);
+            if (!opt_v2.has_value() || !opt_v3.has_value()) {
+                continue;
+            }
+            const Tuple v2 = opt_v2.value();
+            const Tuple v3 = opt_v3.value();
+
+            if (lock_boundary && (mesh.is_boundary(PrimitiveType::Vertex, v2) ||
+                                  mesh.is_boundary(PrimitiveType::Vertex, v3))) {
+                continue;
+            }
+
+            const simplex::RawSimplex key2(mesh, simplex::Simplex::vertex(mesh, v2));
+            const simplex::RawSimplex key3(mesh, simplex::Simplex::vertex(mesh, v3));
+
+            const int64_t val0 = ensure_valence(v0, key0);
+            const int64_t val1 = ensure_valence(v1, key1);
+            const int64_t val2 = ensure_valence(v2, key2);
+            const int64_t val3 = ensure_valence(v3, key3);
+
+            const int opt0 = optimal_valence(v0);
+            const int opt1 = optimal_valence(v1);
+            const int opt2 = optimal_valence(v2);
+            const int opt3 = optimal_valence(v3);
+
+            const int64_t energy_before = valence_energy(val0, opt0) + valence_energy(val1, opt1) +
+                                          valence_energy(val2, opt2) + valence_energy(val3, opt3);
+            const int64_t energy_after =
+                valence_energy(val0 - 1, opt0) + valence_energy(val1 - 1, opt1) +
+                valence_energy(val2 + 1, opt2) + valence_energy(val3 + 1, opt3);
+
+            if (energy_before <= energy_after) {
+                continue;
+            }
+
+            auto mods = op(simplex::Simplex(mesh, PrimitiveType::Edge, edge));
+            if (mods.empty()) {
+                stats.fail();
+                continue;
+            }
+
+            stats.succeed();
+            changed = true;
+
+            valence_cache[key0] = val0 - 1;
+            valence_cache[key1] = val1 - 1;
+            valence_cache[key2] = val2 + 1;
+            valence_cache[key3] = val3 + 1;
+        }
+    }
+
+    return stats;
+}
+} // namespace
 
 
 void isotropic_remeshing(const IsotropicRemeshingOptions& options)
@@ -154,8 +494,6 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
 
     assert(mesh.is_connectivity_valid());
 
-    std::vector<std::shared_ptr<Operation>> ops;
-
     // split
     wmtk::logger().debug("Configure isotropic remeshing split");
     auto op_split = std::make_shared<EdgeSplit>(mesh);
@@ -173,7 +511,6 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
         op_split->set_new_attribute_strategy(attr);
     }
     assert(op_split->attribute_new_all_configured());
-    ops.push_back(op_split);
 
 
     //////////////////////////////////////////
@@ -191,17 +528,17 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
     op_collapse->add_invariant(invariant_mm_map);
 
     // hack for uv
-    if (options.fix_uv_seam) {
-        op_collapse->add_invariant(
-            std::make_shared<invariants::uvEdgeInvariant>(mesh, other_positions.front().mesh()));
-    }
+    // if (options.fix_uv_seam) {
+    //     op_collapse->add_invariant(
+    //         std::make_shared<invariants::uvEdgeInvariant>(mesh, other_positions.front().mesh()));
+    // }
 
     if (options.lock_boundary && !options.use_for_periodic) {
         op_collapse->add_invariant(invariant_interior_edge);
         // set collapse towards boundary
         for (auto& p : positions) {
             auto tmp = std::make_shared<CollapseNewAttributeStrategy<double>>(p);
-            tmp->set_strategy(CollapseBasicStrategy::Mean);
+            tmp->set_strategy(CollapseBasicStrategy::CopyOther);
             tmp->set_simplex_predicate(BasicSimplexPredicate::IsInterior);
             op_collapse->set_new_attribute_strategy(p, tmp);
         }
@@ -209,11 +546,11 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
         op_collapse->add_invariant(
             std::make_shared<invariants::FusionEdgeInvariant>(mesh, mesh.get_multi_mesh_root()));
         for (auto& p : positions) {
-            op_collapse->set_new_attribute_strategy(p, CollapseBasicStrategy::Mean);
+            op_collapse->set_new_attribute_strategy(p, CollapseBasicStrategy::CopyOther);
         }
     } else {
         for (auto& p : positions) {
-            op_collapse->set_new_attribute_strategy(p, CollapseBasicStrategy::Mean);
+            op_collapse->set_new_attribute_strategy(p, CollapseBasicStrategy::CopyOther);
         }
     }
 
@@ -222,7 +559,6 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
         op_collapse->set_new_attribute_strategy(attr);
     }
     assert(op_collapse->attribute_new_all_configured());
-    ops.push_back(op_collapse);
 
 
     //////////////////////////////////////////
@@ -260,7 +596,6 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
     }
     assert(op_swap->split().attribute_new_all_configured());
     assert(op_swap->collapse().attribute_new_all_configured());
-    ops.push_back(op_swap);
 
 
     //////////////////////////////////////////
@@ -289,7 +624,6 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
     }
 
     if (update_position) op_smooth->add_transfer_strategy(update_position);
-    ops.push_back(op_smooth);
 
 
     //////////////////////////////////////////
@@ -298,10 +632,16 @@ void isotropic_remeshing(const IsotropicRemeshingOptions& options)
         wmtk::logger().info("Iteration {}", i);
 
         SchedulerStats pass_stats;
-        for (size_t j = 0; j < ops.size(); ++j) {
-            const auto& op = ops[j];
-            pass_stats += scheduler.run_operation_on_all(*op);
-        }
+        pass_stats += run_reference_split(*op_split, position, length_max, options.lock_boundary);
+
+        pass_stats += run_reference_collapse(
+            *op_collapse,
+            position,
+            length_min,
+            length_max,
+            options.lock_boundary);
+        pass_stats += run_reference_swap(*op_swap, options.lock_boundary);
+        pass_stats += scheduler.run_operation_on_all(*op_smooth);
 
         auto op_consolidate = MeshConsolidate(mesh);
         op_consolidate(simplex::Simplex(mesh, PrimitiveType::Vertex, Tuple()));
