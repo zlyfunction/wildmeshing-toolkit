@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "InteractiveAndRobustMeshBooleans/code/booleans.h"
+#include "FindPointTetMesh.hpp"
 #include "cgal_autorefine_utils_rational.hpp"
 #include "tet_track_operations.hpp"
 
@@ -692,6 +693,229 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
         int local_tet_id = autorefine_result.sampled_fragment_tet_ids(i);
         query_surface.tet_ids.push_back(local_tet_id);
     }
+    std::cout << "Created surface with " << query_surface.points.size() << " unique points and "
+              << query_surface.query_triangles.size() << " triangles" << std::endl;
+    return query_surface;
+}
+
+query_surface_tet_with_connectivity query_surface_tet_with_connectivity_from_triangle_mesh(
+    const Eigen::MatrixXi& T_out,
+    const Eigen::MatrixXd& V_out,
+    const Eigen::MatrixXd& V_surface,
+    const Eigen::MatrixXi& F_surface,
+    double tolerance,
+    bool verbose)
+{
+    query_surface_tet_with_connectivity query_surface;
+    if (T_out.rows() == 0 || V_out.rows() == 0 || F_surface.rows() == 0) {
+        return query_surface;
+    }
+
+    using MatrixXr = Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, Eigen::Dynamic>;
+    using Vector4r = Eigen::Matrix<wmtk::Rational, 4, 1>;
+
+    std::cout << "Building query surface with connectivity from triangle mesh..." << std::endl;
+    std::cout << "  Surface vertices: " << V_surface.rows() << std::endl;
+    std::cout << "  Surface triangles: " << F_surface.rows() << std::endl;
+
+    MatrixXr V_rational(V_out.rows(), V_out.cols());
+    for (int i = 0; i < V_out.rows(); i++) {
+        for (int j = 0; j < V_out.cols(); j++) {
+            V_rational(i, j) = wmtk::Rational(V_out(i, j));
+        }
+    }
+
+    std::vector<cgal_autorefine_demo::SampledPointInputRational> sampled_points;
+    sampled_points.reserve(V_surface.rows());
+    std::vector<int> surface_vertex_to_sampled(V_surface.rows(), -1);
+
+    int missing_vertices = 0;
+    for (int i = 0; i < V_surface.rows(); ++i) {
+        Eigen::Vector3d p = V_surface.row(i);
+        auto [tet_id, bc_double] = findTetContainingPoint(V_out, T_out, p, tolerance);
+        if (tet_id < 0) {
+            missing_vertices++;
+            if (verbose) {
+                std::cerr << "Warning: surface vertex " << i
+                          << " not found in any tet (skipping)" << std::endl;
+            }
+            continue;
+        }
+
+        Vector4r bc_rational;
+        for (int j = 0; j < 4; ++j) {
+            double value = bc_double(j);
+            if (std::abs(value) < tolerance) {
+                value = 0.0;
+            } else if (std::abs(1.0 - value) < tolerance) {
+                value = 1.0;
+            }
+            value = std::max(0.0, std::min(1.0, value));
+            bc_rational(j) = wmtk::Rational(value);
+        }
+        wmtk::Rational sum = bc_rational.sum();
+        if (sum != wmtk::Rational(0)) {
+            bc_rational /= sum;
+        }
+
+        cgal_autorefine_demo::SampledPointInputRational sampled_pt;
+        sampled_pt.tet_index = tet_id;
+        sampled_pt.barycentric = bc_rational;
+        surface_vertex_to_sampled[i] = static_cast<int>(sampled_points.size());
+        sampled_points.push_back(sampled_pt);
+    }
+
+    if (missing_vertices > 0) {
+        std::cerr << "Warning: " << missing_vertices
+                  << " surface vertices were outside the tet mesh" << std::endl;
+    }
+
+    std::vector<Eigen::Vector3i> sampled_faces_list;
+    sampled_faces_list.reserve(F_surface.rows());
+    for (int i = 0; i < F_surface.rows(); ++i) {
+        int v0 = F_surface(i, 0);
+        int v1 = F_surface(i, 1);
+        int v2 = F_surface(i, 2);
+        int s0 = (v0 >= 0 && v0 < static_cast<int>(surface_vertex_to_sampled.size()))
+                     ? surface_vertex_to_sampled[v0]
+                     : -1;
+        int s1 = (v1 >= 0 && v1 < static_cast<int>(surface_vertex_to_sampled.size()))
+                     ? surface_vertex_to_sampled[v1]
+                     : -1;
+        int s2 = (v2 >= 0 && v2 < static_cast<int>(surface_vertex_to_sampled.size()))
+                     ? surface_vertex_to_sampled[v2]
+                     : -1;
+        if (s0 < 0 || s1 < 0 || s2 < 0) {
+            continue;
+        }
+        if (s0 == s1 || s1 == s2 || s0 == s2) {
+            continue;
+        }
+        sampled_faces_list.emplace_back(s0, s1, s2);
+    }
+
+    if (sampled_faces_list.empty()) {
+        std::cerr << "Warning: no valid triangles remain after filtering" << std::endl;
+        return query_surface;
+    }
+
+    Eigen::MatrixXi sampled_faces(sampled_faces_list.size(), 3);
+    for (int i = 0; i < static_cast<int>(sampled_faces_list.size()); ++i) {
+        sampled_faces.row(i) = sampled_faces_list[static_cast<std::size_t>(i)];
+    }
+
+    std::cout << "Calling autorefine_sampled_triangles_rational..." << std::endl;
+    cgal_autorefine_demo::AutorefineResultRational autorefine_result =
+        cgal_autorefine_demo::autorefine_sampled_triangles_rational(
+            V_rational,
+            T_out,
+            sampled_points,
+            sampled_faces,
+            verbose);
+    std::cout << "Autorefine completed: " << autorefine_result.refined_points.size()
+              << " refined points, " << autorefine_result.refined_triangles.size()
+              << " refined triangles" << std::endl;
+    std::cout << "Sampled fragment triangles: "
+              << autorefine_result.sampled_fragment_triangles.size() << std::endl;
+
+    if (autorefine_result.sampled_fragment_triangles.empty()) {
+        std::cout << "No refined sampled triangles found" << std::endl;
+        return query_surface;
+    }
+
+    std::map<std::size_t, int> refined_point_to_surface_point;
+    std::set<std::size_t> refined_vertex_ids_used;
+    for (const auto& tri : autorefine_result.sampled_fragment_triangles) {
+        refined_vertex_ids_used.insert(tri[0]);
+        refined_vertex_ids_used.insert(tri[1]);
+        refined_vertex_ids_used.insert(tri[2]);
+    }
+
+    for (std::size_t refined_v_id : refined_vertex_ids_used) {
+        const cgal_autorefine_demo::RationalPoint& p =
+            autorefine_result.refined_points[refined_v_id];
+        Eigen::Matrix<wmtk::Rational, 3, 1> point_pos;
+        point_pos(0) = wmtk::Rational(p.x(), false);
+        point_pos(1) = wmtk::Rational(p.y(), false);
+        point_pos(2) = wmtk::Rational(p.z(), false);
+
+        int local_tet_id = -1;
+        if (refined_v_id < autorefine_result.vertex_tet_sets.size()) {
+            const auto& tet_set = autorefine_result.vertex_tet_sets[refined_v_id];
+            if (!tet_set.empty()) {
+                local_tet_id = *tet_set.begin();
+            }
+        }
+        if (local_tet_id == -1) {
+            for (std::size_t tri_idx = 0;
+                 tri_idx < autorefine_result.sampled_fragment_triangles.size();
+                 ++tri_idx) {
+                const auto& tri = autorefine_result.sampled_fragment_triangles[tri_idx];
+                if (tri[0] == refined_v_id || tri[1] == refined_v_id || tri[2] == refined_v_id) {
+                    local_tet_id = autorefine_result.sampled_fragment_tet_ids(tri_idx);
+                    break;
+                }
+            }
+        }
+        if (local_tet_id == -1 || local_tet_id >= T_out.rows()) {
+            if (verbose) {
+                std::cerr << "Warning: Could not find valid tet_id for point " << refined_v_id
+                          << std::endl;
+            }
+            continue;
+        }
+
+        Eigen::Vector4i tv_ids = T_out.row(local_tet_id);
+        Eigen::Matrix<wmtk::Rational, 4, 3> tet_vertices;
+        for (int i = 0; i < 4; ++i) {
+            tet_vertices.row(i) = V_rational.row(tv_ids(i));
+        }
+
+        Vector4r barycentric_coords =
+            world_to_barycentric_tet<wmtk::Rational>(point_pos, tet_vertices);
+        wmtk::Rational sum = barycentric_coords.sum();
+        if (sum != wmtk::Rational(0)) {
+            barycentric_coords = barycentric_coords / sum;
+        }
+        for (int bc_idx = 0; bc_idx < 4; ++bc_idx) {
+            if (std::abs(barycentric_coords(bc_idx).to_double()) < 1e-14) {
+                barycentric_coords(bc_idx) = wmtk::Rational(0);
+            }
+        }
+
+        query_point_tet_r qp;
+        qp.t_id = local_tet_id;
+        qp.bc = barycentric_coords;
+        qp.tv_ids = tv_ids;
+
+        int point_idx = static_cast<int>(query_surface.points.size());
+        query_surface.points.push_back(qp);
+        refined_point_to_surface_point[refined_v_id] = point_idx;
+    }
+
+    for (std::size_t i = 0; i < autorefine_result.sampled_fragment_triangles.size(); ++i) {
+        const cgal_autorefine_demo::Triangle& refined_tri =
+            autorefine_result.sampled_fragment_triangles[i];
+        Eigen::Vector3i new_tri;
+        bool all_mapped = true;
+        for (int corner = 0; corner < 3; ++corner) {
+            std::size_t refined_v_id = refined_tri[corner];
+            auto it = refined_point_to_surface_point.find(refined_v_id);
+            if (it != refined_point_to_surface_point.end()) {
+                new_tri(corner) = it->second;
+            } else {
+                all_mapped = false;
+                break;
+            }
+        }
+        if (!all_mapped) {
+            continue;
+        }
+        query_surface.query_triangles.push_back(new_tri);
+        int local_tet_id = autorefine_result.sampled_fragment_tet_ids(i);
+        query_surface.tet_ids.push_back(local_tet_id);
+    }
+
     std::cout << "Created surface with " << query_surface.points.size() << " unique points and "
               << query_surface.query_triangles.size() << " triangles" << std::endl;
     return query_surface;

@@ -491,23 +491,7 @@ void run_backward_tracking_surface(
 
     // check self intersection
     {
-        // MatrixXr V_before_rational(V_before.rows(), V_before.cols());
-        // for (int i = 0; i < V_before.rows(); i++) {
-        //     for (int j = 0; j < V_before.cols(); j++) {
-        //         V_before_rational(i, j) = wmtk::Rational(V_before(i, j));
-        //     }
-        // }
-        // auto [surface_V, surface_F_matrix] =
-        //     surface_to_world_positions_rational(query_surface,
-        //     V_before_rational);self_intersection
-        // bool has_ =
-        //     check_surface_self_intersection(surface_V, query_surface.query_triangles);
-        // if (has_self_intersection) {
-        //     std::cout << "Output query surface has self-intersection" << std::endl;
-        //     throw std::runtime_error("Error: output query_surface has self-intersection");
-        // } else {
-        //     std::cout << "Output query surface has no self-intersection" << std::endl;
-        // }
+        
         bool has_self_intersection =
             check_surface_self_intersection_intrinsic(query_surface, T_before);
         if (has_self_intersection) {
@@ -799,6 +783,542 @@ void run_backward_tracking_surfaces(
         {
             bool has_self_intersection =
                 check_surface_self_intersection_intrinsic(surfaces[s].surface, T_before);
+            if (has_self_intersection) {
+                std::cout << "Output query surface " << s << " has self-intersection"
+                          << std::endl;
+                throw std::runtime_error("Error: output query_surface has self-intersection");
+            } else {
+                std::cout << "Output query surface " << s << " has no self-intersection"
+                          << std::endl;
+            }
+        }
+    }
+}
+
+void run_forward_tracking_surface(
+    const Eigen::MatrixXi& T_before,
+    const Eigen::MatrixXd& V_before,
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const std::filesystem::path& operation_logs_dir,
+    const std::filesystem::path& surface_file,
+    bool check_manifold,
+    int start_operation,
+    int save_interval,
+    const std::filesystem::path& save_dir,
+    bool do_rounding,
+    bool do_simplify,
+    bool verbose,
+    bool save_debug_meshes,
+    bool only_do_arrangement_once,
+    bool sample_new_surfaces)
+{
+    std::cout << "Forward tracking surface with connectivity" << std::endl;
+    std::cout.flush();
+
+    // Note: only_do_arrangement_once is not supported for forward tracking
+    if (only_do_arrangement_once) {
+        std::cout << "Warning: only_do_arrangement_once is not supported for forward tracking, ignoring" << std::endl;
+    }
+
+    std::cout << "  Parameters:" << std::endl;
+    std::cout << "    operation_logs_dir: " << operation_logs_dir << std::endl;
+    std::cout << "    surface_file: " << surface_file << std::endl;
+    std::cout << "    start_operation: " << start_operation << std::endl;
+    std::cout << "    save_interval: " << save_interval << std::endl;
+    std::cout << "    save_dir: " << save_dir << std::endl;
+    std::cout << "    do_rounding: " << do_rounding << std::endl;
+    std::cout << "    do_simplify: " << do_simplify << std::endl;
+    std::cout << "    sample_new_surfaces: " << sample_new_surfaces << std::endl;
+    std::cout.flush();
+
+    if (start_operation > 0 && save_dir.empty()) {
+        throw std::runtime_error("Error: start_operation requires save_dir for checkpoints");
+    }
+    if (start_operation > 0) {
+        std::cout << "Starting from operation " << start_operation << std::endl;
+    }
+    if (save_interval > 0 && !save_dir.empty()) {
+        std::cout << "Saving surface every " << save_interval << " operations to " << save_dir
+                  << std::endl;
+    }
+
+    if (sample_new_surfaces && start_operation > 0) {
+        throw std::runtime_error("Error: sample_new_surfaces requires start_operation == 0");
+    }
+
+    // Step 1: Read or sample the query surface with connectivity (on before mesh)
+    std::string query_surface_filename = surface_file.string();
+    query_surface_tet_with_connectivity query_surface;
+    bool is_checkpoint_loaded = false;
+
+    if (start_operation > 0 && !save_dir.empty()) {
+        // For forward tracking, checkpoint is at start_operation - 1
+        int checkpoint_op_index = start_operation - 1;
+        std::filesystem::path checkpoint_file =
+            save_dir / ("surface_op_" + std::to_string(checkpoint_op_index) + ".bin");
+        if (std::filesystem::exists(checkpoint_file)) {
+            std::cout << "Loading checkpoint from operation index " << checkpoint_op_index
+                      << ": " << checkpoint_file << std::endl;
+            query_surface = read_surface_connectivity_from_binary(checkpoint_file.string());
+            is_checkpoint_loaded = true;
+        } else {
+            throw std::runtime_error(
+                "Error: missing checkpoint file " + checkpoint_file.string());
+        }
+    }
+
+    if (!is_checkpoint_loaded) {
+        if (sample_new_surfaces) {
+            std::cout << "Sampling new query_surface on before mesh and writing to file..." << std::endl;
+            int N = 5;
+            int axis = 2;
+            double min_coord = V_before.col(axis).minCoeff();
+            double max_coord = V_before.col(axis).maxCoeff();
+            double plane_coord = min_coord + (max_coord - min_coord) * (N + 1) / (N + 2);
+            query_surface = tet_surface_sampling::slice_tet_mesh_with_axis_plane(
+                T_before,
+                V_before,
+                axis,
+                plane_coord);
+            write_surface_connectivity_to_file(query_surface, query_surface_filename);
+        } else {
+            if (!std::filesystem::exists(query_surface_filename)) {
+                throw std::runtime_error(
+                    "Error: query_surface file not found: " + query_surface_filename);
+            }
+            std::cout << "Reading query_surface from file..." << std::endl;
+            query_surface = read_surface_connectivity_from_file(query_surface_filename);
+        }
+    }
+
+    std::string model_name = "model";
+    auto dir_str = operation_logs_dir.filename().string();
+    const std::string prefix = "operation_log_";
+    if (dir_str.size() > prefix.size() && dir_str.substr(0, prefix.size()) == prefix) {
+        model_name = dir_str.substr(prefix.size());
+    }
+
+    if (!is_checkpoint_loaded) {
+        write_surface_to_vtu(
+            query_surface,
+            V_before,
+            model_name + "_query_surface_tet_with_connectivity_before.vtu");
+    }
+
+    if (!is_checkpoint_loaded) {
+        // DEBUG: sanity check for the input query_surface
+        for (int i = 0; i < query_surface.query_triangles.size(); i++) {
+            const Eigen::Vector3i& tri = query_surface.query_triangles[i];
+            int tri_tet_id = query_surface.tet_ids[i];
+            const Eigen::Vector4i& relevant_vids = T_before.row(tri_tet_id);
+
+            for (int j = 0; j < 3; j++) {
+                const auto& pt = query_surface.points[tri[j]];
+                if (pt.t_id != tri_tet_id) {
+                    const auto tv_ids = pt.tv_ids;
+                    for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
+                        if (pt.bc(bc_idx) != 0) {
+                            int v_idx = tv_ids(bc_idx);
+                            if (std::find(relevant_vids.data(), relevant_vids.data() + 4, v_idx) ==
+                                relevant_vids.data() + 4) {
+                                std::cout << "ERROR: " << "v_idx: " << v_idx
+                                          << " is not in relevant_vids" << std::endl;
+                                std::cout << "bc of this point: " << pt.bc(bc_idx).to_double()
+                                          << std::endl;
+                                throw std::runtime_error("Error: point not in relevant_vids");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Check sanity of the input query_surface
+    {
+        bool is_manifold = check_surface_manifold_property(query_surface.query_triangles);
+        if (is_manifold) {
+            std::cout << "Input query surface is manifold" << std::endl;
+        } else {
+            std::cout << "Input query surface is not manifold" << std::endl;
+            throw std::runtime_error("Error: input query_surface is not manifold");
+        }
+    }
+
+    // Step 2: Do the forward tracking
+    std::cout << "Doing forward tracking..." << std::endl;
+    BatchOperationLogReader reader(operation_logs_dir);
+    int total_ops = reader.get_total_operations();
+    if (total_ops == 0) {
+        std::cerr << "No operation logs found in " << operation_logs_dir << std::endl;
+        return;
+    }
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+    if (start_operation >= total_ops) {
+        std::cerr << "start_operation " << start_operation << " is >= total_ops " << total_ops
+                  << std::endl;
+        return;
+    }
+
+    bool do_forward = true;  // Key difference: forward tracking
+    int ops_to_process = total_ops - start_operation;
+
+    if (!save_dir.empty()) {
+        std::filesystem::create_directories(save_dir);
+    }
+
+    auto tracking_block_start = std::chrono::high_resolution_clock::now();
+    for (int i = start_operation; i < total_ops; ++i) {
+        int operation_index = i;  // Forward: process operations in order
+        nlohmann::json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            std::cerr << "Failed to read operation " << operation_index << std::endl;
+            throw std::runtime_error("Error: failed to read operation");
+        }
+        int current_op = i - start_operation + 1;
+        std::cout << "\n=== Processing operation " << current_op << "/" << ops_to_process
+                  << " (index: " << operation_index << ") ===" << std::endl;
+
+        track_one_operation(
+            operation_log,
+            query_surface,
+            do_forward,
+            static_cast<int>(operation_index),
+            do_rounding,
+            verbose,
+            save_debug_meshes,
+            do_simplify,
+            false);  // Always pass false for only_do_arrangement_once in forward tracking
+
+        if (save_interval > 0 && !save_dir.empty() &&
+            (current_op % save_interval == 0 || current_op == ops_to_process)) {
+            std::filesystem::path save_file =
+                save_dir / ("surface_op_" + std::to_string(operation_index) + ".bin");
+            write_surface_connectivity_to_binary(query_surface, save_file.string());
+        }
+    }
+    auto tracking_block_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> tracking_block_duration =
+        tracking_block_end - tracking_block_start;
+    std::cout << "Total tracking block took " << tracking_block_duration.count() << " seconds"
+              << std::endl;
+
+    std::cout << "\n=== All operations completed ===" << std::endl;
+    std::cout << "Final surface state: " << query_surface.points.size() << " points, "
+              << query_surface.query_triangles.size() << " triangles" << std::endl;
+
+    // Step 3: write the surface to file
+    write_surface_connectivity_to_file(
+        query_surface,
+        model_name + "_query_surface_tet_with_connectivity_after.json");
+    write_surface_to_vtu(
+        query_surface,
+        V_after,
+        model_name + "_query_surface_tet_with_connectivity_after.vtu");
+
+    // Results manifold check
+    {
+        bool is_manifold = check_surface_manifold_property(query_surface.query_triangles);
+        if (is_manifold) {
+            std::cout << "Output query surface is manifold" << std::endl;
+        } else {
+            std::cout << "Output query surface is not manifold" << std::endl;
+            throw std::runtime_error("Error: output query_surface is not manifold");
+        }
+    }
+
+    // Check self intersection
+    {
+        bool has_self_intersection =
+            check_surface_self_intersection_intrinsic(query_surface, T_after);
+        if (has_self_intersection) {
+            std::cout << "Output query surface has self-intersection" << std::endl;
+            throw std::runtime_error("Error: output query_surface has self-intersection");
+        } else {
+            std::cout << "Output query surface has no self-intersection" << std::endl;
+        }
+    }
+}
+
+void run_forward_tracking_surfaces(
+    const Eigen::MatrixXi& T_before,
+    const Eigen::MatrixXd& V_before,
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const std::filesystem::path& operation_logs_dir,
+    const std::vector<std::filesystem::path>& surface_files,
+    bool check_manifold,
+    int start_operation,
+    int save_interval,
+    const std::filesystem::path& save_dir,
+    bool do_rounding,
+    bool do_simplify,
+    bool verbose,
+    bool save_debug_meshes,
+    bool only_do_arrangement_once,
+    bool sample_new_surfaces)
+{
+    std::cout << "Forward tracking multiple surfaces with connectivity" << std::endl;
+
+    // Note: only_do_arrangement_once is not supported for forward tracking
+    if (only_do_arrangement_once) {
+        std::cout << "Warning: only_do_arrangement_once is not supported for forward tracking, ignoring" << std::endl;
+    }
+
+    if (sample_new_surfaces && start_operation > 0) {
+        throw std::runtime_error("Error: sample_new_surfaces requires start_operation == 0");
+    }
+    if (start_operation > 0 && save_dir.empty()) {
+        throw std::runtime_error("Error: start_operation requires save_dir for checkpoints");
+    }
+    if (start_operation > 0) {
+        std::cout << "Starting from operation " << start_operation << std::endl;
+    }
+    if (save_interval > 0 && !save_dir.empty()) {
+        std::cout << "Saving surface every " << save_interval << " operations to " << save_dir
+                  << std::endl;
+    }
+
+    BatchOperationLogReader reader(operation_logs_dir);
+    int total_ops = reader.get_total_operations();
+    if (total_ops == 0) {
+        throw std::runtime_error(
+            "Error: no operation logs found in " + operation_logs_dir.string());
+    }
+    std::cout << "Found " << total_ops << " operations in "
+              << (reader.is_batch_format() ? "batch" : "legacy") << " format" << std::endl;
+    if (start_operation >= total_ops) {
+        throw std::runtime_error("Error: start_operation >= total_ops");
+    }
+
+    std::string model_name = "model";
+    auto dir_str = operation_logs_dir.filename().string();
+    const std::string prefix = "operation_log_";
+    if (dir_str.size() > prefix.size() && dir_str.substr(0, prefix.size()) == prefix) {
+        model_name = dir_str.substr(prefix.size());
+    }
+
+    std::vector<std::filesystem::path> resolved_surface_files = surface_files;
+    if (sample_new_surfaces) {
+        if (!resolved_surface_files.empty() && resolved_surface_files.size() != 3) {
+            throw std::runtime_error(
+                "Error: sample_new_surfaces expects 3 surface_files (axis 0,1,2)");
+        }
+        if (resolved_surface_files.empty()) {
+            resolved_surface_files.emplace_back(model_name + "_axis0_surface.json");
+            resolved_surface_files.emplace_back(model_name + "_axis1_surface.json");
+            resolved_surface_files.emplace_back(model_name + "_axis2_surface.json");
+        }
+        if (V_before.cols() < 3) {
+            throw std::runtime_error("Error: V_before must have at least 3 columns");
+        }
+    } else {
+        if (resolved_surface_files.empty()) {
+            throw std::runtime_error("Error: surface_files is empty");
+        }
+    }
+
+    std::vector<query_surface_tet_with_connectivity> sampled_surfaces;
+    if (sample_new_surfaces) {
+        std::cout << "Sampling new query_surfaces on before mesh for axes 0, 1, 2" << std::endl;
+        sampled_surfaces.reserve(3);
+        int N = 5;
+        for (int axis = 0; axis < 3; ++axis) {
+            double min_coord = V_before.col(axis).minCoeff();
+            double max_coord = V_before.col(axis).maxCoeff();
+            double plane_coord = min_coord + (max_coord - min_coord) * (N + 1) / (N + 2);
+            query_surface_tet_with_connectivity query_surface =
+                tet_surface_sampling::slice_tet_mesh_with_axis_plane(
+                    T_before,
+                    V_before,
+                    axis,
+                    plane_coord);
+            write_surface_connectivity_to_file(
+                query_surface,
+                resolved_surface_files[static_cast<size_t>(axis)].string());
+            sampled_surfaces.push_back(std::move(query_surface));
+        }
+    }
+
+    struct SurfaceState
+    {
+        query_surface_tet_with_connectivity surface;
+        std::filesystem::path surface_file;
+        std::string output_prefix;
+        bool is_checkpoint_loaded = false;
+    };
+
+    std::vector<SurfaceState> surfaces;
+    surfaces.reserve(resolved_surface_files.size());
+    int checkpoint_op_index = -1;
+    if (start_operation > 0) {
+        checkpoint_op_index = start_operation - 1;  // Forward: checkpoint at previous operation
+    }
+
+    for (size_t s = 0; s < resolved_surface_files.size(); ++s) {
+        SurfaceState state;
+        state.surface_file = resolved_surface_files[s];
+        if (state.surface_file.empty()) {
+            throw std::runtime_error("Error: surface_files contains empty path");
+        }
+        std::string stem = state.surface_file.stem().string();
+        state.output_prefix =
+            model_name + "_surf" + std::to_string(s) + "_" + stem;
+        if (start_operation > 0) {
+            std::filesystem::path checkpoint_file = save_dir /
+                ("surface_op_" + std::to_string(checkpoint_op_index) + "_surf" +
+                 std::to_string(s) + ".bin");
+            if (std::filesystem::exists(checkpoint_file)) {
+                std::cout << "Loading checkpoint for surface " << s << " from operation index "
+                          << checkpoint_op_index << ": " << checkpoint_file << std::endl;
+                state.surface =
+                    read_surface_connectivity_from_binary(checkpoint_file.string());
+                state.is_checkpoint_loaded = true;
+            } else {
+                throw std::runtime_error(
+                    "Error: missing checkpoint file " + checkpoint_file.string());
+            }
+        }
+        if (!state.is_checkpoint_loaded) {
+            if (sample_new_surfaces) {
+                if (s >= sampled_surfaces.size()) {
+                    throw std::runtime_error("Error: sampled_surfaces size mismatch");
+                }
+                state.surface = sampled_surfaces[s];
+            } else {
+                if (!std::filesystem::exists(state.surface_file)) {
+                    throw std::runtime_error(
+                        "Error: surface file not found: " + state.surface_file.string());
+                }
+                std::cout << "Reading surface with connectivity from file: "
+                          << state.surface_file << std::endl;
+                state.surface =
+                    read_surface_connectivity_from_file(state.surface_file.string());
+            }
+        }
+        if (!state.is_checkpoint_loaded) {
+            write_surface_to_vtu(
+                state.surface,
+                V_before,
+                state.output_prefix +
+                    "_query_surface_tet_with_connectivity_before.vtu");
+        }
+        if (!state.is_checkpoint_loaded) {
+            for (int i = 0; i < state.surface.query_triangles.size(); i++) {
+                const Eigen::Vector3i& tri = state.surface.query_triangles[i];
+                int tri_tet_id = state.surface.tet_ids[i];
+                const Eigen::Vector4i& relevant_vids = T_before.row(tri_tet_id);
+                for (int j = 0; j < 3; j++) {
+                    const auto& pt = state.surface.points[tri[j]];
+                    if (pt.t_id != tri_tet_id) {
+                        const auto tv_ids = pt.tv_ids;
+                        for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
+                            if (pt.bc(bc_idx) != 0) {
+                                int v_idx = tv_ids(bc_idx);
+                                if (std::find(
+                                        relevant_vids.data(),
+                                        relevant_vids.data() + 4,
+                                        v_idx) == relevant_vids.data() + 4) {
+                                    std::cout << "ERROR: " << "v_idx: " << v_idx
+                                              << " is not in relevant_vids" << std::endl;
+                                    std::cout << "bc of this point: "
+                                              << pt.bc(bc_idx).to_double() << std::endl;
+                                    throw std::runtime_error(
+                                        "Error: point not in relevant_vids");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        {
+            bool is_manifold = check_surface_manifold_property(state.surface.query_triangles);
+            if (is_manifold) {
+                std::cout << "Input query surface " << s << " is manifold" << std::endl;
+            } else {
+                std::cout << "Input query surface " << s << " is not manifold" << std::endl;
+                throw std::runtime_error("Error: input query_surface is not manifold");
+            }
+        }
+        surfaces.push_back(std::move(state));
+    }
+
+    bool do_forward = true;  // Key difference: forward tracking
+    int ops_to_process = total_ops - start_operation;
+    if (!save_dir.empty()) {
+        std::filesystem::create_directories(save_dir);
+    }
+    auto tracking_block_start = std::chrono::high_resolution_clock::now();
+    for (int i = start_operation; i < total_ops; ++i) {
+        int operation_index = i;  // Forward: process operations in order
+        nlohmann::json operation_log = reader.get_operation(operation_index);
+        if (operation_log.empty()) {
+            throw std::runtime_error("Error: failed to read operation");
+        }
+        int current_op = i - start_operation + 1;
+        std::cout << "\n=== Processing operation " << current_op << "/" << ops_to_process
+                  << " (index: " << operation_index << ") ===" << std::endl;
+        OperationContext context = parse_operation_context(operation_log, operation_index);
+        for (size_t s = 0; s < surfaces.size(); ++s) {
+            std::cout << "\n--- Surface " << s << " ---" << std::endl;
+            apply_operation_context(
+                context,
+                surfaces[s].surface,
+                do_forward,
+                static_cast<int>(operation_index),
+                do_rounding,
+                verbose,
+                save_debug_meshes,
+                do_simplify,
+                false);  // Always pass false for only_do_arrangement_once in forward tracking
+            post_operation_checks(context, surfaces[s].surface, do_forward);
+        }
+        if (save_interval > 0 && !save_dir.empty() &&
+            (current_op % save_interval == 0 || current_op == ops_to_process)) {
+            for (size_t s = 0; s < surfaces.size(); ++s) {
+                std::filesystem::path save_file = save_dir /
+                    ("surface_op_" + std::to_string(operation_index) + "_surf" +
+                     std::to_string(s) + ".bin");
+                write_surface_connectivity_to_binary(surfaces[s].surface, save_file.string());
+            }
+        }
+    }
+    auto tracking_block_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> tracking_block_duration =
+        tracking_block_end - tracking_block_start;
+    std::cout << "Total tracking block took " << tracking_block_duration.count() << " seconds"
+              << std::endl;
+
+    std::cout << "\n=== All operations completed ===" << std::endl;
+    for (size_t s = 0; s < surfaces.size(); ++s) {
+        std::cout << "Final surface " << s << " state: "
+                  << surfaces[s].surface.points.size() << " points, "
+                  << surfaces[s].surface.query_triangles.size() << " triangles" << std::endl;
+        write_surface_connectivity_to_file(
+            surfaces[s].surface,
+            surfaces[s].output_prefix +
+                "_query_surface_tet_with_connectivity_after.json");
+        write_surface_to_vtu(
+            surfaces[s].surface,
+            V_after,
+            surfaces[s].output_prefix +
+                "_query_surface_tet_with_connectivity_after.vtu");
+        {
+            bool is_manifold =
+                check_surface_manifold_property(surfaces[s].surface.query_triangles);
+            if (is_manifold) {
+                std::cout << "Output query surface " << s << " is manifold" << std::endl;
+            } else {
+                std::cout << "Output query surface " << s << " is not manifold" << std::endl;
+                throw std::runtime_error("Error: output query_surface is not manifold");
+            }
+        }
+        {
+            bool has_self_intersection =
+                check_surface_self_intersection_intrinsic(surfaces[s].surface, T_after);
             if (has_self_intersection) {
                 std::cout << "Output query surface " << s << " has self-intersection"
                           << std::endl;

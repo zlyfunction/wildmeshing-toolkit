@@ -124,6 +124,90 @@ void run_backward_tracking_surfaces(
     bool sample_new_surfaces = true);
 
 /**
+ * @brief Run forward-tracking surface application
+ *
+ * Forward tracking takes a surface defined on the "before" mesh and tracks it
+ * through operations to get the surface on the "after" mesh.
+ * Operations are processed from first to last (index 0 to N-1).
+ *
+ * @param T_before Tetrahedral connectivity before operations (input mesh where surface is defined)
+ * @param V_before Vertex positions before operations
+ * @param T_after Tetrahedral connectivity after operations (output mesh)
+ * @param V_after Vertex positions after operations
+ * @param operation_logs_dir Directory containing operation logs
+ * @param surface_file Path to surface file (defined on before mesh)
+ * @param check_manifold Whether to check manifold property (default: false)
+ * @param start_operation Start from operation N (default: 0)
+ * @param save_interval Save surface every N operations (default: 1, save every operation)
+ * @param save_dir Directory to save intermediate surfaces (empty = don't save)
+ * @param do_rounding Whether to round barycentric coordinates during tracking (default: false)
+ * @param do_simplify Whether to simplify refined triangles by removing interior points (default: false)
+ * @param verbose Whether to print verbose output in surface arrangement (default: false)
+ * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
+ * @param only_do_arrangement_once Whether to perform final autorefine on after mesh (default: true)
+ * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ */
+void run_forward_tracking_surface(
+    const Eigen::MatrixXi& T_before,
+    const Eigen::MatrixXd& V_before,
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const std::filesystem::path& operation_logs_dir,
+    const std::filesystem::path& surface_file,
+    bool check_manifold = false,
+    int start_operation = 0,
+    int save_interval = 1,
+    const std::filesystem::path& save_dir = std::filesystem::path(),
+    bool do_rounding = false,
+    bool do_simplify = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
+    bool only_do_arrangement_once = false,
+    bool sample_new_surfaces = true);
+
+/**
+ * @brief Run forward-tracking surface application for multiple surfaces
+ *
+ * Forward tracking takes surfaces defined on the "before" mesh and tracks them
+ * through operations to get the surfaces on the "after" mesh.
+ * Operations are processed from first to last (index 0 to N-1).
+ *
+ * @param T_before Tetrahedral connectivity before operations (input mesh where surfaces are defined)
+ * @param V_before Vertex positions before operations
+ * @param T_after Tetrahedral connectivity after operations (output mesh)
+ * @param V_after Vertex positions after operations
+ * @param operation_logs_dir Directory containing operation logs
+ * @param surface_files Paths to surface files (defined on before mesh)
+ * @param check_manifold Whether to check manifold property (default: false)
+ * @param start_operation Start from operation N (default: 0)
+ * @param save_interval Save surface every N operations (default: 1, save every operation)
+ * @param save_dir Directory to save intermediate surfaces (empty = don't save)
+ * @param do_rounding Whether to round barycentric coordinates during tracking (default: false)
+ * @param do_simplify Whether to simplify refined triangles by removing interior points (default: false)
+ * @param verbose Whether to print verbose output in surface arrangement (default: false)
+ * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
+ * @param only_do_arrangement_once Whether to perform final autorefine on after mesh (default: true)
+ * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ */
+void run_forward_tracking_surfaces(
+    const Eigen::MatrixXi& T_before,
+    const Eigen::MatrixXd& V_before,
+    const Eigen::MatrixXi& T_after,
+    const Eigen::MatrixXd& V_after,
+    const std::filesystem::path& operation_logs_dir,
+    const std::vector<std::filesystem::path>& surface_files,
+    bool check_manifold = false,
+    int start_operation = 0,
+    int save_interval = 1,
+    const std::filesystem::path& save_dir = std::filesystem::path(),
+    bool do_rounding = false,
+    bool do_simplify = false,
+    bool verbose = false,
+    bool save_debug_meshes = false,
+    bool only_do_arrangement_once = false,
+    bool sample_new_surfaces = true);
+
+/**
  * @brief Write query surface with connectivity to file
  *
  * @param surface The query surface with connectivity

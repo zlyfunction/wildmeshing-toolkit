@@ -228,6 +228,53 @@ int main(int argc, char** argv)
                 only_do_arrangement_once,
                 sample_new_surfaces);
         }
+    } else if (application_name == "forward_surface_connectivity") {
+        // Forward tracking: surface is defined on T_before, tracked to T_after
+        std::cout << "Entering forward_surface_connectivity branch" << std::endl;
+        std::cout.flush();
+        if (!surface_files.empty()) {
+            tet_surface_tracking_with_connectivity::run_forward_tracking_surfaces(
+                T_before,
+                V_before,
+                T_after,
+                V_after,
+                operation_logs_dir,
+                surface_files,
+                false,
+                start_operation,
+                save_interval,
+                save_dir,
+                do_rounding,
+                do_simplify,
+                surface_verbose,
+                save_debug_meshes,
+                only_do_arrangement_once,
+                sample_new_surfaces);
+        } else {
+            tet_surface_tracking_with_connectivity::run_forward_tracking_surface(
+                T_before,
+                V_before,
+                T_after,
+                V_after,
+                operation_logs_dir,
+                surface_file,
+                false,
+                start_operation,
+                save_interval,
+                save_dir,
+                do_rounding,
+                do_simplify,
+                surface_verbose,
+                save_debug_meshes,
+                only_do_arrangement_once,
+                sample_new_surfaces);
+        }
+    } else {
+        std::cerr << "Unknown application: " << application_name << std::endl;
+        std::cerr << "Available applications: back, back_r, back_curve, back_surface, "
+                     "back_surface_connectivity, forward_surface_connectivity"
+                  << std::endl;
+        return 1;
     }
     return 0;
 }

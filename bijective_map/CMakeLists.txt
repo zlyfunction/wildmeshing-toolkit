@@ -108,6 +108,61 @@ endif()
 target_include_directories(bijective_map_app_tet PUBLIC ${PROJECT_SOURCE_DIR}/InteractiveAndRobustMeshBooleans/arrangements/external/abseil-cpp/)
 target_compile_features(bijective_map_app_tet PUBLIC cxx_std_17)
 
+add_executable(query_surface_tet_with_connectivity_app
+    query_surface_tet_with_connectivity_app.cpp
+    tet_track_operations.hpp
+    tet_track_operations.cpp
+    FindPointTetMesh.cpp
+    vtu_utils.cpp
+    batch_operation_log_reader.hpp
+    batch_operation_log_reader.cpp
+    csv_io.hpp
+    csv_io.cpp
+    tet_point_tracking.hpp
+    tet_point_tracking.cpp
+    tet_point_tracking_app.hpp
+    tet_point_tracking_app.cpp
+    tet_curve_tracking.hpp
+    tet_curve_tracking.cpp
+    tet_surface_tracking.hpp
+    tet_surface_tracking.cpp
+    tet_surface_tracking_with_connectivity.hpp
+    tet_surface_tracking_with_connectivity.cpp
+    tet_surface_tracking_internal.hpp
+    tet_surface_tracking_internal.cpp
+    tet_surface_simplify_internal.hpp
+    tet_surface_simplify_internal.cpp
+    tet_surface_sampling.hpp
+    tet_surface_sampling.cpp
+    cgal_autorefine_utils_rational.hpp
+    cgal_autorefine_utils_rational.cpp
+    cgal_autorefine_utils.cpp
+)
+target_include_directories(query_surface_tet_with_connectivity_app PUBLIC
+    ./InteractiveAndRobustMeshBooleans
+    InteractiveAndRobustMeshBooleans/code/
+    InteractiveAndRobustMeshBooleans/arrangements/code/
+    InteractiveAndRobustMeshBooleans/arrangements/external/Indirect_Predicates/include/
+)
+target_link_libraries(query_surface_tet_with_connectivity_app
+    wmtk::toolkit
+    wmtk::data
+    CLI11::CLI11
+    igl::core
+    nlohmann_json::nlohmann_json
+    cinolib
+    TBB::tbb
+    CGAL::CGAL
+    Eigen3::Eigen
+)
+if(USE_IGL_VIEWER)
+    target_link_libraries(query_surface_tet_with_connectivity_app
+        igl::opengl igl::glfw igl::stb igl::imgui
+    )
+endif()
+target_include_directories(query_surface_tet_with_connectivity_app PUBLIC ${PROJECT_SOURCE_DIR}/InteractiveAndRobustMeshBooleans/arrangements/external/abseil-cpp/)
+target_compile_features(query_surface_tet_with_connectivity_app PUBLIC cxx_std_17)
+
 # add_executable(test_find_point_tet test_findpointtetmesh.cpp FindPointTetMesh.cpp)
 # target_link_libraries(test_find_point_tet
 # wmtk::toolkit

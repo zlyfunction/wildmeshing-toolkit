@@ -15,6 +15,15 @@ query_surface_tet_with_connectivity sample_query_surface_tet_with_connectivity(
     const Eigen::MatrixXi& T_out,
     const Eigen::MatrixXd& V_out);
 
+// Build a query surface with connectivity from a triangle mesh embedded in a tet mesh.
+query_surface_tet_with_connectivity query_surface_tet_with_connectivity_from_triangle_mesh(
+    const Eigen::MatrixXi& T_out,
+    const Eigen::MatrixXd& V_out,
+    const Eigen::MatrixXd& V_surface,
+    const Eigen::MatrixXi& F_surface,
+    double tolerance = 1e-8,
+    bool verbose = false);
+
 // Slice the tet mesh with an axis-aligned plane (axis = 0/1/2 for x/y/z, coordinate = constant)
 query_surface_tet_with_connectivity slice_tet_mesh_with_axis_plane(
     const Eigen::MatrixXi& T,
