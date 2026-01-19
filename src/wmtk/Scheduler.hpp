@@ -102,10 +102,17 @@ public:
     const SchedulerStats& stats() const { return m_stats; }
 
     void set_update_frequency(std::optional<size_t>&& freq = {});
+    /**
+     * @brief Set the maximum number of successful operations.
+     * @param max_ops Maximum number of successful operations. Set to -1 for no limit (default).
+     */
+    void set_max_ops(int64_t max_ops) { m_max_ops = max_ops; }
+    int64_t max_ops() const { return m_max_ops; }
 
 private:
     SchedulerStats m_stats;
     std::optional<size_t> m_update_frequency = {};
+    int64_t m_max_ops = -1;
 
     void log(const size_t total);
     void log(const SchedulerStats& stats, const size_t total);

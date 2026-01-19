@@ -18,7 +18,8 @@ nlohmann::json shortest_edge_collapse_spec = R"(
       "report",
       "input_path",
       "use_multimesh",
-      "check_inversion"
+      "check_inversion",
+      "max_ops"
     ]
   },
   {
@@ -71,6 +72,12 @@ nlohmann::json shortest_edge_collapse_spec = R"(
       "interior",
       "boundary"
     ]
+  },
+  {
+    "pointer": "/max_ops",
+    "type": "int",
+    "default": -1,
+    "doc": "Maximum number of successful operations. Set to -1 for no limit (default)."
   }
 ]
 )"_json;

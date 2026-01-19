@@ -282,6 +282,10 @@ void shortest_edge_collapse(Mesh& mesh_in, const ShortestEdgeCollapseOptions& op
 
     //////////////////////////////////////////
     Scheduler scheduler;
+    if (options.max_ops >= 0) {
+        scheduler.set_max_ops(options.max_ops);
+        logger().info("Max operations limit set to: {}", options.max_ops);
+    }
     SchedulerStats pass_stats =
         scheduler.run_operation_on_all(*collapse, visited_edge_flag.as<char>());
 

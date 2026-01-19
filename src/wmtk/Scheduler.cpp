@@ -181,6 +181,7 @@ SchedulerStats Scheduler::run_operation_on_all(
                 internal_stats.executing_time,
                 logger());
 
+            bool reached_max_ops = false;
             if (op.use_random_priority()) {
                 for (const auto& s : simplices) {
                     log(internal_stats, total_simplices);
@@ -190,6 +191,11 @@ SchedulerStats Scheduler::run_operation_on_all(
                         res.fail();
                     } else {
                         res.succeed();
+                    }
+                    if (m_max_ops >= 0 && res.number_of_successful_operations() >= m_max_ops) {
+                        reached_max_ops = true;
+                        logger().info("Reached max_ops limit: {}", m_max_ops);
+                        break;
                     }
                 }
             } else {
@@ -202,10 +208,21 @@ SchedulerStats Scheduler::run_operation_on_all(
                     } else {
                         internal_stats.succeed();
                     }
+                    if (m_max_ops >= 0 && res.number_of_successful_operations() + internal_stats.number_of_successful_operations() >= m_max_ops) {
+                        reached_max_ops = true;
+                        logger().info("Reached max_ops limit: {}", m_max_ops);
+                        break;
+                    }
                 }
             }
+            if (reached_max_ops) {
+                res += internal_stats;
+                res.sub_stats.push_back(internal_stats);
+                m_stats += internal_stats;
+                m_stats.sub_stats.push_back(internal_stats);
+                break;
+            }
         }
-
         success = internal_stats.number_of_successful_operations();
         res += internal_stats;
         res.sub_stats.push_back(internal_stats);

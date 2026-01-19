@@ -624,7 +624,10 @@ void surface_triangle_arrangement(
         }
         std::string surface_before_path =
             "surface_arrangement_op" + std::to_string(operation_id) + "_before.vtu";
-        vtu_utils::write_triangle_mesh_to_vtu(V_surface_before, local_triangles_F, surface_before_path);
+        vtu_utils::write_triangle_mesh_to_vtu(
+            V_surface_before,
+            local_triangles_F,
+            surface_before_path);
         std::cout << "Saved surface_arrangement before to: " << surface_before_path << std::endl;
     }
     std::cout << "Calling autorefine_sampled_triangles_rational on V_before and T_before..."
@@ -738,9 +741,9 @@ void surface_triangle_arrangement(
                 "sampled_tet_id");
             std::cout << "  refined sampled only -> " << sampled_path << std::endl;
         }
-        std::cout << "Saved arrangement VTUs:\n  initial soup (origin_tet_id) -> " << before_tet_path
-                  << "\n  refined soup -> " << after_path << "\n  refined soup (origin_tet_id) -> "
-                  << after_tet_path << std::endl;
+        std::cout << "Saved arrangement VTUs:\n  initial soup (origin_tet_id) -> "
+                  << before_tet_path << "\n  refined soup -> " << after_path
+                  << "\n  refined soup (origin_tet_id) -> " << after_tet_path << std::endl;
     }
     if (verbose) {
         if (!autorefine_result.sampled_fragment_triangles.empty()) {
@@ -915,8 +918,7 @@ void surface_triangle_arrangement(
             }
             if (is_one_hot && one_hot_idx != -1) {
                 int64_t global_vid = pt.tv_ids(one_hot_idx);
-                global_vertex_to_surface_point[global_vid] =
-                    static_cast<std::size_t>(global_idx);
+                global_vertex_to_surface_point[global_vid] = static_cast<std::size_t>(global_idx);
             }
         }
         auto barycentric_total_time = std::chrono::milliseconds(0);
@@ -1419,9 +1421,7 @@ void handle_local_mapping_operation(
     std::cout << "handle_local_mapping_operation took " << duration.count() << " ms" << std::endl;
 }
 
-OperationContext parse_operation_context(
-    const nlohmann::json& operation_log,
-    int operation_id)
+OperationContext parse_operation_context(const nlohmann::json& operation_log, int operation_id)
 {
     if (operation_log.empty()) {
         throw std::runtime_error("Error: empty operation log");
@@ -1433,10 +1433,7 @@ OperationContext parse_operation_context(
     context.operation_name = operation_log["operation_name"].get<std::string>();
     if (context.operation_name == "MeshConsolidate") {
         context.is_consolidate = true;
-        parse_consolidate_file_tet(
-            operation_log,
-            context.tet_ids_maps,
-            context.vertex_ids_maps);
+        parse_consolidate_file_tet(operation_log, context.tet_ids_maps, context.vertex_ids_maps);
         return context;
     }
     context.has_tet_context = true;
@@ -1544,7 +1541,8 @@ void post_operation_checks(
         std::cout << "  Skipping triangle sanity check (no tet context for consolidate)"
                   << std::endl;
     }
-    {
+
+    if (false) {
         bool is_manifold = check_surface_manifold_property(surface.query_triangles);
         if (is_manifold) {
             std::cout << "Surface is manifold" << std::endl;

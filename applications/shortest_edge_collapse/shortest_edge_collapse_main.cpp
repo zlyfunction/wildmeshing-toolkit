@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
         }
         options.lock_boundary = j["lock_boundary"];
         options.check_inversions = j["check_inversion"];
-
+        options.max_ops = j["max_ops"];
         shortest_edge_collapse(mesh, options);
     }
 
