@@ -208,7 +208,10 @@ SchedulerStats Scheduler::run_operation_on_all(
                     } else {
                         internal_stats.succeed();
                     }
-                    if (m_max_ops >= 0 && res.number_of_successful_operations() + internal_stats.number_of_successful_operations() >= m_max_ops) {
+                    if (m_max_ops >= 0 &&
+                        res.number_of_successful_operations() +
+                                internal_stats.number_of_successful_operations() >=
+                            m_max_ops) {
                         reached_max_ops = true;
                         logger().info("Reached max_ops limit: {}", m_max_ops);
                         break;

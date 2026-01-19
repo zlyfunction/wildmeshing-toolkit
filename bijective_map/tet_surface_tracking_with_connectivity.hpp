@@ -66,6 +66,7 @@ void write_surface_to_vtu(
  * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
  * @param only_do_arrangement_once Whether to perform final autorefine on before mesh (default: true)
  * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ * @param saved_query_surface_name Base name for saved surface files (default: "query_surface_tet_with_connectivity")
  */
 void run_backward_tracking_surface(
     const Eigen::MatrixXi& T_after,
@@ -83,7 +84,8 @@ void run_backward_tracking_surface(
     bool verbose = false,
     bool save_debug_meshes = false,
     bool only_do_arrangement_once = false,
-    bool sample_new_surfaces = true);
+    bool sample_new_surfaces = true,
+    const std::string& saved_query_surface_name = "query_surface_tet_with_connectivity");
 
 /**
  * @brief Run back-tracking surface application for multiple surfaces
@@ -104,6 +106,7 @@ void run_backward_tracking_surface(
  * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
  * @param only_do_arrangement_once Whether to perform final autorefine on before mesh (default: true)
  * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ * @param saved_query_surface_name Base name for saved surface files (default: "query_surface_tet_with_connectivity")
  */
 void run_backward_tracking_surfaces(
     const Eigen::MatrixXi& T_after,
@@ -121,7 +124,8 @@ void run_backward_tracking_surfaces(
     bool verbose = false,
     bool save_debug_meshes = false,
     bool only_do_arrangement_once = false,
-    bool sample_new_surfaces = true);
+    bool sample_new_surfaces = true,
+    const std::string& saved_query_surface_name = "query_surface_tet_with_connectivity");
 
 /**
  * @brief Run forward-tracking surface application
@@ -146,6 +150,7 @@ void run_backward_tracking_surfaces(
  * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
  * @param only_do_arrangement_once Whether to perform final autorefine on after mesh (default: true)
  * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ * @param saved_query_surface_name Base name for saved surface files (default: "query_surface_tet_with_connectivity")
  */
 void run_forward_tracking_surface(
     const Eigen::MatrixXi& T_before,
@@ -163,7 +168,8 @@ void run_forward_tracking_surface(
     bool verbose = false,
     bool save_debug_meshes = false,
     bool only_do_arrangement_once = false,
-    bool sample_new_surfaces = true);
+    bool sample_new_surfaces = true,
+    const std::string& saved_query_surface_name = "query_surface_tet_with_connectivity");
 
 /**
  * @brief Run forward-tracking surface application for multiple surfaces
@@ -188,6 +194,7 @@ void run_forward_tracking_surface(
  * @param save_debug_meshes Whether to save debug meshes in surface arrangement (default: false)
  * @param only_do_arrangement_once Whether to perform final autorefine on after mesh (default: true)
  * @param sample_new_surfaces Whether to sample new surfaces from axis planes (default: true)
+ * @param saved_query_surface_name Base name for saved surface files (default: "query_surface_tet_with_connectivity")
  */
 void run_forward_tracking_surfaces(
     const Eigen::MatrixXi& T_before,
@@ -205,7 +212,8 @@ void run_forward_tracking_surfaces(
     bool verbose = false,
     bool save_debug_meshes = false,
     bool only_do_arrangement_once = false,
-    bool sample_new_surfaces = true);
+    bool sample_new_surfaces = true,
+    const std::string& saved_query_surface_name = "query_surface_tet_with_connectivity");
 
 /**
  * @brief Write query surface with connectivity to file

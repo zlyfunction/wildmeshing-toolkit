@@ -41,6 +41,7 @@ int main(int argc, char** argv)
     bool save_debug_meshes = false;
     bool only_do_arrangement_once = false;
     bool sample_new_surfaces = true;
+    std::string saved_query_surface_name = "query_surface_tet_with_connectivity";
     // CLI options (used if no config file)
     app.add_option("-a, --app", application_name, "Application name");
     app.add_option("-i, --input", initial_mesh_file, "Initial mesh file");
@@ -103,6 +104,8 @@ int main(int argc, char** argv)
             only_do_arrangement_once = config["only_do_arrangement_once"].get<bool>();
         if (config.contains("sample_new_surfaces"))
             sample_new_surfaces = config["sample_new_surfaces"].get<bool>();
+        if (config.contains("saved_query_surface_name"))
+            saved_query_surface_name = config["saved_query_surface_name"].get<std::string>();
     }
     // Validate required parameters
     if (initial_mesh_file.empty() || operation_logs_dir.empty() || output_mesh_file.empty()) {
@@ -132,6 +135,7 @@ int main(int argc, char** argv)
     std::cout << "  save_debug_meshes: " << save_debug_meshes << std::endl;
     std::cout << "  only_do_arrangement_once: " << only_do_arrangement_once << std::endl;
     std::cout << "  sample_new_surfaces: " << sample_new_surfaces << std::endl;
+    std::cout << "  saved_query_surface_name: " << saved_query_surface_name << std::endl;
     auto init_mesh_ptr = wmtk::read_mesh(initial_mesh_file);
     // Get T_before and V_before from init_mesh_ptr using get_TV()
     std::cout << "\n=== Reading T_before and V_before from init_mesh_ptr ===" << std::endl;
@@ -208,7 +212,8 @@ int main(int argc, char** argv)
                 surface_verbose,
                 save_debug_meshes,
                 only_do_arrangement_once,
-                sample_new_surfaces);
+                sample_new_surfaces,
+                saved_query_surface_name);
         } else {
             tet_surface_tracking_with_connectivity::run_backward_tracking_surface(
                 T_after,
@@ -226,7 +231,8 @@ int main(int argc, char** argv)
                 surface_verbose,
                 save_debug_meshes,
                 only_do_arrangement_once,
-                sample_new_surfaces);
+                sample_new_surfaces,
+                saved_query_surface_name);
         }
     } else if (application_name == "forward_surface_connectivity") {
         // Forward tracking: surface is defined on T_before, tracked to T_after
@@ -249,7 +255,8 @@ int main(int argc, char** argv)
                 surface_verbose,
                 save_debug_meshes,
                 only_do_arrangement_once,
-                sample_new_surfaces);
+                sample_new_surfaces,
+                saved_query_surface_name);
         } else {
             tet_surface_tracking_with_connectivity::run_forward_tracking_surface(
                 T_before,
@@ -267,7 +274,8 @@ int main(int argc, char** argv)
                 surface_verbose,
                 save_debug_meshes,
                 only_do_arrangement_once,
-                sample_new_surfaces);
+                sample_new_surfaces,
+                saved_query_surface_name);
         }
     } else {
         std::cerr << "Unknown application: " << application_name << std::endl;
