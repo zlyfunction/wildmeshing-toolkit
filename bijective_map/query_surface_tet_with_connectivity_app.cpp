@@ -10,6 +10,7 @@
 
 #include "tet_surface_sampling.hpp"
 #include "tet_surface_tracking_with_connectivity.hpp"
+#include "vtu_utils.hpp"
 
 using json = nlohmann::json;
 using path = std::filesystem::path;
@@ -25,6 +26,8 @@ int main(int argc, char** argv)
     path output_vtu;
     double tolerance = 1e-8;
     bool verbose = false;
+    bool arrangement_only = false;
+    bool no_arrangement = false;
 
     app.add_option("-c, --config", config_file, "JSON config file (overrides other options)");
     app.add_option("-t, --tet", tet_mesh_file, "Input tet mesh file (.msh)");
@@ -33,6 +36,14 @@ int main(int argc, char** argv)
     app.add_option("--out-vtu", output_vtu, "Output VTU file");
     app.add_option("--tol", tolerance, "Tolerance for point-in-tet search");
     app.add_flag("--verbose", verbose, "Verbose autorefine output");
+    app.add_flag(
+        "--arrangement-only",
+        arrangement_only,
+        "Only output arranged surface VTU (skip tet ids/barycentric output)");
+    app.add_flag(
+        "--no-arrangement",
+        no_arrangement,
+        "Skip arrangement; compute per-vertex tet/barycentric and keep input connectivity");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -61,6 +72,18 @@ int main(int argc, char** argv)
         if (config.contains("verbose")) {
             verbose = config["verbose"].get<bool>();
         }
+        if (config.contains("arrangement_only")) {
+            arrangement_only = config["arrangement_only"].get<bool>();
+        }
+        if (config.contains("no_arrangement")) {
+            no_arrangement = config["no_arrangement"].get<bool>();
+        }
+    }
+
+    if (arrangement_only && no_arrangement) {
+        std::cerr << "Error: --arrangement-only and --no-arrangement are mutually exclusive"
+                  << std::endl;
+        return 1;
     }
 
     if (tet_mesh_file.empty() || surface_mesh_file.empty()) {
@@ -80,23 +103,77 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Reading tet mesh: " << tet_mesh_file << std::endl;
-    auto mesh_ptr = wmtk::read_mesh(tet_mesh_file);
-    if (!mesh_ptr) {
-        std::cerr << "Failed to read tet mesh: " << tet_mesh_file << std::endl;
-        return 1;
+    Eigen::MatrixXd V;
+    Eigen::MatrixXi T;
+    if (tet_mesh_file.extension() == ".vtu" || tet_mesh_file.extension() == ".VTU") {
+        if (!vtu_utils::read_tet_mesh_from_vtu(tet_mesh_file.string(), V, T)) {
+            std::cerr << "Failed to read tet mesh from VTU: " << tet_mesh_file << std::endl;
+            return 1;
+        }
+    } else {
+        auto mesh_ptr = wmtk::read_mesh(tet_mesh_file);
+        if (!mesh_ptr) {
+            std::cerr << "Failed to read tet mesh: " << tet_mesh_file << std::endl;
+            return 1;
+        }
+        std::tie(T, V) = static_cast<wmtk::TetMesh&>(*mesh_ptr).get_TV();
     }
-    auto [T, V] = static_cast<wmtk::TetMesh&>(*mesh_ptr).get_TV();
     std::cout << "  Tets: " << T.rows() << ", Vertices: " << V.rows() << std::endl;
 
     std::cout << "Reading surface mesh: " << surface_mesh_file << std::endl;
     Eigen::MatrixXd V_surface;
     Eigen::MatrixXi F_surface;
-    if (!igl::read_triangle_mesh(surface_mesh_file.string(), V_surface, F_surface)) {
-        std::cerr << "Failed to read surface mesh: " << surface_mesh_file << std::endl;
-        return 1;
+    if (surface_mesh_file.extension() == ".vtu" || surface_mesh_file.extension() == ".VTU") {
+        if (!vtu_utils::read_triangle_mesh_from_vtu(
+                surface_mesh_file.string(),
+                V_surface,
+                F_surface)) {
+            std::cerr << "Failed to read surface mesh from VTU: " << surface_mesh_file
+                      << std::endl;
+            return 1;
+        }
+    } else {
+        if (!igl::read_triangle_mesh(surface_mesh_file.string(), V_surface, F_surface)) {
+            std::cerr << "Failed to read surface mesh: " << surface_mesh_file << std::endl;
+            return 1;
+        }
     }
     std::cout << "  Surface vertices: " << V_surface.rows()
               << ", Surface triangles: " << F_surface.rows() << std::endl;
+
+    if (arrangement_only) {
+        Eigen::MatrixXd V_arranged;
+        Eigen::MatrixXi F_arranged;
+        if (!tet_surface_sampling::arrangement_triangle_mesh_in_tet_mesh(
+                T,
+                V,
+                V_surface,
+                F_surface,
+                V_arranged,
+                F_arranged,
+                tolerance,
+                verbose)) {
+            std::cerr << "Failed to produce arranged surface" << std::endl;
+            return 1;
+        }
+        std::cout << "Writing VTU: " << output_vtu << std::endl;
+        vtu_utils::write_triangle_mesh_to_vtu(V_arranged, F_arranged, output_vtu.string());
+        return 0;
+    }
+
+    if (no_arrangement) {
+        auto query_surface = tet_surface_sampling::query_surface_tet_with_connectivity_no_arrangement(
+            T,
+            V,
+            V_surface,
+            F_surface,
+            verbose);
+        std::cout << "Writing JSON: " << output_json << std::endl;
+        tet_surface_tracking_with_connectivity::write_surface_connectivity_to_file(
+            query_surface,
+            output_json.string());
+        return 0;
+    }
 
     auto query_surface =
         tet_surface_sampling::query_surface_tet_with_connectivity_from_triangle_mesh(

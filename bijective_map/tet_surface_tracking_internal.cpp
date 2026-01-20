@@ -1593,7 +1593,9 @@ void track_one_operation(
         do_simplify,
         only_do_arrangement_once);
     std::cout << "  Operation " << operation_id << " completed" << std::endl;
-    post_operation_checks(context, surface, do_forward);
+    if (!only_do_arrangement_once) {
+        post_operation_checks(context, surface, do_forward);
+    }
 }
 
 void track_all_operations(

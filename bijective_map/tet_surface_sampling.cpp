@@ -10,8 +10,12 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <CGAL/Polygon_mesh_processing/autorefinement.h>
+#include <CGAL/number_utils.h>
+#include <igl/parallel_for.h>
 #include "InteractiveAndRobustMeshBooleans/code/booleans.h"
 #include "FindPointTetMesh.hpp"
+#include "cgal_autorefine_utils.hpp"
 #include "cgal_autorefine_utils_rational.hpp"
 #include "tet_track_operations.hpp"
 
@@ -76,6 +80,148 @@ inline EdgeKey make_edge_key(int a, int b)
 {
     if (a > b) std::swap(a, b);
     return {a, b};
+}
+
+struct TriangleTrackingVisitor : CGAL::Polygon_mesh_processing::Autorefinement::Default_visitor
+{
+    TriangleTrackingVisitor() = default;
+    explicit TriangleTrackingVisitor(std::vector<std::size_t>& mapping)
+        : m_mapping(&mapping)
+    {}
+
+    void number_of_output_triangles(std::size_t nbt)
+    {
+        if (m_mapping == nullptr) {
+            return;
+        }
+        m_mapping->assign(nbt, static_cast<std::size_t>(-1));
+    }
+
+    void verbatim_triangle_copy(std::size_t tgt_id, std::size_t src_id)
+    {
+        store_mapping(tgt_id, src_id);
+    }
+
+    void new_subtriangle(std::size_t tgt_id, std::size_t src_id) { store_mapping(tgt_id, src_id); }
+
+private:
+    void store_mapping(std::size_t tgt_id, std::size_t src_id)
+    {
+        if (m_mapping == nullptr) {
+            return;
+        }
+        if (tgt_id >= m_mapping->size()) {
+            m_mapping->resize(tgt_id + 1, static_cast<std::size_t>(-1));
+        }
+        (*m_mapping)[tgt_id] = src_id;
+    }
+
+    std::vector<std::size_t>* m_mapping = nullptr;
+};
+
+struct TetAabb
+{
+    Eigen::Vector3d min;
+    Eigen::Vector3d max;
+};
+
+bool build_sampled_points_and_faces(
+    const Eigen::MatrixXd& V_out,
+    const Eigen::MatrixXi& T_out,
+    const Eigen::MatrixXd& V_surface,
+    const Eigen::MatrixXi& F_surface,
+    double tolerance,
+    bool verbose,
+    std::vector<cgal_autorefine_demo::SampledPointInputRational>& sampled_points,
+    Eigen::MatrixXi& sampled_faces)
+{
+    using Vector4r = Eigen::Matrix<wmtk::Rational, 4, 1>;
+    sampled_points.clear();
+    sampled_faces.resize(0, 3);
+
+    if (V_surface.rows() == 0 || F_surface.rows() == 0) {
+        return false;
+    }
+
+    sampled_points.reserve(V_surface.rows());
+    std::vector<int> surface_vertex_to_sampled(V_surface.rows(), -1);
+
+    int missing_vertices = 0;
+    for (int i = 0; i < V_surface.rows(); ++i) {
+        Eigen::Vector3d p = V_surface.row(i);
+        auto [tet_id, bc_double] = findTetContainingPoint(V_out, T_out, p, tolerance);
+        if (tet_id < 0) {
+            missing_vertices++;
+            if (verbose) {
+                std::cerr << "Warning: surface vertex " << i
+                          << " not found in any tet (skipping)" << std::endl;
+            }
+            continue;
+        }
+
+        Vector4r bc_rational;
+        for (int j = 0; j < 4; ++j) {
+            double value = bc_double(j);
+            if (std::abs(value) < tolerance) {
+                value = 0.0;
+            } else if (std::abs(1.0 - value) < tolerance) {
+                value = 1.0;
+            }
+            value = std::max(0.0, std::min(1.0, value));
+            bc_rational(j) = wmtk::Rational(value);
+        }
+        wmtk::Rational sum = bc_rational.sum();
+        if (sum != wmtk::Rational(0)) {
+            bc_rational /= sum;
+        }
+
+        cgal_autorefine_demo::SampledPointInputRational sampled_pt;
+        sampled_pt.tet_index = tet_id;
+        sampled_pt.barycentric = bc_rational;
+        surface_vertex_to_sampled[i] = static_cast<int>(sampled_points.size());
+        sampled_points.push_back(sampled_pt);
+    }
+
+    if (missing_vertices > 0) {
+        std::cerr << "Warning: " << missing_vertices
+                  << " surface vertices were outside the tet mesh" << std::endl;
+    }
+
+    std::vector<Eigen::Vector3i> sampled_faces_list;
+    sampled_faces_list.reserve(F_surface.rows());
+    for (int i = 0; i < F_surface.rows(); ++i) {
+        int v0 = F_surface(i, 0);
+        int v1 = F_surface(i, 1);
+        int v2 = F_surface(i, 2);
+        int s0 = (v0 >= 0 && v0 < static_cast<int>(surface_vertex_to_sampled.size()))
+                     ? surface_vertex_to_sampled[v0]
+                     : -1;
+        int s1 = (v1 >= 0 && v1 < static_cast<int>(surface_vertex_to_sampled.size()))
+                     ? surface_vertex_to_sampled[v1]
+                     : -1;
+        int s2 = (v2 >= 0 && v2 < static_cast<int>(surface_vertex_to_sampled.size()))
+                     ? surface_vertex_to_sampled[v2]
+                     : -1;
+        if (s0 < 0 || s1 < 0 || s2 < 0) {
+            continue;
+        }
+        if (s0 == s1 || s1 == s2 || s0 == s2) {
+            continue;
+        }
+        sampled_faces_list.emplace_back(s0, s1, s2);
+    }
+
+    if (sampled_faces_list.empty()) {
+        std::cerr << "Warning: no valid triangles remain after filtering" << std::endl;
+        return false;
+    }
+
+    sampled_faces.resize(sampled_faces_list.size(), 3);
+    for (int i = 0; i < static_cast<int>(sampled_faces_list.size()); ++i) {
+        sampled_faces.row(i) = sampled_faces_list[static_cast<std::size_t>(i)];
+    }
+
+    return true;
 }
 } // namespace
 
@@ -726,82 +872,17 @@ query_surface_tet_with_connectivity query_surface_tet_with_connectivity_from_tri
     }
 
     std::vector<cgal_autorefine_demo::SampledPointInputRational> sampled_points;
-    sampled_points.reserve(V_surface.rows());
-    std::vector<int> surface_vertex_to_sampled(V_surface.rows(), -1);
-
-    int missing_vertices = 0;
-    for (int i = 0; i < V_surface.rows(); ++i) {
-        Eigen::Vector3d p = V_surface.row(i);
-        auto [tet_id, bc_double] = findTetContainingPoint(V_out, T_out, p, tolerance);
-        if (tet_id < 0) {
-            missing_vertices++;
-            if (verbose) {
-                std::cerr << "Warning: surface vertex " << i
-                          << " not found in any tet (skipping)" << std::endl;
-            }
-            continue;
-        }
-
-        Vector4r bc_rational;
-        for (int j = 0; j < 4; ++j) {
-            double value = bc_double(j);
-            if (std::abs(value) < tolerance) {
-                value = 0.0;
-            } else if (std::abs(1.0 - value) < tolerance) {
-                value = 1.0;
-            }
-            value = std::max(0.0, std::min(1.0, value));
-            bc_rational(j) = wmtk::Rational(value);
-        }
-        wmtk::Rational sum = bc_rational.sum();
-        if (sum != wmtk::Rational(0)) {
-            bc_rational /= sum;
-        }
-
-        cgal_autorefine_demo::SampledPointInputRational sampled_pt;
-        sampled_pt.tet_index = tet_id;
-        sampled_pt.barycentric = bc_rational;
-        surface_vertex_to_sampled[i] = static_cast<int>(sampled_points.size());
-        sampled_points.push_back(sampled_pt);
-    }
-
-    if (missing_vertices > 0) {
-        std::cerr << "Warning: " << missing_vertices
-                  << " surface vertices were outside the tet mesh" << std::endl;
-    }
-
-    std::vector<Eigen::Vector3i> sampled_faces_list;
-    sampled_faces_list.reserve(F_surface.rows());
-    for (int i = 0; i < F_surface.rows(); ++i) {
-        int v0 = F_surface(i, 0);
-        int v1 = F_surface(i, 1);
-        int v2 = F_surface(i, 2);
-        int s0 = (v0 >= 0 && v0 < static_cast<int>(surface_vertex_to_sampled.size()))
-                     ? surface_vertex_to_sampled[v0]
-                     : -1;
-        int s1 = (v1 >= 0 && v1 < static_cast<int>(surface_vertex_to_sampled.size()))
-                     ? surface_vertex_to_sampled[v1]
-                     : -1;
-        int s2 = (v2 >= 0 && v2 < static_cast<int>(surface_vertex_to_sampled.size()))
-                     ? surface_vertex_to_sampled[v2]
-                     : -1;
-        if (s0 < 0 || s1 < 0 || s2 < 0) {
-            continue;
-        }
-        if (s0 == s1 || s1 == s2 || s0 == s2) {
-            continue;
-        }
-        sampled_faces_list.emplace_back(s0, s1, s2);
-    }
-
-    if (sampled_faces_list.empty()) {
-        std::cerr << "Warning: no valid triangles remain after filtering" << std::endl;
+    Eigen::MatrixXi sampled_faces;
+    if (!build_sampled_points_and_faces(
+            V_out,
+            T_out,
+            V_surface,
+            F_surface,
+            tolerance,
+            verbose,
+            sampled_points,
+            sampled_faces)) {
         return query_surface;
-    }
-
-    Eigen::MatrixXi sampled_faces(sampled_faces_list.size(), 3);
-    for (int i = 0; i < static_cast<int>(sampled_faces_list.size()); ++i) {
-        sampled_faces.row(i) = sampled_faces_list[static_cast<std::size_t>(i)];
     }
 
     std::cout << "Calling autorefine_sampled_triangles_rational..." << std::endl;
@@ -917,6 +998,354 @@ query_surface_tet_with_connectivity query_surface_tet_with_connectivity_from_tri
     }
 
     std::cout << "Created surface with " << query_surface.points.size() << " unique points and "
+              << query_surface.query_triangles.size() << " triangles" << std::endl;
+    return query_surface;
+}
+
+bool arrangement_triangle_mesh_in_tet_mesh(
+    const Eigen::MatrixXi& T_out,
+    const Eigen::MatrixXd& V_out,
+    const Eigen::MatrixXd& V_surface,
+    const Eigen::MatrixXi& F_surface,
+    Eigen::MatrixXd& V_arranged,
+    Eigen::MatrixXi& F_arranged,
+    double tolerance,
+    bool verbose)
+{
+    V_arranged.resize(0, 3);
+    F_arranged.resize(0, 3);
+    if (T_out.rows() == 0 || V_out.rows() == 0 || F_surface.rows() == 0) {
+        return false;
+    }
+    (void)tolerance;
+    (void)verbose;
+
+    std::cout << "Arranging triangle mesh with tet boundaries..." << std::endl;
+    std::cout << "  Surface vertices: " << V_surface.rows() << std::endl;
+    std::cout << "  Surface triangles: " << F_surface.rows() << std::endl;
+
+    std::vector<cgal_autorefine_demo::Point> points;
+    points.reserve(static_cast<std::size_t>(V_out.rows() + V_surface.rows()));
+    for (int i = 0; i < V_out.rows(); ++i) {
+        points.emplace_back(V_out(i, 0), V_out(i, 1), V_out(i, 2));
+    }
+    const std::size_t surface_offset = points.size();
+    for (int i = 0; i < V_surface.rows(); ++i) {
+        points.emplace_back(V_surface(i, 0), V_surface(i, 1), V_surface(i, 2));
+    }
+
+    auto tet_triangles = cgal_autorefine_demo::extract_all_tet_triangles(T_out);
+    std::vector<cgal_autorefine_demo::Triangle> triangles;
+    std::vector<bool> is_surface_triangle;
+    triangles.reserve(tet_triangles.size() + static_cast<std::size_t>(F_surface.rows()));
+    is_surface_triangle.reserve(triangles.capacity());
+
+    for (const auto& tet_tri : tet_triangles) {
+        triangles.push_back(tet_tri.triangle);
+        is_surface_triangle.push_back(false);
+    }
+
+    for (int i = 0; i < F_surface.rows(); ++i) {
+        cgal_autorefine_demo::Triangle tri{};
+        tri[0] = surface_offset + static_cast<std::size_t>(F_surface(i, 0));
+        tri[1] = surface_offset + static_cast<std::size_t>(F_surface(i, 1));
+        tri[2] = surface_offset + static_cast<std::size_t>(F_surface(i, 2));
+        triangles.push_back(tri);
+        is_surface_triangle.push_back(true);
+    }
+
+    std::vector<std::vector<std::size_t>> working_triangles;
+    working_triangles.reserve(triangles.size());
+    for (const auto& tri : triangles) {
+        working_triangles.push_back({tri[0], tri[1], tri[2]});
+    }
+
+    std::vector<std::size_t> triangle_source_ids;
+    TriangleTrackingVisitor visitor(triangle_source_ids);
+    CGAL::Polygon_mesh_processing::autorefine_triangle_soup(
+        points,
+        working_triangles,
+        CGAL::parameters::visitor(visitor).apply_iterative_snap_rounding(true));
+
+    const std::size_t invalid_id = static_cast<std::size_t>(-1);
+    std::unordered_map<std::size_t, int> point_map;
+    std::vector<Eigen::Vector3d> positions;
+    std::vector<Eigen::Vector3i> faces;
+    positions.reserve(points.size());
+    faces.reserve(working_triangles.size());
+
+    auto get_or_add_point = [&](std::size_t pid) -> int {
+        auto it = point_map.find(pid);
+        if (it != point_map.end()) {
+            return it->second;
+        }
+        const auto& p = points[pid];
+        Eigen::Vector3d pos;
+        pos(0) = CGAL::to_double(p.x());
+        pos(1) = CGAL::to_double(p.y());
+        pos(2) = CGAL::to_double(p.z());
+        int new_idx = static_cast<int>(positions.size());
+        positions.push_back(pos);
+        point_map.emplace(pid, new_idx);
+        return new_idx;
+    };
+
+    for (std::size_t i = 0; i < working_triangles.size(); ++i) {
+        const auto& tri = working_triangles[i];
+        if (tri.size() != 3) {
+            continue;
+        }
+        const std::size_t src_id =
+            (i < triangle_source_ids.size()) ? triangle_source_ids[i] : invalid_id;
+        if (src_id == invalid_id || src_id >= is_surface_triangle.size()) {
+            continue;
+        }
+        if (!is_surface_triangle[src_id]) {
+            continue;
+        }
+        Eigen::Vector3i out_tri;
+        out_tri(0) = get_or_add_point(tri[0]);
+        out_tri(1) = get_or_add_point(tri[1]);
+        out_tri(2) = get_or_add_point(tri[2]);
+        faces.push_back(out_tri);
+    }
+
+    if (faces.empty()) {
+        std::cout << "No arranged surface triangles found" << std::endl;
+        return false;
+    }
+
+    V_arranged.resize(static_cast<int>(positions.size()), 3);
+    for (int i = 0; i < static_cast<int>(positions.size()); ++i) {
+        V_arranged.row(i) = positions[static_cast<std::size_t>(i)];
+    }
+    F_arranged.resize(static_cast<int>(faces.size()), 3);
+    for (int i = 0; i < static_cast<int>(faces.size()); ++i) {
+        F_arranged.row(i) = faces[static_cast<std::size_t>(i)];
+    }
+
+    std::cout << "Arranged mesh: " << V_arranged.rows() << " vertices, " << F_arranged.rows()
+              << " triangles" << std::endl;
+    return true;
+}
+
+query_surface_tet_with_connectivity query_surface_tet_with_connectivity_no_arrangement(
+    const Eigen::MatrixXi& T_out,
+    const Eigen::MatrixXd& V_out,
+    const Eigen::MatrixXd& V_surface,
+    const Eigen::MatrixXi& F_surface,
+    bool verbose)
+{
+    query_surface_tet_with_connectivity query_surface;
+    if (T_out.rows() == 0 || V_out.rows() == 0 || V_surface.rows() == 0 ||
+        F_surface.rows() == 0) {
+        return query_surface;
+    }
+
+    std::cout << "Building query surface without arrangement..." << std::endl;
+    std::cout << "  Surface vertices: " << V_surface.rows() << std::endl;
+    std::cout << "  Surface triangles: " << F_surface.rows() << std::endl;
+
+    // Precompute tet AABBs and a uniform grid accelerator (double precision).
+    std::vector<TetAabb> tet_aabbs(T_out.rows());
+    Eigen::Vector3d global_min = V_out.row(0).transpose();
+    Eigen::Vector3d global_max = V_out.row(0).transpose();
+    for (int i = 0; i < V_out.rows(); ++i) {
+        Eigen::Vector3d v = V_out.row(i).transpose();
+        global_min = global_min.cwiseMin(v);
+        global_max = global_max.cwiseMax(v);
+    }
+
+    for (int t = 0; t < T_out.rows(); ++t) {
+        Eigen::Vector4i tv = T_out.row(t);
+        Eigen::Vector3d tmin = V_out.row(tv(0)).transpose();
+        Eigen::Vector3d tmax = V_out.row(tv(0)).transpose();
+        for (int j = 1; j < 4; ++j) {
+            Eigen::Vector3d v = V_out.row(tv(j)).transpose();
+            tmin = tmin.cwiseMin(v);
+            tmax = tmax.cwiseMax(v);
+        }
+        tet_aabbs[t] = TetAabb{tmin, tmax};
+    }
+
+    Eigen::Vector3d extents = (global_max - global_min).cwiseMax(1e-12);
+    double max_extent = extents.maxCoeff();
+    int base = std::max(1, static_cast<int>(std::ceil(std::cbrt(static_cast<double>(T_out.rows())))));
+    Eigen::Vector3d scale = Eigen::Vector3d::Ones();
+    if (max_extent > 0.0) {
+        scale = extents / max_extent;
+    }
+    Eigen::Vector3i grid_dims(
+        std::max(1, static_cast<int>(std::round(base * scale(0)))),
+        std::max(1, static_cast<int>(std::round(base * scale(1)))),
+        std::max(1, static_cast<int>(std::round(base * scale(2)))));
+
+    Eigen::Vector3d cell_size(
+        extents(0) / grid_dims(0),
+        extents(1) / grid_dims(1),
+        extents(2) / grid_dims(2));
+
+    const int grid_size = grid_dims(0) * grid_dims(1) * grid_dims(2);
+    std::vector<std::vector<int>> grid_cells(grid_size);
+
+    auto clamp_cell = [&](double value, int axis) -> int {
+        if (grid_dims(axis) <= 1) {
+            return 0;
+        }
+        double t = (value - global_min(axis)) / cell_size(axis);
+        int idx = static_cast<int>(std::floor(t));
+        if (idx < 0) {
+            idx = 0;
+        } else if (idx >= grid_dims(axis)) {
+            idx = grid_dims(axis) - 1;
+        }
+        return idx;
+    };
+
+    auto cell_index = [&](int ix, int iy, int iz) -> int {
+        return (ix * grid_dims(1) + iy) * grid_dims(2) + iz;
+    };
+
+    for (int t = 0; t < T_out.rows(); ++t) {
+        const auto& aabb = tet_aabbs[t];
+        int ix0 = clamp_cell(aabb.min(0), 0);
+        int iy0 = clamp_cell(aabb.min(1), 1);
+        int iz0 = clamp_cell(aabb.min(2), 2);
+        int ix1 = clamp_cell(aabb.max(0), 0);
+        int iy1 = clamp_cell(aabb.max(1), 1);
+        int iz1 = clamp_cell(aabb.max(2), 2);
+        for (int ix = ix0; ix <= ix1; ++ix) {
+            for (int iy = iy0; iy <= iy1; ++iy) {
+                for (int iz = iz0; iz <= iz1; ++iz) {
+                    grid_cells[cell_index(ix, iy, iz)].push_back(t);
+                }
+            }
+        }
+    }
+
+    Eigen::Matrix<wmtk::Rational, Eigen::Dynamic, 3> V_rational = toRationalMatrix(V_out);
+
+    query_surface.points.reserve(V_surface.rows());
+    std::vector<int> point_valid(V_surface.rows(), 0);
+    std::vector<query_point_tet_r> points(V_surface.rows());
+    std::vector<int> missing_flags(V_surface.rows(), 0);
+
+    auto point_in_tet = [&](const Eigen::Matrix<wmtk::Rational, 3, 1>& p,
+                            int tet_id,
+                            Eigen::Matrix<wmtk::Rational, 4, 1>& bc_out) -> bool {
+        Eigen::Matrix<wmtk::Rational, 4, 3> tet_vertices;
+        Eigen::Vector4i tv_ids = T_out.row(tet_id);
+        for (int j = 0; j < 4; ++j) {
+            tet_vertices.row(j) = V_rational.row(tv_ids(j));
+        }
+        bc_out = world_to_barycentric_tet<wmtk::Rational>(p, tet_vertices);
+        wmtk::Rational sum = bc_out.sum();
+        if (sum != wmtk::Rational(0)) {
+            bc_out /= sum;
+        }
+        for (int j = 0; j < 4; ++j) {
+            if (bc_out(j) < wmtk::Rational(0) || bc_out(j) > wmtk::Rational(1)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    igl::parallel_for(
+        V_surface.rows(),
+        [&](int i) {
+            Eigen::Vector3d p_double = V_surface.row(i);
+            Eigen::Matrix<wmtk::Rational, 3, 1> p = toRationalVector(p_double);
+
+            int tet_id = -1;
+            Eigen::Matrix<wmtk::Rational, 4, 1> bc_rational =
+                Eigen::Matrix<wmtk::Rational, 4, 1>::Zero();
+
+            int ix = clamp_cell(p_double(0), 0);
+            int iy = clamp_cell(p_double(1), 1);
+            int iz = clamp_cell(p_double(2), 2);
+            const auto& candidates = grid_cells[cell_index(ix, iy, iz)];
+
+            for (int cand : candidates) {
+                if (point_in_tet(p, cand, bc_rational)) {
+                    tet_id = cand;
+                    break;
+                }
+            }
+
+            if (tet_id < 0) {
+                auto fallback = findTetContainingPointRational(V_rational, T_out, p);
+                tet_id = fallback.first;
+                bc_rational = fallback.second;
+            }
+
+            query_point_tet_r qp;
+            qp.t_id = tet_id;
+            if (tet_id >= 0) {
+                qp.bc = bc_rational;
+                qp.tv_ids = T_out.row(tet_id);
+                point_valid[i] = 1;
+            } else {
+                qp.bc = Eigen::Matrix<wmtk::Rational, 4, 1>::Zero();
+                qp.tv_ids = Eigen::Vector4i(-1, -1, -1, -1);
+                missing_flags[i] = 1;
+            }
+            points[i] = qp;
+        },
+        256);
+
+    int missing_vertices = 0;
+    for (int i = 0; i < static_cast<int>(missing_flags.size()); ++i) {
+        if (missing_flags[i]) {
+            missing_vertices++;
+            if (verbose) {
+                std::cerr << "Warning: surface vertex " << i
+                          << " not found in any tet (marking invalid)" << std::endl;
+            }
+        }
+    }
+
+    if (missing_vertices > 0) {
+        std::cerr << "Warning: " << missing_vertices
+                  << " surface vertices were outside the tet mesh" << std::endl;
+    }
+
+    query_surface.points = std::move(points);
+
+    query_surface.query_triangles.reserve(F_surface.rows());
+    query_surface.tet_ids.reserve(F_surface.rows());
+    int skipped_triangles = 0;
+    for (int i = 0; i < F_surface.rows(); ++i) {
+        int v0 = F_surface(i, 0);
+        int v1 = F_surface(i, 1);
+        int v2 = F_surface(i, 2);
+        if (v0 < 0 || v1 < 0 || v2 < 0 || v0 >= V_surface.rows() || v1 >= V_surface.rows() ||
+            v2 >= V_surface.rows()) {
+            skipped_triangles++;
+            continue;
+        }
+        if (!point_valid[v0] || !point_valid[v1] || !point_valid[v2]) {
+            skipped_triangles++;
+            continue;
+        }
+        query_surface.query_triangles.emplace_back(v0, v1, v2);
+
+        int t0 = query_surface.points[v0].t_id;
+        int t1 = query_surface.points[v1].t_id;
+        int t2 = query_surface.points[v2].t_id;
+        if (t0 == t1 && t1 == t2) {
+            query_surface.tet_ids.push_back(t0);
+        } else {
+            query_surface.tet_ids.push_back(-1);
+        }
+    }
+
+    if (skipped_triangles > 0) {
+        std::cerr << "Warning: skipped " << skipped_triangles
+                  << " triangles due to invalid vertices" << std::endl;
+    }
+
+    std::cout << "Created surface with " << query_surface.points.size() << " points and "
               << query_surface.query_triangles.size() << " triangles" << std::endl;
     return query_surface;
 }

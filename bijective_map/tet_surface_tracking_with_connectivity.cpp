@@ -808,11 +808,8 @@ void run_forward_tracking_surface(
     std::cout << "Forward tracking surface with connectivity" << std::endl;
     std::cout.flush();
 
-    // Note: only_do_arrangement_once is not supported for forward tracking
     if (only_do_arrangement_once) {
-        std::cout
-            << "Warning: only_do_arrangement_once is not supported for forward tracking, ignoring"
-            << std::endl;
+        std:cout << "In this case, we dont do arrangement during tracking, but do a final arrangement at the end." << std::endl;
     }
 
     std::cout << "  Parameters:" << std::endl;
@@ -900,36 +897,37 @@ void run_forward_tracking_surface(
             model_name + "_" + saved_query_surface_name + "_before.vtu");
     }
 
-    if (!is_checkpoint_loaded) {
-        // DEBUG: sanity check for the input query_surface
-        for (int i = 0; i < query_surface.query_triangles.size(); i++) {
-            const Eigen::Vector3i& tri = query_surface.query_triangles[i];
-            int tri_tet_id = query_surface.tet_ids[i];
-            const Eigen::Vector4i& relevant_vids = T_before.row(tri_tet_id);
+    // if (!is_checkpoint_loaded) {
+    //     // DEBUG: sanity check for the input query_surface
+    //     for (int i = 0; i < query_surface.query_triangles.size(); i++) {
+    //         const Eigen::Vector3i& tri = query_surface.query_triangles[i];
+    //         int tri_tet_id = query_surface.tet_ids[i];
+    //         const Eigen::Vector4i& relevant_vids = T_before.row(tri_tet_id);
 
-            for (int j = 0; j < 3; j++) {
-                const auto& pt = query_surface.points[tri[j]];
-                if (pt.t_id != tri_tet_id) {
-                    const auto tv_ids = pt.tv_ids;
-                    for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
-                        if (pt.bc(bc_idx) != 0) {
-                            int v_idx = tv_ids(bc_idx);
-                            if (std::find(relevant_vids.data(), relevant_vids.data() + 4, v_idx) ==
-                                relevant_vids.data() + 4) {
-                                std::cout << "ERROR: " << "v_idx: " << v_idx
-                                          << " is not in relevant_vids" << std::endl;
-                                std::cout << "bc of this point: " << pt.bc(bc_idx).to_double()
-                                          << std::endl;
-                                throw std::runtime_error("Error: point not in relevant_vids");
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    //         for (int j = 0; j < 3; j++) {
+    //             const auto& pt = query_surface.points[tri[j]];
+    //             if (pt.t_id != tri_tet_id) {
+    //                 const auto tv_ids = pt.tv_ids;
+    //                 for (int bc_idx = 0; bc_idx < 4; bc_idx++) {
+    //                     if (pt.bc(bc_idx) != 0) {
+    //                         int v_idx = tv_ids(bc_idx);
+    //                         if (std::find(relevant_vids.data(), relevant_vids.data() + 4, v_idx) ==
+    //                             relevant_vids.data() + 4) {
+    //                             std::cout << "ERROR: " << "v_idx: " << v_idx
+    //                                       << " is not in relevant_vids" << std::endl;
+    //                             std::cout << "bc of this point: " << pt.bc(bc_idx).to_double()
+    //                                       << std::endl;
+    //                             throw std::runtime_error("Error: point not in relevant_vids");
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
     // Check sanity of the input query_surface
+    if (!only_do_arrangement_once) // if we only do arrangement once, skip this check
     {
         bool is_manifold = check_surface_manifold_property(query_surface.query_triangles);
         if (is_manifold) {
@@ -938,6 +936,11 @@ void run_forward_tracking_surface(
             std::cout << "Input query surface is not manifold" << std::endl;
             throw std::runtime_error("Error: input query_surface is not manifold");
         }
+    }
+
+    for (int i = 0; i < query_surface.points.size(); i++) {
+        auto& pt = query_surface.points[i];
+        pt.bc /= pt.bc.sum();
     }
 
     // Step 2: Do the forward tracking
@@ -984,7 +987,7 @@ void run_forward_tracking_surface(
             verbose,
             save_debug_meshes,
             do_simplify,
-            false); // Always pass false for only_do_arrangement_once in forward tracking
+            only_do_arrangement_once); // Always pass false for only_do_arrangement_once in forward tracking
 
         if (save_interval > 0 && !save_dir.empty() &&
             (current_op % save_interval == 0 || current_op == ops_to_process)) {
@@ -1013,6 +1016,7 @@ void run_forward_tracking_surface(
         model_name + "_" + saved_query_surface_name + "_after.vtu");
 
     // Results manifold check
+    if (!only_do_arrangement_once) // if we only do arrangement once, skip this check
     {
         bool is_manifold = check_surface_manifold_property(query_surface.query_triangles);
         if (is_manifold) {
@@ -1024,6 +1028,7 @@ void run_forward_tracking_surface(
     }
 
     // Check self intersection
+    if (!only_do_arrangement_once) // if we only do arrangement once, skip this check
     {
         bool has_self_intersection =
             check_surface_self_intersection_intrinsic(query_surface, T_after);
