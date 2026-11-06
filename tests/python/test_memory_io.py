@@ -195,15 +195,16 @@ class MemoryIO(unittest.TestCase):
                 sides.setdefault(tuple(sorted((tri[k], tri[(k + 1) % 3]))), set()).add(patch[t, 0])
         for e, labels in sides.items():
             self.assertEqual(len(labels) == 2, e in curve)
-        # A Float64 field comes back Float64; a field feature_fields does not name is refused.
+        # A Float64 field comes back Float64; a field feature_fields does not name is dropped
+        # (until 2026-11 it was refused).
         floats = copy.deepcopy(grid)
         floats["cells"]["triangle"]["attributes"]["patch_id"] = label.astype(np.float64)
         outputs, _ = self.run_memory("isotropic_remeshing", options, {"grid": floats})
         self.assertEqual(
             outputs["mesh"]["cells"]["triangle"]["attributes"]["patch_id"]["values"].dtype,
             np.dtype("float64"))
-        with self.assertRaisesRegex(RuntimeError, "Unknown mesh attribute: patch_id"):
-            wm.isotropic_remeshing(dict(options, feature_fields=[]), {"grid": grid})
+        outputs, _ = wm.isotropic_remeshing(dict(options, feature_fields=[]), {"grid": grid})
+        self.assertNotIn("patch_id", outputs["mesh"]["cells"]["triangle"].get("attributes", {}))
 
     def test_simwild_tagged(self):
         for cell_type, mesh in (("triangle", triangle()), ("tetrahedron", tetrahedron())):
@@ -220,13 +221,13 @@ class MemoryIO(unittest.TestCase):
                 self.assertIn("tag_0", field["labels"])
 
     def test_triwild(self):
-        self.run_memory("triwild", dict(input=["curves"], skip_simplify=True,
+        self.run_memory("triwild", dict(input=["curves"], simplify=False,
                                        max_iterations=0, num_threads=1,
                                        DEBUG_output=True, write_vtu=True),
                         {"curves": curves()})
 
     def test_tetwild(self):
-        self.run_memory("tetwild", dict(input="surface", skip_simplify=True,
+        self.run_memory("tetwild", dict(input="surface", simplify=False,
                                        max_iterations=0, num_threads=1,
                                        DEBUG_output=True, write_vtu=True),
                         {"surface": surface()})
@@ -268,7 +269,7 @@ class MemoryIO(unittest.TestCase):
     def test_pipeline(self):
         meshes, _ = self.run_memory(
             "simwild", dict(input="surface", input_names=["tag_0"], max_iterations=0,
-                            skip_simplify=True, num_threads=1, length_rel=0.5, coarsen_pass=False),
+                            simplify=False, num_threads=1, length_rel=0.5, coarsen_pass=False),
             {"surface": surface()})
         meshes, _ = self.run_memory(
             "topological_offset", dict(input="mesh", envelope="envelope", offset_selection="tag_0",
@@ -282,7 +283,7 @@ class MemoryIO(unittest.TestCase):
         right["V"][:, 0] += 3
         outputs, _ = self.run_memory(
             "simwild", dict(input=["right", "left"], input_names=["right_region", "left_region"],
-                            max_iterations=0, skip_simplify=True, num_threads=1,
+                            max_iterations=0, simplify=False, num_threads=1,
                             length_rel=0.5, coarsen_pass=False),
             {"left": left, "right": right})
         mesh = outputs["mesh"]
@@ -337,9 +338,6 @@ class MemoryIO(unittest.TestCase):
             mesh["cells"]["triangle"]["connectivity"] = connectivity
             cases.append(mesh)
         mesh = triangle()
-        mesh["vertex_attributes"] = {"extra": np.ones((3, 1), dtype=np.float64)}
-        cases.append(mesh)
-        mesh = triangle()
         mesh["vertex_attributes"] = {"extra": np.ones((3, 1), dtype=np.float32)}
         cases.append(mesh)
         mesh = triangle()
@@ -353,6 +351,14 @@ class MemoryIO(unittest.TestCase):
                 wm.qslim({"input": "surface"}, {"surface": mesh})
         with self.assertRaisesRegex(RuntimeError, "corr_input_vid"):
             wm.prismatic_mesh({"input": "construction"}, {"construction": tetrahedron()})
+        # A field no reader reads is an annotation, dropped: the call runs as without it (until
+        # 2026-11 it was refused).
+        options = dict(input="surface", target_rel=1.0, eps_rel=0.0)
+        annotated = triangle()
+        annotated["vertex_attributes"] = {"extra": np.ones((3, 1), dtype=np.float64)}
+        outputs, _ = self.run_memory("qslim", options, {"surface": annotated})
+        bare, _ = self.run_memory("qslim", options, {"surface": triangle()})
+        np.testing.assert_array_equal(outputs["mesh"]["V"], bare["mesh"]["V"])
         self.assertEqual(list(Path.cwd().iterdir()), [])
 
     def test_msh_roundtrip(self):
