@@ -1,4 +1,5 @@
 #include "simwild.hpp"
+#include <wmtk/history/InputHistory.hpp>
 #include <wmtk/io/ComponentIO.hpp>
 #include <wmtk/io/mesh_io.hpp>
 #include <wmtk/io/tagged_mesh_data.hpp>
@@ -283,6 +284,107 @@ void check_reference_options(const Parameters& params)
     }
 }
 
+/// The inputs of a surface (3D) or curve (2D) run, by their content
+/// (io::ComponentIO::input_kind()).
+struct InputLists
+{
+    /// The inputs the arrangement inserts and tags -- in 3D the surfaces, in 2D the curves --
+    /// and json_params with their own input_names, input_type and input_transform, for the
+    /// readers (read_mesh(), read_curves()), which index those by insertion.
+    std::vector<std::string> inserted;
+    nlohmann::json params;
+    /// The selectors of the 3D curve inputs (feature curves) and of the point inputs, with their
+    /// names.
+    nlohmann::json curves = nlohmann::json::array(), points = nlohmann::json::array();
+    std::vector<std::string> curve_names, point_names;
+};
+
+/**
+ * @brief One input list: each entry what its content makes it, named by input_names at its
+ * position in the list (tag_<i> without a name), with an input_type, when given, per entry. A
+ * surface (3D) or a curve (2D) is inserted, input_type "volume" (the default) or "surface" (2D:
+ * "curve"); in 3D a curve is a feature curve, input_type "curve", and in both dimensions bare
+ * vertices are input points, input_type "point" -- their content leaves no choice. input_transform
+ * applies to the inserted inputs alone, as it did. Until 2026-11 curves and points came in lists
+ * of their own, input_edges and input_points, the curves named feature_<i>.
+ */
+InputLists split_inputs(
+    const io::ComponentIO& component_io,
+    const std::vector<std::string>& paths,
+    const nlohmann::json& json_params,
+    const int dimension)
+{
+    using Kind = io::ComponentIO::InputKind;
+    const std::vector<std::string> names = json_params["input_names"];
+    const nlohmann::json& types = json_params["input_type"];
+    const nlohmann::json& transforms = json_params["input_transform"];
+    if (!types.empty() && types.size() != paths.size()) {
+        log_and_throw_error(
+            "input_type needs one entry per input: {} entries for {} inputs",
+            types.size(),
+            paths.size());
+    }
+    InputLists out;
+    out.params = json_params;
+    out.params["input_names"] = nlohmann::json::array();
+    out.params["input_type"] = nlohmann::json::array();
+    out.params["input_transform"] = nlohmann::json::array();
+    const char* inserted_kind = dimension == 3 ? "surface" : "curve";
+    for (size_t i = 0; i < paths.size(); ++i) {
+        const Kind kind = component_io.input_kind(paths[i]);
+        const std::string name = i < names.size() ? names[i] : "tag_" + std::to_string(i);
+        const std::string type = types.empty() ? "" : types[i].get<std::string>();
+        if (kind == Kind::surface && dimension == 2) {
+            log_and_throw_error(
+                "{}: triangles in a 2D run, whose inputs are curves and points",
+                paths[i]);
+        }
+        if (kind == (dimension == 3 ? Kind::surface : Kind::curve)) {
+            if (!type.empty() && type != "volume" && type != inserted_kind) {
+                log_and_throw_error(
+                    "input_type \"{}\" for {}: a {} input is \"volume\" or \"{}\"{}",
+                    type,
+                    paths[i],
+                    inserted_kind,
+                    inserted_kind,
+                    type == "surface" ? " (\"surface\" is 3D only)" : "");
+            }
+            out.inserted.push_back(paths[i]);
+            out.params["input_names"].push_back(name);
+            if (!types.empty()) out.params["input_type"].push_back(type);
+            out.params["input_transform"].push_back(
+                i < transforms.size() ? transforms[i] : nlohmann::json::array());
+            continue;
+        }
+        const std::string own = kind == Kind::points ? "point" : "curve";
+        if (!type.empty() && type != own) {
+            log_and_throw_error(
+                "input_type \"{}\" for {}: its content makes it a {} input, input_type \"{}\"",
+                type,
+                paths[i],
+                own,
+                own);
+        }
+        if (i < transforms.size() && !transforms[i].empty()) {
+            log_and_throw_error(
+                "input_transform for {}: a transform applies to the {} inputs, not to {}",
+                paths[i],
+                inserted_kind,
+                kind == Kind::points ? "points" : "feature curves");
+        }
+        (kind == Kind::points ? out.points : out.curves).push_back(json_params["input"][i]);
+        (kind == Kind::points ? out.point_names : out.curve_names).push_back(name);
+    }
+    if (out.inserted.empty()) {
+        log_and_throw_error(
+            "simwild needs a {} among its inputs: got {} curves and {} point inputs",
+            inserted_kind,
+            out.curves.size(),
+            out.points.size());
+    }
+    return out;
+}
+
 } // namespace
 
 void run_3D(const nlohmann::json& json_params, InputData& input_data, io::ComponentIO& component_io)
@@ -315,13 +417,18 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
         mesh.m_F_envelope_labels = held->labels;
         mesh.m_has_reference = true;
         mesh.m_reference_curves = input_data.reference_curves;
+        // The input points' anchors on its points (TetOptimizerMesh::ReferencePoints).
+        mesh.set_reference_points(input_data.reference_points, input_data.reference_point_labels);
     } else if (input_data.V_envelope.size() != 0) {
         // first init envelope
         mesh.init_envelope(input_data.V_envelope, input_data.F_envelope);
         mesh.m_F_envelope_labels = input_data.F_envelope_labels;
     }
-    // Before init_from_image(): its reference checks name the feature curves' labels by these.
+    // Before init_from_image(): its reference checks name the feature curves' labels by these,
+    // and its anchors keep the input points' labels, which the output's point block writes.
     mesh.m_feature_edge_names = input_data.feature_edge_names;
+    mesh.m_point_names = input_data.point_names;
+    mesh.m_input_point_labels = input_data.input_point_labels;
     // Around the input after a simplification before the insertion, the input's own curves: the
     // order-2 tubes and the curve anchors are built around them, and a rim, non-manifold edge or
     // curve end the simplification made is held around itself (TetOptimizerMesh::InputCurves).
@@ -369,7 +476,8 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
             input_data.F_tags,
             input_data.face_tag_names,
             input_data.features.empty() ? nullptr : &input_data.features,
-            &input_data.features_placed);
+            &input_data.features_placed,
+            input_data.F_orientation);
     } else {
         logger().warn("Use RATIONAL input for TetWild");
         mesh.init_from_image(
@@ -381,7 +489,8 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
             input_data.F_tags,
             input_data.face_tag_names,
             input_data.features.empty() ? nullptr : &input_data.features,
-            &input_data.features_placed);
+            &input_data.features_placed,
+            input_data.F_orientation);
     }
 
     auto write_unique_vtu = [&params, &mesh]() {
@@ -410,6 +519,7 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
             [&](const auto& t) -> const auto& { return mesh.m_tet_attribute[t.tid(mesh)].tags; });
         io::collect_input_set_tags<CellType::Triangle>(mesh, outputs, mesh.m_face_tag_names);
         io::collect_feature_edge_tags(mesh, outputs, mesh.m_feature_edge_names);
+        io::collect_point_tags(mesh, outputs, mesh.m_point_names);
         return outputs;
     };
 
@@ -428,6 +538,16 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
         // A surface input: from the files, through the arrangement, to here.
         mesh.m_insertion_sources = std::move(input_data.facet_sources);
         mesh.record_surface_history(component_io.history_metadata(json_params));
+    }
+    // The feature curves of a surface run (its curve and point inputs), the edges tagged
+    // `feature`: their own history and file, as tetwild records them, from the inputs through the
+    // insertion to the output.
+    const std::string curve_history_output = json_params["curve_history_output"];
+    if (!curve_history_output.empty()) {
+        mesh.set_insertion_curve_sources(input_data.features_placed, [&input_data](size_t v) {
+            return Vector3d(input_data.V_input.row(Eigen::Index(v)));
+        });
+        mesh.record_curve_history(component_io.history_metadata(json_params));
     }
     // The volume around the tracked surface: its own choice, as it takes far more room.
     const std::string volume_history_output = json_params["volume_history_output"];
@@ -450,6 +570,8 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
     apply_operation(mesh, json_params);
 
     mesh.consolidate_mesh();
+    // A tag operation hands on an envelope around its result (set_envelope_around_tags()).
+    if (params.operation != "remeshing") mesh.set_envelope_around_tags();
     double time = timer.getElapsedTime();
     logger().info("total optimization time {}s", time);
 
@@ -458,6 +580,10 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
     if (const auto h = mesh.finish_surface_history(
             input_data.has_input_history ? &input_data.input_history : nullptr)) {
         component_io.save_history(*h, history_output);
+    }
+    if (const auto h = mesh.finish_curve_history(
+            input_data.has_curve_input_history ? &input_data.curve_input_history : nullptr)) {
+        component_io.save_curve_history(*h, curve_history_output);
     }
 
     // The output is what the caller consumes, and write_msh emits m_posf unconditionally --
@@ -518,10 +644,10 @@ void run_3D(const nlohmann::json& json_params, InputData& input_data, io::Compon
                 component_io.save_volume_history(*vh, volume_history_output);
             }
         }
-        // The envelope handed on, while the run holds to one (the tag operations drop it): a
-        // reference given, unchanged, so that a chain keeps passing the first component's input;
-        // else the run's own, labelled (SimWildMesh::envelope_data()). On the file route in a file
-        // of its own, as the mesh file holds the mesh.
+        // The envelope handed on: a reference given, unchanged, so that a chain keeps passing the
+        // first component's input; else the run's own, labelled (SimWildMesh::envelope_data()),
+        // after a tag operation the one around its result. On the file route in a file of its
+        // own, as the mesh file holds the mesh.
         if (!mesh.m_V_envelope.empty()) {
             component_io.result.first["envelope"] =
                 reference ? *input_data.envelope_reference
@@ -553,6 +679,12 @@ void run_2D(
             "history_output: simwild records a surface history in 3D only, and this input is "
             "2D");
     }
+    // Nor are its curves feature curves, which only a 3D run has.
+    if (!std::string(json_params["curve_history_output"]).empty()) {
+        log_and_throw_error(
+            "curve_history_output: simwild records the feature curves of a 3D surface input "
+            "only, and this input is 2D");
+    }
     Parameters params(json_params);
     params.output_enabled = !component_io.memory();
     params.init(
@@ -579,6 +711,9 @@ void run_2D(
         mesh.init_envelope(held->V, held->F);
         mesh.m_E_envelope_labels = held->labels;
         mesh.m_has_reference = true;
+        mesh.set_reference_points(
+            input_data.reference_points,
+            input_data.reference_point_labels); // as in 3D
     } else if (input_data.V_envelope.size() != 0) {
         // first init envelope
         mesh.init_envelope(input_data.V_envelope, input_data.F_envelope);
@@ -593,6 +728,8 @@ void run_2D(
         mesh.set_input_curve_points(held->V, held->F);
     }
     mesh.m_input_point_vids = input_data.input_point_vids;
+    mesh.m_point_names = input_data.point_names; // as in 3D
+    mesh.m_input_point_labels = input_data.input_point_labels;
     if (input_data.V_input_r.size() == 0) {
         mesh.init_from_image(
             input_data.V_input,
@@ -601,7 +738,8 @@ void run_2D(
             input_data.tag_names,
             input_data.F_tagged,
             input_data.F_tags,
-            input_data.face_tag_names);
+            input_data.face_tag_names,
+            input_data.F_orientation);
     } else {
         logger().warn("Use RATIONAL input for 2D");
         mesh.init_from_image(
@@ -611,7 +749,8 @@ void run_2D(
             input_data.tag_names,
             input_data.F_tagged,
             input_data.F_tags,
-            input_data.face_tag_names);
+            input_data.face_tag_names,
+            input_data.F_orientation);
     }
 
     auto write_unique_vtu = [&params, &mesh]() {
@@ -635,6 +774,8 @@ void run_2D(
     apply_operation(mesh, json_params);
 
     mesh.consolidate_mesh();
+    // As in 3D: a tag operation hands on an envelope around its result.
+    if (params.operation != "remeshing") mesh.set_envelope_around_tags();
     double time = timer.getElapsedTime();
     logger().info("total optimization time {}s", time);
 
@@ -689,6 +830,7 @@ void run_2D(
             mesh,
             component_io.result.first,
             mesh.m_edge_tag_names);
+        io::collect_point_tags(mesh, component_io.result.first, mesh.m_point_names);
         // The envelope handed on, as in 3D, with the input points.
         if (!mesh.m_V_envelope.empty()) {
             std::vector<Vector2d> points;
@@ -763,25 +905,35 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
     // their envelope from the input itself.
     const std::string envelope_path =
         component_io.memory() ? "" : json_params["envelope"].get<std::string>();
-    if (dimension != 0 && (!envelope_selector.is_null() || !envelope_path.empty())) {
+    const bool envelope_given = !envelope_selector.is_null() || !envelope_path.empty();
+    if (dimension != 0 && envelope_given) {
         log_and_throw_error("`envelope` applies to tagged mesh inputs only");
     }
+    // A tag operation holds nothing to an envelope, and the boundaries it leaves are new geometry
+    // that the one given does not cover: it is not read, and the run hands on one around its
+    // result (SimWildMesh::set_envelope_around_tags()). Until 2026-11 it was read, a reference
+    // refused for a label the mesh holds that it lacked, and the run handed on none.
+    const bool tag_operation = json_params["operation"] != "remeshing";
+    if (tag_operation && envelope_given) {
+        logger().info(
+            "operation {}: the `envelope` given is not read; the envelope handed on is built "
+            "around the result",
+            json_params["operation"].get<std::string>());
+    }
     std::optional<MeshData> envelope_file;
-    if (!envelope_path.empty()) envelope_file = io::read_mesh(resolve_path(root, envelope_path));
+    if (!envelope_path.empty() && !tag_operation)
+        envelope_file = io::read_mesh(resolve_path(root, envelope_path));
     const MeshData* envelope = envelope_file ? &*envelope_file
-                               : !envelope_selector.is_null()
+                               : !envelope_selector.is_null() && !tag_operation
                                    ? &component_io.mesh(envelope_selector)
                                    : nullptr;
-    // The feature curves and points (input_edges, input_points) are forced into the mesh by the
-    // insertion: curves and points by the 3D surface insertion, points by the 2D curve
-    // arrangement. The other routes refuse them rather than drop them.
-    const bool has_features =
-        !json_params["input_edges"].empty() || !json_params["input_points"].empty();
-    const auto no_features = [&](const char* route) {
-        if (has_features) {
+    // A curve history starts at the curve inputs as read, which only a 3D surface run has: the
+    // other routes refuse it rather than record nothing.
+    const auto no_curve_history = [&](const char* route) {
+        if (!std::string(json_params["curve_history_output"]).empty()) {
             log_and_throw_error(
-                "input_edges and input_points apply to inserted inputs only (input_edges to 3D "
-                "surface inputs, input_points to 3D surface and 2D curve inputs), not to {}",
+                "curve_history_output: simwild records the feature curves of a 3D surface input "
+                "only (its curve and point inputs), not of {}",
                 route);
         }
     };
@@ -798,45 +950,62 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
         }
     };
     if (component_io.memory() && dimension == 0) {
-        no_features("a tagged mesh");
         only_input("a tagged mesh");
+        no_curve_history("a tagged mesh");
         // Label images become regions here as on the file route (read_image_msh).
         MeshData input = component_io.mesh(input_paths.at(0));
         tags_from_label_images(input, input_paths.at(0));
         input_data = read_mesh_data(input, envelope);
     } else if (!component_io.memory() && extension == ".msh") {
-        no_features("a .msh input");
         only_input("a .msh input");
+        no_curve_history("a .msh input");
         input_data = read_image_msh(input_paths[0], envelope);
     } else if (dimension == 2) {
-        if (!json_params["input_edges"].empty()) {
-            log_and_throw_error("input_edges apply to 3D surface inputs only, not to a 2D input");
-        }
+        const InputLists lists = split_inputs(component_io, input_paths, json_params, 2);
         // Read by the code the 3D route reads them with; only their x and y are used.
         const utils::FeatureInputs features = utils::read_feature_inputs(
             component_io,
             root,
             nlohmann::json::array(),
-            json_params["input_points"]);
+            lists.points,
+            {},
+            lists.point_names);
         input_data = read_curves(
-            input_paths,
+            lists.inserted,
             output_filename.string(),
-            json_params,
+            lists.params,
             component_io.memory() ? &component_io : nullptr,
             &features);
+        input_data.input_point_labels = features.point_input;
+        input_data.point_names = features.point_names;
     } else {
-        // Read by the code tetwild reads them with.
+        const InputLists lists = split_inputs(component_io, input_paths, json_params, 3);
+        // Read by the code tetwild reads them with, and recorded from the inputs as tetwild
+        // records them: inserted as read, welded by exact position, so the history goes from the
+        // inputs through that weld to the insertion's embed.
+        const bool record_curves = !std::string(json_params["curve_history_output"]).empty();
+        io::ReadProvenance curves_read;
         const utils::FeatureInputs features = utils::read_feature_inputs(
             component_io,
             root,
-            json_params["input_edges"],
-            json_params["input_points"]);
+            lists.curves,
+            lists.points,
+            lists.curve_names,
+            lists.point_names,
+            record_curves ? &curves_read : nullptr);
         input_data = read_mesh(
-            input_paths,
+            lists.inserted,
             output_filename.string(),
-            json_params,
+            lists.params,
             component_io.memory() ? &component_io : nullptr,
             &features);
+        if (!input_data.features.empty()) input_data.feature_edge_names = lists.curve_names;
+        input_data.input_point_labels = features.point_input;
+        input_data.point_names = features.point_names;
+        if (record_curves) {
+            input_data.has_curve_input_history = true;
+            input_data.curve_input_history = history::curves_from_features(curves_read, features);
+        }
     }
 
     if (input_data.T_input.cols() == 4) {

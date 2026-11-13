@@ -22,6 +22,16 @@ else()
     endif()
 endif()
 
+# Python builds (scikit-build-core): object files outside CMakeFiles/. scikit-build-core deletes the
+# build directory's top-level CMakeFiles/ whenever it builds in a new isolated environment, which
+# cibuildwheel does for every Python version, and with it the objects of the targets this file
+# defines (the toolkit library, metis, GKlib): each wheel recompiled them. CMake's SHORT strategy
+# (4.2 and later; older versions ignore it) keeps every target's objects in .o/ instead. Not with
+# Visual Studio, whose object directories are outside CMakeFiles/ already.
+if(DEFINED SKBUILD AND NOT CMAKE_GENERATOR MATCHES "^Visual Studio")
+    set(CMAKE_INTERMEDIATE_DIR_STRATEGY SHORT CACHE STRING "Naming of target intermediate directories")
+endif()
+
 # Enable ccache if available
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
@@ -34,10 +44,16 @@ if(WMTK_WITH_CCACHE AND CCACHE_PROGRAM)
         CCACHE_BASEDIR=${CMAKE_BINARY_DIR}
         CCACHE_SLOPPINESS=clang_index_store,include_file_ctime,include_file_mtime,locale,pch_defines,time_macros
     )
+    # A launcher given on the command line wins. The Windows CI runners have Strawberry Perl's
+    # C:\Strawberry\c\bin\ccache.exe on PATH, and before this check it replaced the
+    # -DCMAKE_CXX_COMPILER_LAUNCHER=sccache the Windows jobs pass: every Windows build went through
+    # a ccache whose cache nothing saved, and sccache's stayed empty.
     foreach(lang IN ITEMS C CXX)
-        set(CMAKE_${lang}_COMPILER_LAUNCHER
-            ${CMAKE_COMMAND} -E env ${ccacheEnv} ${CCACHE_PROGRAM}
-        )
+        if(NOT DEFINED CMAKE_${lang}_COMPILER_LAUNCHER)
+            set(CMAKE_${lang}_COMPILER_LAUNCHER
+                ${CMAKE_COMMAND} -E env ${ccacheEnv} ${CCACHE_PROGRAM}
+            )
+        endif()
     endforeach()
 endif()
 
@@ -63,6 +79,12 @@ option(WMTK_BUILD_DOC_EXAMPLES "Build the documentation's C++ examples; with BUI
 # the whole mesh, so it is O(#F) per operation. Tests only -- off by default, and gated at
 # compile time rather than by a runtime flag so a normal build carries none of it.
 option(WMTK_DEBUG_BRUTE_FORCE_OPS "Validate each TriMesh operation against a brute-force reference (very slow)" OFF)
+
+# One orientation count per input on every tracked face (2D: edge), rather than one for all its
+# inputs (SurfaceTagAttributes::m_input_orientation): filter "tracked" with filter_inputs then works
+# where inputs coincide, and tagged meshes carry each input's count (`orientation`). 32 bytes more
+# per face record, 43 instead of 11.
+option(WMTK_PER_INPUT_ORIENTATION "One orientation count per input on each tracked face (32 bytes more per face record)" OFF)
 option (BUILD_SHARED_LIBS "Build Shared Libraries" OFF) # we globally want to disable this option
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -126,6 +148,11 @@ if(WMTK_DEBUG_BRUTE_FORCE_OPS)
     message(STATUS "TriMesh operations will be cross-checked against a brute-force reference. This is very slow.")
     # PUBLIC: tests #ifdef on the same macro to decide whether to exercise the validator.
     target_compile_definitions(wildmeshing_toolkit PUBLIC WMTK_DEBUG_BRUTE_FORCE_OPS)
+endif()
+
+if(WMTK_PER_INPUT_ORIENTATION)
+    # PUBLIC: the face record's layout depends on it, so everything that includes it must agree.
+    target_compile_definitions(wildmeshing_toolkit PUBLIC WMTK_PER_INPUT_ORIENTATION)
 endif()
 
 # C++ standard

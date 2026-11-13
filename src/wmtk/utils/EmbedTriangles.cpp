@@ -63,6 +63,10 @@ int sign_of(const Rational& r)
  * cut, and a facet straddling it gets the coverage at whichever test point came first. Such
  * facets are noticed by a second test point disagreeing with the first, counted in
  * `n_straddling`, and left to orient_facet_patches to make consistent with their patch.
+ *
+ * With `group_input` (per group, an input), `by_input` gets each facet's contributions summed
+ * input by input, nonzero ones only, inputs ascending: the per-input counts, when every group is
+ * one input's.
  */
 template <typename GroupsOf>
 std::vector<int> facet_orientations(
@@ -75,7 +79,9 @@ std::vector<int> facet_orientations(
     const std::vector<bool>& facets_on_input,
     const GroupsOf& groups_of,
     const int num_threads,
-    size_t& n_straddling)
+    size_t& n_straddling,
+    const std::vector<int>* group_input = nullptr,
+    std::vector<InputOrientations>* by_input = nullptr)
 {
     const size_t n_tri = triangle_indices.size() / 3;
     const auto in_vertex = [&](uint32_t v) {
@@ -235,12 +241,26 @@ std::vector<int> facet_orientations(
                     std::sort(f.begin(), f.end());
                     const auto [lo, hi] = groups_of(f);
                     int o = 0;
+                    const auto add_input = [&](const size_t g, const int c) {
+                        if (by_input == nullptr || c == 0) return;
+                        auto& per = (*by_input)[i];
+                        const int in = (*group_input)[g];
+                        const auto at = std::find_if(per.begin(), per.end(), [in](const auto& p) {
+                            return p.first == in;
+                        });
+                        if (at == per.end()) {
+                            per.emplace_back(in, c);
+                        } else {
+                            at->second += c;
+                        }
+                    };
                     for (auto it = lo; it != hi; ++it) {
                         const size_t g = it->second;
                         if (g >= n_groups || group_tris[g].empty()) continue;
                         const int fs = facet_sign(f, g);
                         if (uniform[g]) {
                             o += fs;
+                            add_input(g, fs);
                             continue;
                         }
                         const int ax0 = (drop_axis[g] + 1) % 3, ax1 = (drop_axis[g] + 2) % 3;
@@ -275,8 +295,19 @@ std::vector<int> facet_orientations(
                         }
                         if (straddles) ++straddling[w];
                         o += fs * *first;
+                        add_input(g, fs * *first);
                     }
                     res[i] = o;
+                    if (by_input != nullptr) {
+                        auto& per = (*by_input)[i];
+                        per.erase(
+                            std::remove_if(
+                                per.begin(),
+                                per.end(),
+                                [](const auto& p) { return p.second == 0; }),
+                            per.end());
+                        std::sort(per.begin(), per.end());
+                    }
                 }
             }
         },
@@ -847,6 +878,97 @@ void embed_triangles_in_tets(
         logger().info("done");
     }
 
+    // Per facet, each input's own orientation (EmbedTrianglesProvenance::face_input_orientation):
+    // the count above with every coplanar group split by input, a sub-group per (group, input),
+    // and a facet's sub-groups those of the input triangles it lies in (face_triangles) -- so
+    // that a sub-group names only facets its triangles cover, as a group names only facets that
+    // tile it. Then made consistent patch by patch within each input, as above within an input.
+    if (keep_to_inputs && provenance != nullptr && provenance->want_input_orientation) {
+        logger().info("Orienting the tracked surface input by input...");
+        std::map<std::pair<uint32_t, int>, uint32_t> sub_of;
+        std::vector<int> sub_input;
+        std::vector<uint32_t> tri_sub(vr_tri_group.size(), UINT32_MAX);
+        for (size_t t = 0; t < vr_tri_group.size(); ++t) {
+            const int in = t < opts.triangle_input->size() ? (*opts.triangle_input)[t] : -1;
+            if (vr_tri_group[t] >= vr_tri_provenance.size() || in < 0) continue;
+            const auto [it, added] =
+                sub_of.emplace(std::make_pair(vr_tri_group[t], in), uint32_t(sub_input.size()));
+            if (added) sub_input.push_back(in);
+            tri_sub[t] = it->second;
+        }
+        std::vector<FaceKey> on_input_subs;
+        for (size_t f = 0; f < polygon_faces.size(); ++f) {
+            std::array<uint32_t, 3> key{
+                {uint32_t(polygon_faces[f][0]),
+                 uint32_t(polygon_faces[f][1]),
+                 uint32_t(polygon_faces[f][2])}};
+            std::sort(key.begin(), key.end());
+            for (const uint32_t t : face_triangles[f]) {
+                if (t < tri_sub.size() && tri_sub[t] != UINT32_MAX)
+                    on_input_subs.emplace_back(key, tri_sub[t]);
+            }
+        }
+        std::sort(on_input_subs.begin(), on_input_subs.end());
+        on_input_subs.erase(
+            std::unique(on_input_subs.begin(), on_input_subs.end()),
+            on_input_subs.end());
+        const auto subs_of = [&on_input_subs](const std::array<size_t, 3>& f) {
+            std::array<uint32_t, 3> key{{uint32_t(f[0]), uint32_t(f[1]), uint32_t(f[2])}};
+            std::sort(key.begin(), key.end());
+            return std::equal_range(
+                on_input_subs.begin(),
+                on_input_subs.end(),
+                FaceKey{key, 0},
+                [](const FaceKey& a, const FaceKey& b) { return a.first < b.first; });
+        };
+        auto& by_input = provenance->face_input_orientation;
+        by_input.assign(polygon_faces.size(), {});
+        size_t n_straddling = 0;
+        facet_orientations(
+            tri_vrt_coord,
+            triangle_indices,
+            tri_sub,
+            sub_input.size(),
+            v_rational,
+            polygon_faces,
+            polygon_faces_on_input,
+            subs_of,
+            opts.num_threads,
+            n_straddling,
+            &sub_input,
+            &by_input);
+        std::map<int, std::vector<std::pair<size_t, size_t>>> entries; // input -> (facet, pair)
+        for (size_t f = 0; f < by_input.size(); ++f)
+            for (size_t k = 0; k < by_input[f].size(); ++k)
+                entries[by_input[f][k].first].emplace_back(f, k);
+        size_t n_turned = 0, n_non_orientable = 0;
+        for (const auto& [in, list] : entries) {
+            std::vector<std::array<size_t, 3>> facets_in;
+            std::vector<int> orientation_in;
+            facets_in.reserve(list.size());
+            orientation_in.reserve(list.size());
+            for (const auto& [f, k] : list) {
+                facets_in.push_back(polygon_faces[f]);
+                orientation_in.push_back(by_input[f][k].second);
+            }
+            const OrientationRepair rep =
+                orient_facet_patches(v_rational, facets_in, orientation_in);
+            n_turned += rep.n_turned;
+            n_non_orientable += rep.n_non_orientable;
+            for (size_t m = 0; m < list.size(); ++m)
+                by_input[list[m].first][list[m].second].second = orientation_in[m];
+        }
+        if (n_straddling > 0 || n_turned > 0 || n_non_orientable > 0) {
+            logger().info(
+                "tracked surface, input by input: {} facets straddle a flip, {} reversed to "
+                "agree with their patch, {} non-orientable patches left as they are",
+                n_straddling,
+                n_turned,
+                n_non_orientable);
+        }
+        logger().info("done");
+    }
+
     // The old colour-based answer, kept only to be diffed against the one above. Off by
     // default: it is what the check exists to retire, and holding both costs a second pass.
     if (opts.check_surface_provenance) {
@@ -1113,6 +1235,34 @@ void embed_triangles_in_tets(
         }
         logger().info("done");
     }
+}
+
+std::vector<std::array<uint32_t, 3>> repeated_oriented_faces(
+    const std::vector<std::array<size_t, 4>>& tets)
+{
+    std::vector<std::array<uint32_t, 3>> oriented_faces;
+    oriented_faces.reserve(4 * tets.size());
+    for (const auto& t : tets) {
+        std::array<std::array<size_t, 3>, 4> faces = {{
+            {{t[1], t[3], t[2]}}, // opposite t[0]
+            {{t[0], t[2], t[3]}}, // opposite t[1]
+            {{t[0], t[3], t[1]}}, // opposite t[2]
+            {{t[0], t[1], t[2]}}, // opposite t[3]
+        }};
+        // Rotate vertex IDs in faces to start with the lowest vertex ID. This ensures that the
+        // same face is represented by the same set of vertex IDs, regardless of the order in
+        // which they appear in the tet.
+        for (auto& f : faces) {
+            std::rotate(f.begin(), std::min_element(f.begin(), f.end()), f.end());
+            oriented_faces.push_back({{uint32_t(f[0]), uint32_t(f[1]), uint32_t(f[2])}});
+        }
+    }
+    std::sort(oriented_faces.begin(), oriented_faces.end());
+    std::vector<std::array<uint32_t, 3>> repeated;
+    for (size_t i = 1; i < oriented_faces.size(); ++i) {
+        if (oriented_faces[i] == oriented_faces[i - 1]) repeated.push_back(oriented_faces[i]);
+    }
+    return repeated;
 }
 
 } // namespace wmtk::utils

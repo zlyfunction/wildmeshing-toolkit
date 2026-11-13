@@ -58,14 +58,15 @@ cells and leaves `b`, so `b` is the whole second sphere and `a` the first one mi
 ```
 
 No cell changes, only its regions: the mesh is the one of step 1, with the same quality. A region
-edit returns no envelope, so `regions/m2_envelope.msh` is not written. To split the overlap between
+edit returns an envelope built around its result, its interfaces each labelled by the regions it
+bounds, which `wm.save` writes as `regions/m2_envelope.msh`. To split the overlap between
 the two instead, see [below](#splitting-the-overlap-instead).
 
 ### 3. Carve the gap
 
-`topological_offset` with a single region name, `a`, grows a band of cells outward from `a`'s
-boundary and gives them the tags in `offset_output_tags`, in place of the ones they had: the band
-is cut out of `b` and of the background.
+`topological_offset` with a single region name, `a`, as its offset's `selection` grows a band of
+cells outward from `a`'s boundary and gives them the tags in the offset's `output_tags`, in place
+of the ones they had: the band is cut out of `b` and of the background.
 
 ```python
 --8<-- "docs/examples/python/workflow_regions.py:offset"
@@ -91,7 +92,7 @@ largest energy (`amips` on the output's tets) is 160 to 172 in two runs.
 
 ### 4. Remesh
 
-The offset returns no envelope either. Without one, simwild builds the envelope from the
+The offset, given no envelope, returns none. Without one, simwild builds the envelope from the
 interfaces of the mesh it is given, which is what is wanted here: the gap's walls are new, and no
 earlier envelope contains them. `eps_rel` 0.001 (an envelope of 0.0032, a third of the gap) keeps
 them close to where the offset put them.
@@ -126,6 +127,24 @@ gap of 5,911 tets, and step 4 96,281 tets with the largest energy 9.94. In C++ t
 checkpoint helpers: `wmtk::io::write_mesh` writes a mesh, and an envelope, if any, is the
 mesh `outputs.at("envelope")`.
 
+### The same as a pipeline file
+
+Steps 1 to 4, and the two steps of [splitting the overlap instead](#splitting-the-overlap-instead)
+as a branch from step 1, in one [pipeline file][pipelines]. Each stage is cached and runs again
+only when its options or what it reads change, which replaces the checkpoints of the script. Its
+input is a file name relative to the file: put it next to `sphere.obj`.
+
+```json
+--8<-- "docs/examples/pipeline/workflow_regions.json"
+```
+
+```bash
+python -m wildmeshing.gui workflow_regions.json
+```
+
+The window runs the stages and shows each one's result; without a window,
+`Pipeline.load("workflow_regions.json").run()` from `wildmeshing.pipeline`.
+
 ## Splitting the overlap instead
 
 `resolve_overlaps` gives each cell of the overlap to the nearer of the two spheres, so the
@@ -159,3 +178,5 @@ to run, from thousands to about a million in ours; after the remeshing it is bel
 - [Topological offset](../topological_offset.md): the band, its tags, and the optimization
 - [Regions](../../concepts/regions.md): the `tags` attribute and the expression language
 - [Python API](../../python-api.md#meshes-and-files): `wm.save` and `wm.load`
+
+[pipelines]: https://github.com/wildmeshing/wildmeshing-toolkit/blob/main/python/README.md#pipelines

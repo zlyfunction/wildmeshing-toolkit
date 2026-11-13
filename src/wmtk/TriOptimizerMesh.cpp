@@ -600,11 +600,12 @@ std::vector<std::array<size_t, 2>> TriOptimizerMesh::oriented_tracked_edges() co
     std::vector<std::array<size_t, 2>> res;
     for (const Tuple& e : get_edges()) {
         const auto& attr = m_edge_attribute[e.eid(*this)];
-        if (!attr.m_is_surface_fs || attr.m_orientation == 0) continue;
+        const int o = attr.orientation();
+        if (!attr.m_is_surface_fs || o == 0) continue;
         size_t a = e.vid(*this), b = e.switch_vertex(*this).vid(*this);
         if (a > b) std::swap(a, b);
-        if (attr.m_orientation < 0) std::swap(a, b);
-        for (int k = 0; k < std::abs(attr.m_orientation); ++k) res.push_back({{a, b}});
+        if (o < 0) std::swap(a, b);
+        for (int k = 0; k < std::abs(o); ++k) res.push_back({{a, b}});
     }
     return res;
 }
@@ -741,6 +742,18 @@ std::vector<size_t> TriOptimizerMesh::tracked_feature_points() const
     return out;
 }
 
+size_t TriOptimizerMesh::substructure_order_of_vertex(const size_t vid) const
+{
+    // Two anchors, or an anchor and a curve, never merge under the condition. Until 2026-11 a
+    // free point was order 0, and a collapse merged it into another free point or a curve's end
+    // in its ball (free-points-stay-apart-under-preserve-topology).
+    if (m_track_feature_points &&
+        m_feature_point_attribute[vid].m_feature_point_id != NO_FEATURE_POINT) {
+        return 2;
+    }
+    return get_order_of_vertex(vid);
+}
+
 bool TriOptimizerMesh::is_edge_on_surface(const std::array<size_t, 2>& vids) const
 {
     if (!m_vertex_attribute.at(vids[0]).m_is_on_surface ||
@@ -801,6 +814,16 @@ void TriOptimizerMesh::set_input_curve_points(const MatrixXd& V, const MatrixXi&
     }
     logger().info("input's own curves: {} curve ends and junctions", points.size());
     m_input_curve_points = std::move(points);
+}
+
+void TriOptimizerMesh::set_reference_points(const MatrixXd& P, const std::vector<InputSet>& labels)
+{
+    assert(labels.size() == size_t(P.rows()));
+    ReferencePoints ref;
+    for (Eigen::Index i = 0; i < P.rows(); ++i) ref.V.emplace_back(P(i, 0), P(i, 1));
+    ref.labels = labels;
+    logger().info("reference: {} input points", ref.V.size());
+    m_reference_points = std::move(ref);
 }
 
 bool TriOptimizerMesh::anchor_feature_point(const size_t vid, const double radius)
@@ -885,11 +908,56 @@ size_t TriOptimizerMesh::anchor_feature_points(
         }
         anchors.emplace_back(vid, order2_radius, p);
     }
-    for (const size_t vid : input_point_vids) {
+    // With the reference's points (ReferencePoints), an input point's ball is centred on the
+    // nearest of them of its label in it; one with none is counted by label and refused, as in
+    // 3D.
+    std::map<int, size_t> n_unmatched;
+    for (size_t k = 0; k < input_point_vids.size(); ++k) {
+        const size_t vid = input_point_vids[k];
         if (vid >= vert_capacity()) {
             log_and_throw_error("Input point vertex id {} out of range", vid);
         }
-        anchors.emplace_back(vid, feature_radius, m_vertex_attribute[vid].m_posf);
+        const Vector2d& p = m_vertex_attribute[vid].m_posf;
+        if (!m_reference_points) {
+            anchors.emplace_back(vid, feature_radius, p);
+            continue;
+        }
+        const int label = k < m_input_point_labels.size() ? m_input_point_labels[k] : -1;
+        const Vector2d* centre = nullptr;
+        double best = feature_radius * feature_radius;
+        for (size_t q = 0; q < m_reference_points->V.size(); ++q) {
+            if (label < 0 || label >= SurfaceTagAttributes::max_inputs ||
+                ((m_reference_points->labels[q] >> label) & 1) == 0) {
+                continue;
+            }
+            const double sq = (p - m_reference_points->V[q]).squaredNorm();
+            if (sq <= best) {
+                best = sq;
+                centre = &m_reference_points->V[q];
+            }
+        }
+        if (centre == nullptr) {
+            ++n_unmatched[label];
+            continue;
+        }
+        anchors.emplace_back(vid, feature_radius, *centre);
+    }
+    if (!n_unmatched.empty()) {
+        std::vector<std::string> counts;
+        for (const auto& [label, n] : n_unmatched) {
+            counts.push_back(
+                fmt::format(
+                    "{} labelled {}",
+                    n,
+                    label >= 0 && size_t(label) < m_point_names.size()
+                        ? m_point_names[label]
+                        : "tag_" + std::to_string(label)));
+        }
+        log_and_throw_error(
+            "envelope: received input points with no point of the reference of their label in "
+            "their anchor's radius: {}. A component makes no input points, so these are not the "
+            "reference's",
+            fmt::join(counts, ", "));
     }
     if (m_input_curve_points) {
         logger().info(
@@ -904,6 +972,7 @@ size_t TriOptimizerMesh::anchor_feature_points(
     for (const auto& [vid, r, centre] : anchors) {
         n_anchored += anchor_feature_point(vid, r, centre);
     }
+    label_feature_points(input_point_vids);
     logger().info(
         "feature points: {} curve ends, {} junctions ({} more left free by the application's "
         "rule), {} input points; {} anchored",
@@ -913,6 +982,24 @@ size_t TriOptimizerMesh::anchor_feature_points(
         input_point_vids.size(),
         n_anchored);
     return n_anchored;
+}
+
+void TriOptimizerMesh::label_feature_points(const std::vector<size_t>& input_point_vids)
+{
+    m_feature_point_inputs.assign(m_feature_points.size(), 0);
+    if (m_input_point_labels.empty()) return;
+    if (m_input_point_labels.size() != input_point_vids.size()) {
+        log_and_throw_error(
+            "{} input point labels for {} input points",
+            m_input_point_labels.size(),
+            input_point_vids.size());
+    }
+    for (size_t k = 0; k < input_point_vids.size(); ++k) {
+        const int label = m_input_point_labels[k];
+        if (label < 0 || label >= SurfaceTagAttributes::max_inputs) continue;
+        const size_t f = m_feature_point_attribute[input_point_vids[k]].m_feature_point_id;
+        if (f < m_feature_point_inputs.size()) m_feature_point_inputs[f] |= InputSet(1) << label;
+    }
 }
 
 bool TriOptimizerMesh::collapse_breaks_feature_point(const size_t v1_id, const size_t v2_id) const
@@ -1110,6 +1197,31 @@ void TriOptimizerMesh::init_input_envelopes(
         }
     }
     m_input_envelopes.set(std::move(members));
+}
+
+void TriOptimizerMesh::require_box_boundary(const std::string& who) const
+{
+    // See the declaration.
+    size_t n_tracked = 0, n_free = 0;
+    for (const Tuple& e : get_edges()) {
+        if (e.switch_face(*this)) continue;
+        const EdgeAttributes& attr = m_edge_attribute[e.eid(*this)];
+        if (attr.m_is_surface_fs) {
+            ++n_tracked;
+        } else if (attr.m_is_bbox_fs < 0) {
+            ++n_free;
+        }
+    }
+    if (n_tracked == 0 && n_free == 0) return;
+    log_and_throw_error(
+        "{} tracked edges of the tagged mesh lie on its boundary, as a filtered mesh's do, and {} "
+        "untracked boundary edges on no line of its bounding box: {} takes a mesh that fills its "
+        "box (an output with filter \"none\"), its tracked edges inside, and holds the domain's "
+        "wall by the box rule, a box's edges only; give a filtered mesh's curves to triwild as "
+        "inputs",
+        n_tracked,
+        n_free,
+        who);
 }
 
 std::string TriOptimizerMesh::label_name(const size_t bit) const

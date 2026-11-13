@@ -11,7 +11,7 @@ Step 3, ops:        tagged faces stay within eps of their input, both ways.
 
 simwild's guarantee is within eps of the inputs, not exact, so the checks are two-sided
 distances against eps (eps_rel times the bbox diagonal).
-Step 4, offset:     offset_selection names a face tag and grows a shell on both sides.
+Step 4, offset:     an offset's selection names a face tag and grows a shell on both sides.
 """
 from itertools import permutations
 
@@ -330,24 +330,27 @@ def test_close_regions_keep_their_own_borders_2d(tmp_path, gap):
 
 @pytest.mark.parametrize("iterations", [0, 80])
 def test_input_point_is_kept_2d(tmp_path, iterations):
-    """An input point inside a square region is inserted as a vertex and anchored: some output
-    vertex stays within eps of it (feature_envelope_ratio 1)."""
+    """An input point inside a square region, a point input of the one input list, is inserted as
+    a vertex and anchored: some output vertex stays within eps of it (feature_envelope_ratio
+    1)."""
     point = np.array([0.3, 0.6])
     inputs = {"sq": write_obj(tmp_path / "sq.obj", [SQUARE_2D]),
               "pt": {"V": np.array([[point[0], point[1], 0.0]]),
                      "cells": {"point": {"connectivity": np.array([[0]], np.int64)}}}}
-    m = wm.simwild({"input": ["sq"], "input_points": ["pt"], "dimension": "2",
+    m = wm.simwild({"input": ["sq", "pt"], "dimension": "2",
                     "simplify": False, "eps_rel": EPS_REL, "max_iterations": iterations},
                    inputs)[0]["mesh"]
     V = np.asarray(m["V"])[:, :2]
     assert np.linalg.norm(V - point, axis=1).min() <= EPS_2D
 
 
-def test_input_edges_are_refused_in_2d(tmp_path):
+def test_input_edges_and_input_points_are_gone(tmp_path):
+    """Curves and points are entries of `input`; the lists of their own are unknown keys."""
     inputs = {"sq": write_obj(tmp_path / "sq.obj", [SQUARE_2D]),
               "path": write_obj(tmp_path / "path.obj", [PATH_2D])}
-    with pytest.raises(Exception, match="input_edges apply to 3D surface inputs only"):
-        wm.simwild({"input": ["sq"], "input_edges": ["path"], "dimension": "2"}, inputs)
+    for key in ("input_edges", "input_points"):
+        with pytest.raises(Exception):
+            wm.simwild({"input": ["sq"], key: ["path"], "dimension": "2"}, inputs)
 
 
 def normals(V, F):
@@ -456,11 +459,12 @@ def test_remeshing_keeps_tagged_faces_within_eps():
 
 
 def test_offset_grows_a_shell_around_a_tagged_sheet():
-    """Step 4: offset_selection names the yellow faces. Every yellow face ends up between two
+    """Step 4: the offset's selection names the yellow faces. Every yellow face ends up between two
     shell tets, one on each side, and every shell tet touches yellow, so blue is not offset."""
     m = tagged_grid()
-    r = wm.topological_offset({"input": "m", "offset_selection": "yellow", "offset_output_tags": ["shell"],
-                               "target_distance": 0.1, "optimize_offset": False}, {"m": m})[0]["mesh"]
+    r = wm.topological_offset({"input": "m", "offsets": [{"selection": "yellow", "output_tags": ["shell"],
+                                                          "target_distance": 0.1}],
+                               "optimize_offset": False}, {"m": m})[0]["mesh"]
     V, shell = r["V"], rows(r, "tetrahedron", "shell")
     assert len(shell), "no shell"
     assert (to_rect(V[shell], SHEET).min(1) < 1e-9).all()
@@ -487,16 +491,29 @@ def test_reader_refuses_more_face_tags_than_input_set_bits():
         wm.simwild({"operation": "remeshing", "input": ["m"], "max_iterations": 0}, {"m": m})
 
 
-def test_offset_refuses_a_face_tag_with_optimize_offset():
-    """The optimization does not hold face tags yet, so it refuses rather than losing them."""
-    with pytest.raises(Exception, match="needs optimize_offset false"):
-        wm.topological_offset({"input": "m", "offset_selection": "yellow",
-                               "offset_output_tags": ["shell"], "target_distance": 0.1,
-                               "optimize_offset": True}, {"m": tagged_grid()})
+def test_offset_optimizes_around_a_tagged_sheet():
+    """With optimize_offset, the loop holds the face tags as it holds every tracked surface: the
+    run converges, and yellow (the input complex), blue and red's surface each stay within the
+    offset's envelope (envelope_size_rel's default) of where they were. Refused until 2026-11-05;
+    before the march carried the edge tags, yellow's open boundary moved up to 0.087 here."""
+    r = wm.topological_offset({"input": "m", "offsets": [{"selection": "yellow", "output_tags": ["shell"],
+                                                          "target_distance": 0.1}],
+                               "throw_on_nonconvergence": True},
+                              {"m": tagged_grid()})[0]["mesh"]
+    eps = 1e-3 * np.linalg.norm([2, 2, 2])
+    V = r["V"]
+    assert len(rows(r, "tetrahedron", "shell")), "no shell"
+    for label, rect in [("yellow", SHEET), ("blue", BLUE)]:
+        assert_hausdorff(V, rows(r, "triangle", label), lambda P: to_rect(P, rect), rect_samples(rect), eps)
+    T = rows(r, "tetrahedron", "red")
+    assert_hausdorff(V, boundary(T), lambda P: to_box_surface(P, *RED), box_samples(*RED), eps)
 
 
-def test_manifold_extraction_refuses_tagged_faces():
-    """It would drop them silently, so it refuses them until it carries them."""
-    with pytest.raises(Exception, match="does not take tagged faces"):
-        wm.manifold_extraction({"input": "m", "tag_selection": "red", "fill_tags": []},
-                               {"m": tagged_grid()})
+def test_manifold_extraction_carries_tagged_faces():
+    """red's boundary is manifold, so nothing is carved: the yellow and blue faces come back as
+    they went in. Refused until 2026-11."""
+    m = tagged_grid()
+    r = wm.manifold_extraction({"input": "m", "tag_selection": "red", "fill_tags": []}, {"m": m})[0]["mesh"]
+    key = lambda M, F: sorted(tuple(sorted(map(tuple, M["V"][f]))) for f in F)
+    for label in ["yellow", "blue"]:
+        assert key(r, rows(r, "triangle", label)) == key(m, rows(m, "triangle", label))

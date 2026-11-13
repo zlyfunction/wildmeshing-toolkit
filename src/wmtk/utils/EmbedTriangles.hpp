@@ -1,5 +1,6 @@
 #pragma once
 
+#include <wmtk/SurfaceTagAttributes.h>
 #include <wmtk/Types.hpp>
 
 #include <array>
@@ -58,6 +59,15 @@ struct EmbedTrianglesProvenance
     /// Per facet (indexing `polygon_faces`): the input triangles it lies in, exactly -- every one,
     /// where input triangles overlap; none for a facet off the input.
     std::vector<std::vector<uint32_t>> face_triangles;
+    /// Set, with `tet_face_orientation` and EmbedTrianglesOptions::triangle_input, to have
+    /// face_input_orientation filled.
+    bool want_input_orientation = false;
+    /// Per facet (indexing `polygon_faces`): each input's orientation on it, against the facet's
+    /// ascending vertex order -- as `tet_face_orientation`'s, with every coplanar group split by
+    /// input, so that inputs coinciding in one group count once each rather than once together,
+    /// and made consistent patch by patch within each input. For a mesh built with
+    /// WMTK_PER_INPUT_ORIENTATION (SurfaceTagAttributes::m_input_orientation).
+    std::vector<InputOrientations> face_input_orientation;
 };
 
 /**
@@ -160,5 +170,22 @@ void embed_triangles_in_tets(
     std::vector<int8_t>* tet_face_orientation = nullptr,
     const EmbedFeaturesInput* features = nullptr,
     EmbedFeaturesResult* features_out = nullptr);
+
+/**
+ * @brief The oriented faces that appear in more than one of `tets`, sorted, once per repeat.
+ *
+ * Every face of every tet, its vertices in the order that faces out of the tet, rotated to start
+ * at the lowest id so a face has one spelling. Two positively oriented tets on either side of a
+ * face list it in opposite orders, so a repeat is two tets on one side of it: the output of an
+ * insertion is not consistently oriented. What a repeat does is the caller's -- tetwild throws,
+ * simwild warns (since 33fbfc9b70, which kept tetwild's throw) -- and both check every insertion.
+ *
+ * A sorted array rather than a std::set: 12 bytes per face instead of a 64-byte tree node. This
+ * runs over the whole arrangement while the insertion's output is still held, and on the largest
+ * tetwild inputs the set alone was over half a gigabyte (7e21a0d799; simwild kept the set until
+ * 2026-11). Vertex ids come from the remesher as uint32, so narrowing them is lossless.
+ */
+std::vector<std::array<uint32_t, 3>> repeated_oriented_faces(
+    const std::vector<std::array<size_t, 4>>& tets);
 
 } // namespace wmtk::utils

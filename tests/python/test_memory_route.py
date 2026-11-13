@@ -7,7 +7,8 @@
 - save/load checkpoints round-trip exactly, and the PolyFEM ops' reader
   (gmsh) reads them with every cell, the background included.
 
-Needs the wildmeshing bindings and gmsh; no PolyFEM, no external data.
+Needs the wildmeshing bindings; gmsh for the three PolyFEM-reader tests, which skip
+without it. No PolyFEM, no external data.
 Offsets run without their optimization, to keep the suite fast."""
 import numpy as np
 import pytest
@@ -36,7 +37,7 @@ def _square_obj(path, lo, hi):
 
 
 S2T = {"eps_rel": 1e-2, "simplify": False}
-OFFSET = {"offset_selection": "a", "target_distance": 0.05, "offset_output_tags": ["off"],
+OFFSET = {"offsets": [{"selection": "a", "target_distance": 0.05, "output_tags": ["off"]}],
           "optimize_offset": False}
 
 
@@ -181,23 +182,26 @@ def test_manifold_extraction_same_as_file_route(work):
 
 
 def test_envelope_is_passed_on_only_by_the_caller(boxes):
-    r1, _ = wm.simwild({"input": ["a", "b"], "input_names": ["a", "b"], **S2T},
-                       {"a": wm.read_mesh(boxes[0]), "b": wm.read_mesh(boxes[1])})
+    r1, report = wm.simwild({"input": ["a", "b"], "input_names": ["a", "b"], **S2T},
+                            {"a": wm.read_mesh(boxes[0]), "b": wm.read_mesh(boxes[1])})
     assert "envelope" in r1
-    # passed on explicitly: the offset receives it and returns it
-    r2, _ = wm.topological_offset({"input": "m", "envelope": "e", **OFFSET},
+    # passed on explicitly: the offset receives it, holds to it -- at simwild's eps at least, or it
+    # refuses the faces simwild moved within it -- and returns it
+    offset = {**OFFSET, "envelope_size": report["eps"]}
+    r2, _ = wm.topological_offset({"input": "m", "envelope": "e", **offset},
                                   {"m": r1["mesh"], "e": r1["envelope"]})
     assert "envelope" in r2
     # not passed on: the offset has none
-    r3, _ = wm.topological_offset({"input": "m", **OFFSET}, {"m": r1["mesh"]})
+    r3, _ = wm.topological_offset({"input": "m", **offset}, {"m": r1["mesh"]})
     assert "envelope" not in r3
     # and without its optimization the offset does not depend on it
     assert canonical(r2["mesh"]) == canonical(r3["mesh"])
-    # tag-changing ops clear it
+    # tag-changing ops do not read it, and hand on one around their result: its interfaces
     r4, _ = wm.simwild({"operation": "resolve_overlaps", "input": ["m"], "envelope": "e",
                         "resolve_overlaps_tags": [["a", "b"]]},
                        {"m": r1["mesh"], "e": r1["envelope"]})
-    assert "envelope" not in r4
+    assert "envelope" in r4
+    assert canonical(r4["envelope"]) != canonical(r1["envelope"])
 
 
 def _tags_only(m):
@@ -267,6 +271,7 @@ def test_checkpoint_round_trip(boxes, work):
 def test_checkpoint_is_read_by_the_polyfem_reader(boxes, work):
     """The PolyFEM ops read .msh through gmsh (mesh_core.TaggedMesh): a saved
     result must open there with every tet, the background in "ambient"."""
+    pytest.importorskip("gmsh")  # the PolyFEM reader: with the polyfem extras only
     from wildmeshing.polyfem_ops.mesh_core import TaggedMesh
     r, _ = wm.simwild({"input": ["a", "b"], "input_names": ["a", "b"], **S2T},
                       {"a": wm.read_mesh(boxes[0]), "b": wm.read_mesh(boxes[1])})
@@ -289,6 +294,7 @@ def test_checkpoint_is_read_by_the_polyfem_reader(boxes, work):
 def test_checkpoint_with_nan_fields_is_read_by_the_polyfem_reader(m1, work):
     """Without its optimization the offset's diagnostics are NaN everywhere: a saved
     result must still open in gmsh and load back exactly."""
+    pytest.importorskip("gmsh")  # the PolyFEM reader: with the polyfem extras only
     from wildmeshing.polyfem_ops.mesh_core import TaggedMesh
     r, _ = wm.topological_offset({"input": "m", **OFFSET}, {"m": wm.read_mesh(m1)})
     assert any(np.isnan(a["values"]).any() for a in r["mesh"]["vertex_attributes"].values())
@@ -302,6 +308,7 @@ def test_checkpoint_with_nan_fields_is_read_by_the_polyfem_reader(m1, work):
 def test_many_regions_are_read_by_the_polyfem_reader(work):
     """gmsh reads each field header into a fixed buffer: the header must not grow with
     the number of regions."""
+    pytest.importorskip("gmsh")  # the PolyFEM reader: with the polyfem extras only
     from wildmeshing.polyfem_ops.mesh_core import TaggedMesh
     labels = [f"region_{i:02d}" for i in range(30)]
     m = {"V": np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], float),

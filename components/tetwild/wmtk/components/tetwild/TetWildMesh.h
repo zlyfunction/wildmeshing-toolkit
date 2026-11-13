@@ -212,18 +212,10 @@ public:
 
     ////// Attributes related
 
-    /// With `face_tags`, also the tracked faces, one physical group per input
-    /// (io::collect_input_set_tags()), and with `feature_tags` the tet edges tiling the feature
-    /// curves, one per input_edges file (io::collect_feature_edge_tags()): the tags the memory
-    /// route returns on its mesh, which the shared reader reads back as those blocks.
-    void output_mesh(
-        std::string file,
-        const std::vector<std::string>& face_tags = {},
-        const std::vector<std::string>& feature_tags = {});
-    /// The tets and their vertices as output_mesh() writes them -- consolidated first, a row per
-    /// vertex at m_posf and a row per tet, oriented, in the file's order -- without the fields:
-    /// the memory route's counterpart of the file, for the meshes a volume history starts and
-    /// ends at.
+    /// The tets and their vertices -- consolidated first, a row per vertex at m_posf and a row per
+    /// tet, oriented, in the output's order -- without the fields: the meshes a volume history
+    /// starts and ends at, on both routes (<output>_history_input.msh and _history_output.msh on
+    /// the file route, until 2026-11 written with the fields by the file route's own writer).
     MeshData tet_mesh_data();
     void init_from_delaunay_box_mesh(const std::vector<Eigen::Vector3d>& vertices);
 
@@ -347,7 +339,8 @@ public:
         utils::EmbedFeaturesResult* features_out = nullptr,
         const std::vector<int>* face_input = nullptr,
         std::vector<InputSet>* facet_input_set = nullptr,
-        std::vector<std::vector<uint32_t>>* facet_sources = nullptr);
+        std::vector<std::vector<uint32_t>>* facet_sources = nullptr,
+        std::vector<InputOrientations>* facet_input_orientation = nullptr);
 
     /**
      * `features` tags the feature-edge tilings on the initial mesh; passing it registers
@@ -356,6 +349,11 @@ public:
      *
      * `facet_input_set` (from insertion_by_volumeremesher) gives each tracked face its input
      * set; null => one input, and every tracked face gets input 0.
+     *
+     * `facet_input_orientation` (from insertion_by_volumeremesher, per facet, against its
+     * ascending vertex order) gives each tracked face its per-input orientation, in a build with
+     * WMTK_PER_INPUT_ORIENTATION; null => each face's inputs take tet_face_orientation's count
+     * (SurfaceTagAttributes::set_orientation()), which with one input is the input's own.
      */
     void init_from_Volumeremesher(
         const std::vector<Vector3r>& v_rational,
@@ -366,7 +364,8 @@ public:
         const std::vector<int8_t>* tet_face_orientation = nullptr,
         const utils::EmbedFeaturesResult* features = nullptr,
         const std::vector<InputSet>* facet_input_set = nullptr,
-        const utils::FeatureInputs* feature_input = nullptr);
+        const utils::FeatureInputs* feature_input = nullptr,
+        const std::vector<InputOrientations>* facet_input_orientation = nullptr);
 
     /**
      * @brief The tagged route: initialize from a tagged tet mesh (read_tagged_mesh()), its tets

@@ -11,7 +11,6 @@
 #include "TetWildMesh.h"
 
 #include <atomic>
-#include <mutex>
 
 namespace wmtk::components::tetwild {
 
@@ -56,7 +55,8 @@ void TetWildMesh::insertion_by_volumeremesher(
     utils::EmbedFeaturesResult* features_out, // out: where the features ended up
     const std::vector<int>* face_input, // optional: per input face, the input it came from
     std::vector<InputSet>* facet_input_set, // out, with face_input: per facet, its inputs
-    std::vector<std::vector<uint32_t>>* facet_sources) // out, optional: input triangles per facet
+    std::vector<std::vector<uint32_t>>* facet_sources, // out, optional: input triangles per facet
+    std::vector<InputOrientations>* facet_input_orientation) // out, with face_input: per facet
 {
     logger().info("Insertion Surface: #V = {}, #F = {}", vertices.size(), faces.size());
     if (!feature_edges.empty() || !feature_points.empty()) {
@@ -155,6 +155,9 @@ void TetWildMesh::insertion_by_volumeremesher(
     const bool want_inputs = face_input != nullptr && facet_input_set != nullptr;
     utils::EmbedTrianglesProvenance provenance;
     provenance.want_face_triangles = want_inputs || facet_sources != nullptr;
+    provenance.want_input_orientation = face_input != nullptr && facet_input_orientation != nullptr;
+    const bool want_provenance =
+        provenance.want_face_triangles || provenance.want_input_orientation;
     utils::embed_triangles_in_tets(
         tri_vrt_coord,
         triangle_indices,
@@ -167,7 +170,7 @@ void TetWildMesh::insertion_by_volumeremesher(
         tets_after,
         tet_face_on_input_surface,
         opts,
-        provenance.want_face_triangles ? &provenance : nullptr,
+        want_provenance ? &provenance : nullptr,
         tet_face_orientation,
         has_features ? &vr_features : nullptr,
         has_features ? features_out : nullptr);
@@ -198,38 +201,18 @@ void TetWildMesh::insertion_by_volumeremesher(
     }
     // After the input sets, which read them.
     if (facet_sources != nullptr) *facet_sources = std::move(provenance.face_triangles);
+    if (provenance.want_input_orientation) {
+        *facet_input_orientation = std::move(provenance.face_input_orientation);
+    }
 
 
     // TODO this is a sanity check, but it is checked all the time for now, until insertion is
     // stable.
-    // check for consistent orientation between tets: every oriented face must be unique.
-    //
-    // A sorted array rather than a std::set: 12 bytes per face instead of a 64-byte tree node.
-    // This runs over the whole arrangement while the insertion's output is still held, and on
-    // the largest inputs the set alone was over half a gigabyte. Vertex ids come from the
-    // remesher as uint32, so narrowing them is lossless.
-    std::vector<std::array<uint32_t, 3>> oriented_faces;
-    oriented_faces.reserve(4 * tets_after.size());
-    for (int i = 0; i < tets_after.size(); ++i) {
-        const auto& t = tets_after[i];
-        std::array<std::array<size_t, 3>, 4> faces = {{
-            {{t[1], t[3], t[2]}}, // opposite t[0]
-            {{t[0], t[2], t[3]}}, // opposite t[1]
-            {{t[0], t[3], t[1]}}, // opposite t[2]
-            {{t[0], t[1], t[2]}}, // opposite t[3]
-        }};
-        // Rotate vertex IDs in faces to start with the lowest vertex ID. This ensures that the
-        // same face is represented by the same set of vertex IDs, regardless of the order in
-        // which they appear in the tet.
-        for (auto& f : faces) {
-            std::rotate(f.begin(), std::min_element(f.begin(), f.end()), f.end());
-            oriented_faces.push_back({{uint32_t(f[0]), uint32_t(f[1]), uint32_t(f[2])}});
-        }
-    }
-    std::sort(oriented_faces.begin(), oriented_faces.end());
-    const auto dup = std::adjacent_find(oriented_faces.begin(), oriented_faces.end());
-    if (dup != oriented_faces.end()) {
-        log_and_throw_error("Face {} appears more than once in the tet list", *dup);
+    // check for consistent orientation between tets: every oriented face must be unique
+    // (utils::repeated_oriented_faces()).
+    const auto repeated = utils::repeated_oriented_faces(tets_after);
+    if (!repeated.empty()) {
+        log_and_throw_error("Face {} appears more than once in the tet list", repeated.front());
     }
 }
 
@@ -242,7 +225,8 @@ void TetWildMesh::init_from_Volumeremesher(
     const std::vector<int8_t>* tet_face_orientation,
     const utils::EmbedFeaturesResult* features,
     const std::vector<InputSet>* facet_input_set,
-    const utils::FeatureInputs* feature_input)
+    const utils::FeatureInputs* feature_input,
+    const std::vector<InputOrientations>* facet_input_orientation)
 {
     // Turn on feature tracking BEFORE init so the connectivity init sizes the edge
     // attributes along with everything else. Only when features exist: with the flag off the
@@ -266,71 +250,71 @@ void TetWildMesh::init_from_Volumeremesher(
     // equals its double, so snapping it cannot invert any tet. Mark those rounded
     // here and remember which are direct, so the rounding pass below only does real
     // work (and can do it in parallel) for the indirect points.
-    std::vector<char> is_direct_point(vert_capacity(), 0);
-    {
-        // Per-vertex, independent: each i writes only its own m_pos/m_posf/
-        // m_is_rounded/is_direct_point; the rational->double conversion and the
-        // exact comparison read only local data.
-        threading::parallel_for(
-            threading::range(0, vert_capacity()),
-            [&](const threading::range& range) {
-                for (size_t i = range.begin(); i < range.end(); ++i) {
-                    m_vertex_attribute[i].m_posf = to_double(v_rational[i]);
-                    const Vector3r& rp = v_rational[i];
-                    const Vector3d& d = m_vertex_attribute[i].m_posf;
-                    const bool direct = (wmtk::Rational(d[0]) == rp[0]) &&
-                                        (wmtk::Rational(d[1]) == rp[1]) &&
-                                        (wmtk::Rational(d[2]) == rp[2]);
-                    is_direct_point[i] = direct ? 1 : 0;
-                    m_vertex_attribute[i].m_is_rounded = direct;
-                    // A direct point's exact position is its double one: store nothing.
-                    if (direct) {
-                        m_vertex_attribute[i].set_pos_to_posf();
-                    } else {
-                        m_vertex_attribute[i].set_pos(rp);
-                    }
-                }
-            },
-            NUM_THREADS);
-    }
+    const ExactCoordinate exact = [&v_rational](size_t i, int k) -> const Rational& {
+        return v_rational[i][k];
+    };
+    const std::vector<char> is_direct_point = set_exact_positions(exact);
 
     for (size_t i = 0; i < tet_face_on_input_surface.size(); i++) {
         m_face_attribute[i].m_is_surface_fs = tet_face_on_input_surface[i];
     }
     // Each tracked face's input set, in every slot of the face like the orientation below. One
-    // input: input 0 for all. Several: the facet's, found by vertex set.
+    // input: input 0 for all. Several: the facet's, found by vertex set -- and with
+    // facet_input_orientation the facet's per-input orientation, found the same way.
+    std::vector<size_t> facet_of; // per slot, the facet of a tracked face, with facet_input_set
     if (facet_input_set == nullptr) {
         for (size_t i = 0; i < tet_face_on_input_surface.size(); i++) {
             if (tet_face_on_input_surface[i]) m_face_attribute[i].set_input_set(1);
         }
     } else {
         assert(facet_input_set->size() == facets.size());
-        std::vector<std::pair<std::array<size_t, 3>, InputSet>> set_of;
+        std::vector<std::pair<std::array<size_t, 3>, size_t>> facet_named;
         for (size_t f = 0; f < facets.size(); ++f) {
             if ((*facet_input_set)[f] == 0) continue;
             std::array<size_t, 3> key = facets[f];
             std::sort(key.begin(), key.end());
-            set_of.emplace_back(key, (*facet_input_set)[f]);
+            facet_named.emplace_back(key, f);
         }
-        std::sort(set_of.begin(), set_of.end());
+        std::sort(facet_named.begin(), facet_named.end());
+        facet_of.assign(tet_face_on_input_surface.size(), facets.size());
         for (size_t i = 0; i < tet_face_on_input_surface.size(); i++) {
             if (!tet_face_on_input_surface[i]) continue;
             std::array<size_t, 3> key = get_face_vids(tuple_from_face(i / 4, int(i % 4)));
             std::sort(key.begin(), key.end());
-            const auto it =
-                std::lower_bound(set_of.begin(), set_of.end(), std::make_pair(key, InputSet(0)));
-            if (it == set_of.end() || it->first != key) {
+            const auto it = std::lower_bound(
+                facet_named.begin(),
+                facet_named.end(),
+                std::make_pair(key, size_t(0)));
+            if (it == facet_named.end() || it->first != key) {
                 log_and_throw_error("tracked face {} has no input set: no facet names it", key);
             }
-            m_face_attribute[i].set_input_set(it->second);
+            facet_of[i] = it->second;
+            m_face_attribute[i].set_input_set((*facet_input_set)[it->second]);
         }
     }
     // The input's orientation on the tracked faces: every slot holds the value for its face,
-    // so whichever one ends up canonical is right.
+    // so whichever one ends up canonical is right. Each input of the face takes the face's
+    // count (SurfaceTagAttributes::set_orientation()) -- with WMTK_PER_INPUT_ORIENTATION and
+    // facet_input_orientation, each its own count instead.
     if (tet_face_orientation != nullptr) {
         assert(tet_face_orientation->size() == tet_face_on_input_surface.size());
+#ifdef WMTK_PER_INPUT_ORIENTATION
+        const bool per_input = facet_input_orientation != nullptr && !facet_of.empty();
+#else
+        (void)facet_input_orientation;
+        constexpr bool per_input = false;
+#endif
         for (size_t i = 0; i < tet_face_orientation->size(); i++) {
-            m_face_attribute[i].set_orientation((*tet_face_orientation)[i]);
+            auto& attr = m_face_attribute[i];
+            if (!per_input) {
+                attr.set_orientation(attr.input_set(), (*tet_face_orientation)[i]);
+                continue;
+            }
+#ifdef WMTK_PER_INPUT_ORIENTATION
+            if (facet_of[i] < facets.size()) {
+                attr.set_input_orientations((*facet_input_orientation)[facet_of[i]]);
+            }
+#endif
         }
         m_tracks_orientation = true;
     }
@@ -373,7 +357,7 @@ void TetWildMesh::init_from_Volumeremesher(
     logger().info("#faces = {}", n_faces.load());
 
     // Feature tags: each tet edge tiling an input feature edge carries the feature kind and its
-    // input_edges file, and is held in that file's tube (tag_feature_edges()); the tags are the
+    // input curve, and is held in that curve's tube (tag_feature_edges()); the tags are the
     // only feature-curve state. Without feature_input the tags alone, no tube.
     if (features != nullptr) {
         tag_feature_edges(
@@ -383,61 +367,9 @@ void TetWildMesh::init_from_Volumeremesher(
             m_envelope && m_envelope->use_exact);
     }
 
-    // track bounding box (parallel). The per-face exact-rational corner test is the
-    // cost; on-bbox faces are rare, so each chunk collects (vertex, bbox-side) pairs
-    // locally and merges once, and the per-vertex vectors are appended serially.
-    {
-        std::vector<std::pair<size_t, int>> bbox_vert_faces;
-        std::mutex bbox_mutex;
-        threading::parallel_for(
-            threading::range(0, tet_capacity()),
-            [&](const threading::range& r) {
-                std::vector<std::pair<size_t, int>> local;
-                for_each_face_in(r, [&](const Tuple& f) {
-                    auto vs = get_face_vertices(f);
-                    std::array<size_t, 3> vids = {
-                        {vs[0].vid(*this), vs[1].vid(*this), vs[2].vid(*this)}};
-                    int on_bbox = -1;
-                    for (int k = 0; k < 3; k++) {
-                        if (m_vertex_attribute[vids[0]].pos_coord_equals(
-                                k,
-                                m_tet_params.box_min[k]) &&
-                            m_vertex_attribute[vids[1]].pos_coord_equals(
-                                k,
-                                m_tet_params.box_min[k]) &&
-                            m_vertex_attribute[vids[2]].pos_coord_equals(
-                                k,
-                                m_tet_params.box_min[k])) {
-                            on_bbox = k * 2;
-                            break;
-                        }
-                        if (m_vertex_attribute[vids[0]].pos_coord_equals(
-                                k,
-                                m_tet_params.box_max[k]) &&
-                            m_vertex_attribute[vids[1]].pos_coord_equals(
-                                k,
-                                m_tet_params.box_max[k]) &&
-                            m_vertex_attribute[vids[2]].pos_coord_equals(
-                                k,
-                                m_tet_params.box_max[k])) {
-                            on_bbox = k * 2 + 1;
-                            break;
-                        }
-                    }
-                    if (on_bbox < 0) return;
-                    m_face_attribute[f.fid(*this)].m_is_bbox_fs = on_bbox;
-                    for (size_t vid : vids) local.emplace_back(vid, on_bbox);
-                });
-                if (local.empty()) return;
-                std::lock_guard<std::mutex> lk(bbox_mutex);
-                bbox_vert_faces.insert(bbox_vert_faces.end(), local.begin(), local.end());
-            },
-            NUM_THREADS);
-        for (const auto& [vid, on_bbox] : bbox_vert_faces)
-            m_vertex_attribute[vid].on_bbox_faces.push_back(on_bbox);
-    }
-
-    for_each_vertex([&](const Tuple& v) { vector_unique(VA[v.vid(*this)].on_bbox_faces); });
+    // track bounding box: the padded one the background mesh was built in, or a tagged mesh's own
+    // (init_from_tagged_mesh()).
+    tag_bbox_faces(m_tet_params.box_min, m_tet_params.box_max);
 
     init_vertex_order();
     {
@@ -479,93 +411,9 @@ void TetWildMesh::init_from_Volumeremesher(
             eps * m_tet_params.feature_envelope_ratio);
     }
 
-    // Round the indirect vertices in parallel. Rounding snaps m_pos to its double
-    // and may not invert any incident tet, so it is not independent across adjacent
-    // vertices and the old code did it serially (round() per vertex, an exact-
-    // rational inversion check over each vertex's incident tets). Instead, snap all
-    // indirect vertices at once and then revalidate/revert the few conflicts:
-    //   1. snap every not-yet-rounded (indirect) vertex to its double (parallel);
-    //   2. scan all tets (parallel) -- any inverted tet must contain an indirect
-    //      vertex (a direct vertex never moves, so cannot cause an inversion), so
-    //      revert those indirect vertices to their exact rational coordinate;
-    //   3. repeat until no tet is inverted.
-    // This terminates: every non-empty pass un-rounds at least one vertex, and the
-    // all-rational mesh is valid. Direct points are skipped throughout.
-    for_each_vertex([&](const Tuple& v) {
-        const size_t i = v.vid(*this);
-        if (!VA[i].m_is_rounded) {
-            VA[i].set_pos_to_posf();
-            VA[i].m_is_rounded = true;
-        }
-    });
-
-    while (true) {
-        // A flag per vertex rather than a shared appended list: a vertex is reachable
-        // from several tets, so the old version took a lock per push and then pushed the
-        // same vid repeatedly. Every write here stores the same value to a slot indexed
-        // by vid, so the threads cannot disagree -- relaxed is enough, and the duplicates
-        // collapse for free.
-        std::vector<std::atomic<uint8_t>> to_revert(vert_capacity());
-        for (auto& f : to_revert) {
-            f.store(0, std::memory_order_relaxed);
-        }
-
-        std::atomic<bool> any{false};
-        for_each_tetra([&](const Tuple& t) {
-            if (is_inverted(t)) {
-                for (const size_t vid : oriented_tet_vids(t)) {
-                    if (!is_direct_point[vid] && m_vertex_attribute[vid].m_is_rounded) {
-                        to_revert[vid].store(1, std::memory_order_relaxed);
-                        any.store(true, std::memory_order_relaxed);
-                    }
-                }
-            }
-        });
-        if (!any.load(std::memory_order_relaxed)) {
-            break;
-        }
-        for (size_t vid = 0; vid < to_revert.size(); ++vid) {
-            if (!to_revert[vid].load(std::memory_order_relaxed)) {
-                continue;
-            }
-            if (m_vertex_attribute[vid].m_is_rounded) {
-                m_vertex_attribute[vid].set_pos(v_rational[vid]);
-                m_vertex_attribute[vid].m_is_rounded = false;
-                m_all_rounded.store(false, std::memory_order_relaxed);
-            }
-        }
-    }
-
-    const auto vertices = get_vertices();
-    size_t cnt_round_parallel = 0;
-    for (const Tuple& v : vertices) {
-        if (VA[v.vid(*this)].m_is_rounded) {
-            ++cnt_round_parallel;
-        }
-    }
-
-    // Final serial sweep: the parallel batch reverts a vertex whenever it lies in
-    // any inverted tet, which can over-revert (a vertex may round fine once its
-    // neighbours are committed). Retry the leftovers one at a time -- round() is a
-    // no-op for the already-rounded majority, so this only pays for the few that
-    // remain, and recovers vertices the batch conservatively reverted.
-    for (const Tuple& v : vertices) {
-        round(v);
-    }
-
-    size_t cnt_round = 0;
-    for (const Tuple& v : vertices) {
-        if (VA[v.vid(*this)].m_is_rounded) {
-            ++cnt_round;
-        }
-    }
-
-    logger().info(
-        "Rounded vertices {}/{} (parallel {}, serial recovered {})",
-        cnt_round,
-        vertices.size(),
-        cnt_round_parallel,
-        cnt_round - cnt_round_parallel);
+    // Round the indirect vertices: all at once, then the few that invert a tet reverted
+    // (round_indirect_vertices()).
+    round_indirect_vertices(is_direct_point, exact);
 
     // init qualities
     for_each_tetra(
@@ -594,11 +442,15 @@ void TetWildMesh::init_from_tagged_mesh(const TaggedMesh& mesh)
     // a signed count against the ascending vertex order (SurfaceTagAttributes::m_orientation).
     // One count per face, not per label: rows of one face facing one way are one sheet, as
     // coincident input triangles are at the insertion, and rows facing both ways cancel to 0.
+    // With WMTK_PER_INPUT_ORIENTATION one count per label instead: the label's rows' entries in
+    // the faces' `orientation` (TaggedMesh::F_orientation) where the mesh has one, summed; else
+    // the same rule as above, label by label.
     struct Row
     {
         std::array<size_t, 3> key;
         InputSet set;
         int parity;
+        size_t row;
     };
     std::vector<Row> rows(mesh.F.size());
     for (size_t r = 0; r < mesh.F.size(); ++r) {
@@ -606,11 +458,14 @@ void TetWildMesh::init_from_tagged_mesh(const TaggedMesh& mesh)
         std::sort(rows[r].key.begin(), rows[r].key.end());
         rows[r].set = mesh.F_sets[r];
         rows[r].parity = SurfaceTagAttributes::ascending_parity(mesh.F[r]);
+        rows[r].row = r;
     }
     std::sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) { return a.key < b.key; });
     std::vector<std::array<size_t, 3>> facets;
     std::vector<InputSet> facet_sets;
     std::vector<int8_t> facet_orientation;
+    std::vector<InputOrientations> facet_input_orientation;
+    const bool counted = mesh.F_orientation.rows() > 0;
     for (size_t r = 0; r < rows.size();) {
         bool up = false, down = false;
         InputSet set = 0;
@@ -622,6 +477,24 @@ void TetWildMesh::init_from_tagged_mesh(const TaggedMesh& mesh)
         facets.push_back(rows[r].key);
         facet_sets.push_back(set);
         facet_orientation.push_back(int8_t(int(up) - int(down)));
+        if (SurfaceTagAttributes::per_input_orientation) {
+            auto& per = facet_input_orientation.emplace_back();
+            for (int j = 0; j < SurfaceTagAttributes::max_inputs; ++j) {
+                if (((set >> j) & 1) == 0) continue;
+                int count = 0;
+                bool up_j = false, down_j = false;
+                for (size_t q = r; q < s; ++q) {
+                    if (((rows[q].set >> j) & 1) == 0) continue;
+                    if (counted) {
+                        count += rows[q].parity * int(mesh.F_orientation(rows[q].row, j));
+                    } else {
+                        (rows[q].parity > 0 ? up_j : down_j) = true;
+                    }
+                }
+                if (!counted) count = int(up_j) - int(down_j);
+                if (count != 0) per.emplace_back(j, count);
+            }
+        }
         r = s;
     }
     std::vector<Row>().swap(rows);
@@ -661,40 +534,13 @@ void TetWildMesh::init_from_tagged_mesh(const TaggedMesh& mesh)
         &orientation,
         has_features ? &mesh.features_placed : nullptr,
         &facet_sets,
-        has_features ? &mesh.features : nullptr);
+        has_features ? &mesh.features : nullptr,
+        SurfaceTagAttributes::per_input_orientation ? &facet_input_orientation : nullptr);
 
     // The wall: the boundary faces, untracked, each in a plane of the box, which
     // init_from_Volumeremesher() flagged as it flags every face in one -- the mesh fills its box,
-    // as the insertion's background box does. Refused: an untracked boundary face in no plane,
-    // which would be held by nothing, and the domain would move with it; and a tracked boundary
-    // face, as a filtered mesh's boundary is. No insertion puts a tracked face there (the
-    // background box is padded past the input), and the operations hold a tracked face from the
-    // tet across it: collapse_edge_before() checks a merged tracked face in the tet beyond it,
-    // and a boundary face has none (measured on a filtered unit cube held by its envelopes:
-    // corner collapses left faces 25 eps off it). A filtered mesh goes back in as its surfaces.
-    size_t n_free = 0, n_tracked = 0;
-    for (const Tuple& f : get_faces()) {
-        if (f.switch_tetrahedron(*this)) continue;
-        const auto& attr = m_face_attribute[f.fid(*this)];
-        if (attr.m_is_surface_fs) {
-            ++n_tracked;
-        } else if (attr.m_is_bbox_fs < 0) {
-            ++n_free;
-        }
-    }
-    if (n_tracked > 0) {
-        log_and_throw_error(
-            "{} tracked faces of the tagged mesh lie on its boundary, as a filtered mesh's do: "
-            "tetwild's tagged route takes a mesh that fills its box (an output with filter "
-            "\"none\"), its tracked faces inside; give a filtered mesh's surfaces as inputs",
-            n_tracked);
-    }
-    if (n_free > 0) {
-        log_and_throw_error(
-            "{} untracked boundary faces of the tagged mesh lie in no plane of its bounding box: "
-            "tetwild holds its domain's wall by the box rule, a box's faces only",
-            n_free);
-    }
+    // as the insertion's background box does (require_box_boundary() says why).
+    require_box_boundary("tetwild's tagged route");
 }
 
 // After having called the following:

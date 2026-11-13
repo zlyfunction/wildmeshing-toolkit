@@ -40,22 +40,6 @@ void check_envelope_leash(const Parameters& params)
     }
 }
 
-/// The star of each vertex in `vids`: its tets, each by its corners sorted, in sorted order.
-std::vector<std::vector<std::array<size_t, 4>>> carried_stars(
-    const TopoOffsetTetMesh& mesh,
-    const std::vector<size_t>& vids)
-{
-    std::vector<std::vector<std::array<size_t, 4>>> stars(vids.size());
-    for (size_t i = 0; i < vids.size(); ++i) {
-        for (const size_t t : mesh.get_one_ring_tids_for_vertex(vids[i])) {
-            auto corners = mesh.oriented_tet_vids(mesh.tuple_from_tet(t));
-            std::sort(corners.begin(), corners.end());
-            stars[i].push_back(corners);
-        }
-        std::sort(stars[i].begin(), stars[i].end());
-    }
-    return stars;
-}
 } // namespace
 
 static void run(nlohmann::json json_params, io::ComponentIO& component_io)
@@ -102,7 +86,6 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
             "save_offset_correspondence requires optimize_offset false: corr_input_vid is "
             "recorded by the march and not carried through the optimization");
     }
-    const std::string offset_selection_str = json_params["offset_selection"];
     bool check_manifoldness = json_params["check_manifoldness"];
 
     std::filesystem::path output_filename = params.output_path;
@@ -122,8 +105,9 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
     }
 
     // The `envelope` input: a mesh of the call on the memory route, a mesh file on the file
-    // route (relative to input_dir). Carried, not yet held to: handed on unchanged
-    // (hand_on_envelope()), while the offset builds its envelopes around the mesh it receives.
+    // route (relative to input_dir). A labelled reference (InputData::envelope_reference) is held
+    // to in 3D, as simwild holds one (below); one without labels is the input's envelope surface
+    // group, as a .msh's.
     const std::string envelope_path =
         component_io.memory() ? "" : json_params["envelope"].get<std::string>();
     std::optional<MeshData> envelope_file;
@@ -137,25 +121,31 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
     InputData input_data = component_io.memory()
                                ? read_mesh_data(component_io.mesh(input_path), envelope)
                                : read_image_msh(input_path, envelope);
-    // After the output: the envelope given goes on as given (a labelled reference unchanged, so
-    // that a chain keeps passing the first component's input), on the file route as
-    // <output>_envelope.msh.
-    const auto hand_on_envelope = [&]() {
+    // After the output: a labelled reference goes on with `offset`, the band's boundary, each face
+    // under the labels of the regions it separates, added (with_offset_surface()), so that a chain
+    // keeps passing the first component's input -- the band's boundary is new, so it is its own
+    // reference, a region's whose cells the band took included; unchanged where there is none
+    // (2D, an empty input complex). On the file route as <output>_envelope.msh.
+    const auto hand_on_envelope = [&](const OffsetRows& offset = OffsetRows()) {
         auto& outputs = component_io.result.first;
-        if (input_data.envelope_reference) outputs["envelope"] = *input_data.envelope_reference;
+        if (input_data.envelope_reference) {
+            outputs["envelope"] = offset.F.rows() > 0
+                                      ? with_offset_surface(*input_data.envelope_reference, offset)
+                                      : *input_data.envelope_reference;
+        }
         if (!component_io.memory() && envelope && outputs.count("envelope"))
             io::write_mesh(output_filename.string() + "_envelope.msh", outputs.at("envelope"));
     };
-    // Feature curves (a tet mesh's tagged edges, as tetwild and simwild write them) would be
-    // dropped silently: the offset holds the held surfaces' own curves only. Refused until carried.
-    if (!input_data.features.empty()) {
-        log_and_throw_error(
-            "topological_offset does not take feature curves (an edge block in a tet mesh) yet");
-    }
     params.init(input_data.V_input.colwise().minCoeff(), input_data.V_input.colwise().maxCoeff());
     if (params.debug_output) {
         logger().info("====== input parameters =======");
-        logger().info("target_distance: {}", params.target_distance);
+        for (size_t k = 0; k < params.offsets.size(); ++k) {
+            logger().info(
+                "offsets[{}]: selection '{}', target_distance {}",
+                k,
+                params.offsets[k].selection,
+                params.offsets[k].target_distance);
+        }
         logger().info("offset_dhat_factor: {}", params.offset_dhat_factor);
         logger().info(
             "front_conv: {} ({} x target_distance)",
@@ -193,8 +183,9 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
             input_data.envelope_name);
 
         // label input complex
-        mesh.m_offset_params.offset_selection =
-            expression_parser::parse(offset_selection_str, mesh.m_tag_name_to_id);
+        for (Parameters::Offset& o : mesh.m_offset_params.offsets)
+            o.expression = expression_parser::parse(o.selection, mesh.m_tag_name_to_id);
+        mesh.m_offset_params.parse_protected_tags(mesh.m_tag_name_to_id);
         mesh.label_input_complex();
 
         // check empty input
@@ -416,33 +407,77 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
                 "euclidean distance to the input, and this field has no band term yet",
                 params.offset_field);
         }
-        // initialize mesh
+        // initialize mesh. A labelled reference is held to (below), not the envelope surface
+        // group: its triangles are the first component's input, not a sheet of this mesh.
+        const bool reference = input_data.envelope_reference.has_value();
         TopoOffsetTetMesh mesh(params, NUM_THREADS);
+        // Before init_from_image(): the input points' labels, as simwild sets them, which it makes
+        // tags of and which the anchors keep (TopoOffsetTetMesh::hold_curves_and_points()).
+        mesh.m_point_names = input_data.point_names;
+        mesh.m_input_point_labels = input_data.input_point_labels;
         mesh.init_from_image(
             input_data.V_input,
             input_data.T_input,
             input_data.T_input_tag,
-            input_data.V_envelope,
-            input_data.F_envelope,
+            reference ? MatrixXd() : input_data.V_envelope,
+            reference ? MatrixXi() : input_data.F_envelope,
             input_data.tag_names,
             input_data.envelope_name,
             input_data.F_tagged,
             input_data.F_tags,
-            input_data.face_tag_names);
+            input_data.face_tag_names,
+            input_data.F_orientation,
+            input_data.feature_edge_names,
+            &input_data.features,
+            &input_data.features_placed);
+        // The domain is the mesh's box, its wall held by the box rule as in tetwild and simwild
+        // and never tracked: a mesh that does not fill its box -- a filtered tetwild output, its
+        // boundary its tracked faces -- is refused (require_box_boundary()).
+        mesh.require_box_boundary("topological_offset");
+        // A reference, the first component's labelled input, held to as simwild holds one
+        // (simwild.cpp's run_3D): the envelopes around its triangles of this mesh's labels
+        // (io::held_rows(); TopoOffsetTetMesh::build_envelopes() builds them and runs the two
+        // start checks), the order-2 tubes and the curve-end anchors around its curves, never
+        // around the mesh received, and the feature tubes around its feature curves
+        // (init_reference_feature_tubes(), from hold_curves_and_points()).
+        if (reference) {
+            const io::HeldRows held = io::held_rows(
+                input_data.V_envelope,
+                input_data.F_envelope,
+                input_data.F_envelope_labels);
+            mesh.m_has_reference = true;
+            mesh.m_reference_V = held.V;
+            mesh.m_reference_F = held.F;
+            mesh.m_reference_labels = held.labels;
+            mesh.m_reference_curves = input_data.reference_curves;
+            std::vector<Eigen::Vector3d> V(size_t(held.V.rows()));
+            for (size_t i = 0; i < V.size(); ++i) V[i] = held.V.row(Eigen::Index(i)).transpose();
+            std::vector<std::array<size_t, 3>> F(size_t(held.F.rows()));
+            for (size_t i = 0; i < F.size(); ++i) {
+                for (int j = 0; j < 3; ++j) F[i][j] = size_t(held.F(Eigen::Index(i), j));
+            }
+            mesh.set_input_curves(V, F, held.labels, &input_data.reference_curves);
+            // The input points' anchors on its points (TetOptimizerMesh::ReferencePoints).
+            mesh.set_reference_points(
+                input_data.reference_points,
+                input_data.reference_point_labels);
+        }
 
         // label input complex
-        mesh.m_offset_params.offset_selection =
-            expression_parser::parse(offset_selection_str, mesh.m_tag_name_to_id);
+        for (Parameters::Offset& o : mesh.m_offset_params.offsets)
+            o.expression = expression_parser::parse(o.selection, mesh.m_tag_name_to_id);
+        mesh.m_offset_params.parse_protected_tags(mesh.m_tag_name_to_id);
         mesh.label_input_complex();
 
         // A correspondence handed on from an earlier offset is carried: its offset vertices keep
-        // their values (vertex i is V_input row i), and the march adds this run's.
-        std::vector<size_t> carried;
+        // their values (vertex i is V_input row i), and the march adds this run's. Construction
+        // only splits, so every vertex keeps its id, and it throws rather than cut a carried
+        // vertex's edge to its input vertex (split_edge_before()).
         if (params.save_offset_correspondence) {
             for (size_t v = 0; v < input_data.corr_input_vid.size(); ++v) {
                 if (input_data.corr_input_vid[v] < 0) continue;
                 mesh.m_vertex_extra[v].m_corr_input_vid = input_data.corr_input_vid[v];
-                carried.push_back(v);
+                mesh.m_vertex_extra[v].m_corr_carried = true;
             }
         }
 
@@ -498,26 +533,7 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
         // execute offset
         igl::Timer timer;
         timer.start();
-        const auto carried_before = carried_stars(mesh, carried);
         mesh.construct_offset(output_filename);
-        // A carried value holds while its vertex keeps its id and its star: prismatic_mesh builds
-        // each prism from that star. Construction only splits (no vertex is removed, so
-        // consolidate_mesh() keeps every id), and only near this run's input complex, so a star
-        // that changed means the two offsets touch.
-        {
-            const auto carried_after = carried_stars(mesh, carried);
-            size_t changed = 0;
-            for (size_t i = 0; i < carried.size(); ++i)
-                changed += carried_before[i] != carried_after[i];
-            if (changed > 0) {
-                log_and_throw_error(
-                    "{} of {} carried offset vertices (corr_input_vid from an earlier offset) "
-                    "changed star: this offset touches the earlier one. Run them as one offset or "
-                    "move the surfaces apart",
-                    changed,
-                    carried.size());
-            }
-        }
 
         // checks
         {
@@ -576,6 +592,7 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
             mesh.write_phi_grid(output_filename.string(), mesh.m_offset_params.phi_grid_resolution);
 
             mesh.optimize_offset(output_filename);
+            mesh.audit_input_curves();
 
             // The manifoldness check above ran on the offset as constructed. Optimization then
             // re-triangulates it -- splits, collapses and four kinds of swap all touch the
@@ -680,7 +697,7 @@ static void run(nlohmann::json json_params, io::ComponentIO& component_io)
         topological_offset::collect_memory_output(mesh, component_io);
         if (!component_io.memory())
             io::write_mesh(output_filename.string() + ".msh", component_io.result.first.at("mesh"));
-        hand_on_envelope();
+        hand_on_envelope(offset_rows(mesh));
         if (mesh.m_offset_params.save_vtu) { // write .vtu: the result, as the .msh
             mesh.write_vtu(output_filename.string(), nullptr, /*result=*/true);
         }

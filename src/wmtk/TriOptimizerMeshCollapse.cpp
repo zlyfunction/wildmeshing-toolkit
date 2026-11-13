@@ -258,10 +258,8 @@ bool TriOptimizerMesh::collapse_edge_before(const Tuple& loc) // input is an edg
         e_attr.merge(m_edge_attribute.at(global_eid2));
         // (v1,x) and (v2,x) become one edge (v2,x); their directions add up along it.
         const std::array<size_t, 2> merged{{v2_id, e_vids[1]}};
-        e_attr.set_orientation_along(
-            merged,
-            m_edge_attribute.at(global_eid1).orientation_along(e_vids) +
-                m_edge_attribute.at(global_eid2).orientation_along(merged));
+        e_attr.set_orientation_from(m_edge_attribute.at(global_eid1), e_vids, merged);
+        e_attr.add_orientation_from(m_edge_attribute.at(global_eid2), merged, merged);
         cache.changed_edges.push_back(std::make_pair(e_attr, e_vids));
     }
 
@@ -295,8 +293,11 @@ bool TriOptimizerMesh::collapse_edge_before(const Tuple& loc) // input is an edg
                         // check if this face is actually on the surface
                         continue;
                     }
-                    if (const int o = m_edge_attribute.at(fid).orientation_along(f); o != 0) {
-                        cache.renamed_orientations.push_back({{{v2_id, va}}, o});
+                    if (m_edge_attribute.at(fid).oriented()) {
+                        const std::array<size_t, 2> renamed{{v2_id, va}};
+                        EdgeAttributes o;
+                        o.set_orientation_from(m_edge_attribute.at(fid), f, renamed);
+                        cache.renamed_orientations.emplace_back(renamed, o);
                     }
                     std::sort(f.begin(), f.end());
                     fs.emplace_back(f, m_edge_attribute.at(fid));
@@ -329,8 +330,14 @@ bool TriOptimizerMesh::collapse_edge_before(const Tuple& loc) // input is an edg
         const bool v2_surf = VA[v2_id].m_is_on_surface;
         const bool v1_bbox = !VA[v1_id].on_bbox_faces.empty();
         const bool v2_bbox = !VA[v2_id].on_bbox_faces.empty();
+        // An anchor is a point of the substructure (substructure_order_of_vertex()), a free point
+        // too, which no curve marks.
+        const auto is_anchor = [&](const size_t v) {
+            return m_track_feature_points &&
+                   m_feature_point_attribute[v].m_feature_point_id != NO_FEATURE_POINT;
+        };
 
-        if ((v1_surf || v1_bbox) && (v2_surf || v2_bbox)) {
+        if ((v1_surf || v1_bbox || is_anchor(v1_id)) && (v2_surf || v2_bbox || is_anchor(v2_id))) {
             if (!substructure_link_condition(loc)) {
                 return false;
             }
@@ -383,7 +390,7 @@ bool TriOptimizerMesh::collapse_edge_after(const Tuple& loc)
     // direction against the new one, before the merged link edges below overwrite theirs.
     for (const auto& [e, o] : cache.renamed_orientations) {
         if (const auto found = try_tuple_from_edge(e); found.has_value()) {
-            m_edge_attribute[std::get<1>(found.value())].set_orientation_along(e, o);
+            m_edge_attribute[std::get<1>(found.value())].set_orientation_from(o, e, e);
         }
     }
     // face attr

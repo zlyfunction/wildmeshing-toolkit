@@ -28,7 +28,7 @@
   {
     "pointer": "/input",
     "type": "string",
-    "doc": "Input mesh, .msh: a tagged triangle (2D) or tet (3D) mesh. Tagged faces (2D: tagged edges) and feature curves are refused: they are not carried yet."
+    "doc": "Input mesh, .msh: a tagged triangle (2D) or tet (3D) mesh. Its triangle block is tagged faces (2D: its edge block, tagged edges), its edge block in 3D feature curves, its point block input points, as tetwild, triwild and simwild write them: each carried through the carving, which only splits, and written back as the same block of the result. In 3D they are held as topological_offset holds them -- the tagged faces in their labels' envelopes, the feature curves in their tubes, the points anchored; in 2D nothing moves them and nothing holds them. Until 2026-11 they were refused."
   },
   {
     "pointer": "/output",
@@ -45,6 +45,7 @@
   {
     "pointer": "/tag_selection",
     "type": "string",
+    "labels": "expression",
     "default": "tag_0",
     "doc": "Tag selection, the boundary of which is taken to be the input surface to make manifold. An expression of tags: names, &, |, ! and parentheses."
   },
@@ -57,6 +58,7 @@
   {
     "pointer": "/fill_tags/*",
     "type": "string",
+    "labels": "existing",
     "doc": "A tag."
   },
   {
@@ -105,6 +107,6 @@
     "pointer": "/envelope",
     "type": "string",
     "default": "",
-    "doc": "The envelope of a tagged mesh input: on the memory route the name of an input mesh, on the file route the path of a mesh file, relative to input_dir as the input is -- the envelope tetwild, triwild and simwild return (outputs[\"envelope\"]) and write (<output>_envelope.msh), labelled by the tags it holds. Carried, not yet held to: the run returns it unchanged as its envelope (on the file route <output>_envelope.msh), so that a chain keeps passing the first component's input on to the components after it, while the extraction builds its envelopes around the mesh it receives. Its triangles (2D: segments) stand for the input's EnvelopeSurface group, which it cannot be combined with."
+    "doc": "The envelope of a tagged mesh input: on the memory route the name of an input mesh, on the file route the path of a mesh file, relative to input_dir as the input is -- the envelope tetwild, triwild and simwild return (outputs[\"envelope\"]) and write (<output>_envelope.msh), labelled by the tags it holds. In 3D a labelled envelope is a reference, held to as topological_offset holds one: the run throws for a label the held faces carry that it lacks, and for a held face received outside its labels' envelopes, before anything is carved; the envelopes' half-width is the offset's default, 1e-3 of the bounding box diagonal (topological_offset's envelope_size_rel), so a mesh a sender held to a wider eps is refused. It is returned with the faces the carving made added, each between a carved cell and the rest and under the labels of the regions it separates -- new geometry, its own reference (on the file route <output>_envelope.msh) -- so that a chain keeps passing the first component's input on to the components after it. Until 2026-11 it was carried unchanged in 3D too, and a later simwild refused the carved faces outside it. In 2D it is carried, returned unchanged, while the extraction builds its envelopes around the mesh it receives. Its triangles (2D: segments) stand for the input's EnvelopeSurface group, which it cannot be combined with."
   }
 ]

@@ -1,5 +1,4 @@
 #include <wmtk/io/DataWriter.hpp>
-#include <wmtk/io/tagged_mesh_data.hpp>
 
 #include "TetWildMesh.h"
 
@@ -511,10 +510,13 @@ void TetWildMesh::compute_winding_number(
         if (all_inputs) {
             outface = oriented_tracked_faces();
         } else {
-            // oriented_tracked_faces(), of the faces bounds() keeps. A face's orientation is one
-            // count for all its inputs (SurfaceTagAttributes::m_orientation), not one per input:
-            // on a face where a kept input coincides with another the count is of both, and the
-            // kept inputs' own is not known. Refused there rather than guessed.
+            // oriented_tracked_faces(), of the faces bounds() keeps, each as often as the kept
+            // inputs' count on it (SurfaceTagAttributes::orientation_of()). Without
+            // WMTK_PER_INPUT_ORIENTATION a face's orientation is one count for all its inputs
+            // (SurfaceTagAttributes::m_orientation), not one per input: on a face where a kept
+            // input coincides with another the count is of both, and the kept inputs' own is not
+            // known. Refused there rather than guessed; with the option each input has its own.
+#ifndef WMTK_PER_INPUT_ORIENTATION
             size_t n_shared = 0;
             for (const auto& f : get_faces()) {
                 const auto& attr = m_face_attribute[f.fid(*this)];
@@ -531,13 +533,15 @@ void TetWildMesh::compute_winding_number(
                     "exact without orientation for inputs that do not overlap themselves",
                     n_shared);
             }
+#endif
             for (const auto& f : get_faces()) {
                 const auto& attr = m_face_attribute[f.fid(*this)];
-                if (!attr.m_is_surface_fs || attr.m_orientation == 0 || !bounds(attr)) continue;
+                const int o = attr.orientation_of(bounding);
+                if (!attr.m_is_surface_fs || o == 0 || !bounds(attr)) continue;
                 std::array<size_t, 3> v = get_face_vids(f);
                 std::sort(v.begin(), v.end());
-                if (attr.m_orientation < 0) std::swap(v[1], v[2]);
-                for (int k = 0; k < std::abs(attr.m_orientation); ++k) outface.push_back(v);
+                if (o < 0) std::swap(v[1], v[2]);
+                for (int k = 0; k < std::abs(o); ++k) outface.push_back(v);
             }
         }
         V = Eigen::MatrixXd::Zero(vert_capacity(), 3);
@@ -737,109 +741,6 @@ void TetWildMesh::filter_with_flood_fill()
     remove_tets_by_ids(rm_tids);
 }
 
-
-void TetWildMesh::output_mesh(
-    std::string file,
-    const std::vector<std::string>& face_tags,
-    const std::vector<std::string>& feature_tags)
-{
-    if (!m_params.output_enabled) return;
-    consolidate_mesh();
-
-    wmtk::MshData msh;
-
-    const auto& vtx = get_vertices();
-    msh.add_tet_vertices(vtx.size(), [&](size_t k) {
-        auto i = vtx[k].vid(*this);
-        return m_vertex_attribute[i].m_posf;
-    });
-
-    const auto& tets = get_tets();
-    msh.add_tets(tets.size(), [&](size_t k) {
-        auto i = tets[k].tid(*this);
-        auto vs = oriented_tet_vertices(tets[k]);
-        std::array<size_t, 4> data;
-        for (int j = 0; j < 4; j++) {
-            data[j] = vs[j].vid(*this);
-            assert(data[j] < vtx.size());
-        }
-        return data;
-    });
-
-    msh.add_tet_vertex_attribute<1>("sizing", [&](size_t i) {
-        return m_vertex_attribute[i].m_sizing_scalar;
-    });
-    msh.add_tet_attribute<1>("energy", [&](size_t i) {
-        return std::cbrt(m_tet_attribute[i].m_quality);
-    });
-    // No cube root on any of these: only m_quality stores AMIPS^3, and the cbrt above is what
-    // turns it back into the energy the logs and the vtu report. A winding number and a
-    // flood-fill id are neither cubed nor continuous, so cube-rooting them just corrupts the
-    // value. write_vtu writes all four raw, and it is the one that was right.
-    // Only the fields the finalization computed: the others would be their defaults.
-    if (m_has_input_winding_number) {
-        msh.add_tet_attribute<1>("winding_number_input", [&](size_t i) {
-            return tet_finalize(i).m_winding_number_input;
-        });
-    }
-    if (m_has_tracked_winding_number) {
-        msh.add_tet_attribute<1>("winding_number_tracked", [&](size_t i) {
-            return tet_finalize(i).m_winding_number_tracked;
-        });
-    }
-    if (m_has_parts) {
-        msh.add_tet_attribute<1>("part", [&](size_t i) { return double(tet_finalize(i).part_id); });
-    }
-
-    // per input winding number
-    if (!tets.empty()) {
-        const size_t n = tet_finalize(tets[0].tid(*this)).m_winding_number_per_input.size();
-        for (size_t j = 0; j < n; ++j) {
-            msh.add_tet_attribute<1>(fmt::format("wn_{}", j), [&](size_t i) {
-                return tet_finalize(i).m_winding_number_per_input[j];
-            });
-        }
-    }
-
-    // The tags, as the memory route's mesh carries them: a block of the tet vertices (the vertex
-    // block MshData leaves empty) per tag, its physical group named after it. A cell with
-    // several tags is in several blocks, and the shared reader (io::read_mesh) reads it back as
-    // one row with each tag; the blocks give it the same row, so the orientation survives.
-    MeshMap tagged{{"mesh", MeshData()}};
-    io::collect_input_set_tags<CellType::Triangle>(*this, tagged, face_tags);
-    io::collect_feature_edge_tags(*this, tagged, feature_tags);
-    for (const auto& entry : tagged.at("mesh").cells) {
-        const CellType type = entry.first;
-        const CellData& block = entry.second;
-        const MeshAttribute& tags = block.attributes.at("tags");
-        const DataMatrix<int64_t> member = tags.integers();
-        for (size_t j = 0; j < tags.labels.size(); ++j) {
-            std::vector<Eigen::Index> rows;
-            for (Eigen::Index r = 0; r < member.rows(); ++r) {
-                if (member(r, Eigen::Index(j)) != 0) rows.push_back(r);
-            }
-            if (rows.empty()) continue;
-            if (type == CellType::Triangle) {
-                msh.add_face_vertices();
-                msh.add_faces(rows.size(), [&](size_t k) {
-                    std::array<size_t, 3> f;
-                    for (int c = 0; c < 3; ++c) f[c] = size_t(block.connectivity(rows[k], c));
-                    return f;
-                });
-            } else {
-                msh.add_edge_vertices();
-                msh.add_edges(rows.size(), [&](size_t k) {
-                    std::array<size_t, 2> e;
-                    for (int c = 0; c < 2; ++c) e[c] = size_t(block.connectivity(rows[k], c));
-                    return e;
-                });
-            }
-            msh.add_physical_group(tags.labels[j]);
-        }
-    }
-
-    msh.save(file, true);
-}
 
 MeshData TetWildMesh::tet_mesh_data()
 {

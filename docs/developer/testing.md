@@ -96,27 +96,31 @@ commit that has it ([writing a component](writing-a-component.md#6-an-integratio
 ## Python tests
 
 The tests in [`tests/python`](https://github.com/wildmeshing/wildmeshing-toolkit/tree/main/tests/python)
-run the bindings. Three are registered in `tests/CMakeLists.txt`, when the module is built
+run the bindings. Four are registered in `tests/CMakeLists.txt`, when the module is built
 (`WMTK_PYBIND`, on by default) and the interpreter CMake found imports NumPy:
 
 | ctest entry | File | What it runs |
 |---|---|---|
 | `python_memory_io` | `test_memory_io.py` | the memory route through the bindings, NumPy only |
 | `python_tracking` | `test_tracking.py` | histories as bytes and files, `wm.Tracking`, `wm.CurveTracking`, `wm.VolumeTracking` |
+| `python_pipeline` | `test_pipeline.py`, `test_gui.py`, `test_viewer.py` | `wildmeshing.pipeline`, `wildmeshing.gui` and `wildmeshing.viewer`, with pytest; registered when the interpreter has pytest; the last two skip without polyscope, whose mock backend opens no window |
 | `python_tracking_correspondences` | `test_tracking_correspondences.py` | the tracking tutorial's pipeline (`docs/examples/python/tracking_correspondences.py`): the dense bunny remeshed, tetrahedralized, and every vertex mapped through both histories and back; its counts are ranges, since a run with threads changes slightly from one run to the next; non-Debug builds only, timeout 1800 s |
 
 The others are run by hand or elsewhere:
 
 - `test_docs_examples.py`: the documentation's examples, below.
 - `test_smoke.py`: imports the module and its error paths; the wheel builds run it with
-  `test_memory_io.py` and `test_tracking.py` on every wheel (`test-command` in
-  `pyproject.toml`).
+  `test_memory_io.py`, `test_tracking.py` and the three of `python_pipeline` on every wheel
+  (`test-command` in `pyproject.toml`).
 - `test_integration.py`: the integration configs through the bindings, compared byte for byte
   with `wmtk_app`'s output when the config is serial (`python -m pytest tests/python`; see its
   `README.md`).
+- `test_face_tags.py`, `test_memory_route.py`: the tagged components' face, edge and point tags,
+  and their memory route against the file route; three PolyFEM-reader tests need gmsh.
 
-`python/tests` holds the tests of `wildmeshing.polyfem_ops`, run with `python -m pytest
-python/tests` and gmsh installed.
+`tests/python/polyfem` holds the tests of `wildmeshing.polyfem_ops`. pytest collects it only when
+the polyfem extras (gmsh, scipy, h5py) are installed, and its tests that run PolyFEM skip without
+`POLYFEM_BIN`.
 
 ## Documentation examples
 
@@ -168,28 +172,41 @@ The first build clones the data repository into `data/`.
 ## In CI
 
 [`.github/workflows/continuous.yml`](https://github.com/wildmeshing/wildmeshing-toolkit/blob/main/.github/workflows/continuous.yml)
-runs on every pull request and every push to `main`, in eight jobs:
+runs on every pull request and every push to `main`, in nine jobs:
 
 | Job (check name) | Runner | Configs |
 |---|---|---|
 | `Linux` | `ubuntu-latest` | Debug, Release |
 | `Linux arm64` | `ubuntu-24.04-arm` | Debug, Release |
+| `Linux per-input orientation` | `ubuntu-latest` | Release |
 | `macos-latest` | `macos-latest` | Debug, Release |
 | `Windows 2025 (VS 2026)` | `windows-2025-vs2026` | Debug, Release |
 
-A check is named after its job and config, as in `Linux (Release)`.
+A check is named after its job and config, as in `Linux (Release)`. A new push to a pull request
+cancels the run of the previous one.
 
-Each job configures with `CMAKE_BUILD_TYPE` set to its config, builds with two jobs (`make -j2`;
-Ninja on Windows) behind a compiler cache (ccache; sccache on Windows), and runs
-`ctest --verbose --output-on-failure`, one test at a time (`CTEST_PARALLEL_LEVEL: 1`). So:
+Each job configures with `CMAKE_BUILD_TYPE` set to its config, builds with as many jobs as the
+runner has cores (`make`; Ninja on Windows) behind a compiler cache (ccache; sccache on
+Windows), and runs `ctest --verbose --output-on-failure`, one test per core
+(`CTEST_PARALLEL_LEVEL`: 4, 3 on macOS). So a test that writes files must write them in a
+directory of its own, or under names no other test uses; the long ones carry a `COST`, so they
+start first. The
+Debug builds use `-g1` (`-g` makes the cache several times larger), and the Windows builds no
+debug information at all.
+
+The compiler cache is restored from the newest one of the same runner and config, and saved
+right after the build, whether the build or the tests pass or not; ccache is first trimmed to
+the entries the build used, and sccache is capped at 1 GB. The Windows jobs fail when the compile
+commands do not go through sccache. So:
 
 - every job runs the library, component and memory-route tests, with the `release_only` cases
   in the Release jobs only;
 - the Release jobs add `-DWMTK_BUILD_INTEGRATION_TESTS=ON` and `-DWMTK_BUILD_DOC_EXAMPLES=ON`,
   and run every listed integration config and the documentation's C++ examples;
-- the Linux jobs install `python3-numpy`, so they run the registered Python tests, and in
-  Release the Python and JSON examples; the other jobs run them if the interpreter CMake finds
-  has NumPy.
+- the Linux jobs install `python3-numpy`, so they run the registered Python tests; the
+  `Linux arm64 (Release)` job also runs the Python and JSON examples (`Linux (Release)` leaves
+  them out with `ctest -E`: they were its longest test). The macOS and Windows jobs run the
+  Python tests and examples if the interpreter CMake finds has NumPy.
 
 When the tests fail on Linux or macOS, a last step re-runs the component test executables under
 gdb or lldb and prints the backtrace of every thread, for a crash that leaves only a signal in

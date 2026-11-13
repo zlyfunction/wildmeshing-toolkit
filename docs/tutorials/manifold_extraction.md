@@ -79,7 +79,7 @@ result, count the edges of the boundary that are not on exactly two triangles:
 --8<-- "docs/examples/python/manifold_extraction.py:check"
 ```
 
-It prints `28 -> 0`, and `0` for the extracted surface.
+It prints `28 -> 0`.
 
 ### In 2D
 
@@ -187,8 +187,8 @@ passed.` (in 2D, `Curve manifoldness check passed.`), or a warning.
 - The repaired mesh: `output` on the command line (default `out`, written as `out.msh`),
   `outputs["mesh"]` in memory. It has the input's tags, the fill tags on the carved cells, and
   diagnostic fields of the offset (`labels`, `offset_tag`, `amips` and others).
-- `outputs["surface"]` in memory: the boundary of the selection after the repair, a triangle mesh
-  in 3D and an edge mesh in 2D, with vertices of its own. On files, `write_surface` writes it.
+- The boundary of the selection after the repair is where the selected tags differ across a face
+  (2D: an edge): the mesh holds it, and no output repeats it. On files, `write_surface` writes it.
 - With `report`, a JSON file with the vertex, edge, face (and in 3D tet) counts before and after,
   and the run time. In memory, the report is the second return value.
 - With `save_vtu`, the mesh as `.vtu` files for ParaView.
@@ -207,11 +207,12 @@ passed.` (in 2D, `Curve manifoldness check passed.`), or a warning.
   outside of the mesh as one more cell; the log warns `Vertex of offset input complex lies on mesh
   boundary`, and the final check may report a non-manifold surface, which it attributes to that.
   Keep the selection inside the domain, with background cells around it.
-- **Face tags, edge tags and feature curves are refused.** A mesh with tagged faces (simwild's
-  `input_type` `surface`, tetwild's output) or, in 2D, tagged edges (simwild's `input_type` `curve`,
-  triwild's output) stops with `manifold_extraction does not take tagged faces (2D: edges) yet`; one
-  with feature curves (a tet mesh's edge block) with `manifold_extraction does not take feature
-  curves yet`.
+- **Tagged faces, curves and points go through.** A mesh's tagged faces (simwild's `input_type`
+  `surface`, tetwild's output), in 2D its tagged edges (simwild's `input_type` `curve`, triwild's
+  output), its feature curves (a tet mesh's edge block) and its input points (a point block) come
+  back as the same blocks of the result, under the same labels; the carving splits the ones it
+  crosses. In 3D they are held as [topological_offset](topological_offset.md) holds them. Until
+  2026-11 they were refused.
 
 ## See also
 

@@ -46,7 +46,7 @@ components:
     title: TetWild
     group: meshing
     tutorial: tutorials/tetwild.md
-    key_options: [input, input_names, output, eps_rel, length_rel, stop_energy, filter, max_iterations, input_edges, input_points, preserve_topology, coarsen_pass, history_output]
+    key_options: [input, input_names, output, eps_rel, length_rel, stop_energy, filter, max_iterations, preserve_topology, coarsen_pass, history_output]
     papers:
       - "[Hu et al. 2018, Tetrahedral Meshing in the Wild](https://cims.nyu.edu/gcl/papers/2018-TetWild.pdf)"
       - "[Hu et al. 2020, Fast Tetrahedral Meshing in the Wild](https://arxiv.org/abs/1908.03581)"
@@ -55,7 +55,7 @@ components:
     title: TriWild
     group: meshing
     tutorial: tutorials/triwild.md
-    key_options: [input, input_names, output, eps_rel, length_rel, stop_energy, filter, input_points, preserve_topology]
+    key_options: [input, input_names, output, eps_rel, length_rel, stop_energy, filter, preserve_topology]
     papers:
       - "[Hu et al. 2019, TriWild: Robust Triangulation with Curve Constraints](https://cims.nyu.edu/gcl/papers/2019-TriWild.pdf)"
 
@@ -69,7 +69,7 @@ components:
     title: Topological offset
     group: offsets
     tutorial: tutorials/topological_offset.md
-    key_options: [input, output, offset_selection, offset_output_tags, protected_tags, offset_in, offset_out, target_distance_rel, target_distance, front_conv_rel, optimize_offset, max_rounds, num_threads, check_manifoldness]
+    key_options: [input, output, offsets, protected_tags, offset_in, offset_out, front_conv_rel, optimize_offset, max_rounds, num_threads, check_manifoldness]
     papers:
       - "[Topological Offsets, ACM TOG 2025](https://dl.acm.org/doi/10.1145/3731157)"
 

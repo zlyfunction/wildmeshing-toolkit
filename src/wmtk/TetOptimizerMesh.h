@@ -279,7 +279,7 @@ public:
         uint8_t m_kinds = 0;
         /// Per kind, the inputs whose curves of that kind this edge tiles, bit i for input i, as
         /// a tracked face carries the inputs it lies on (SurfaceTagAttributes::input_set()):
-        /// the input_edges file for `feature`, the inputs of the tracked faces at the edge for
+        /// the input curve for `feature`, the inputs of the tracked faces at the edge for
         /// `order2`. The edge is held to those inputs' tubes (tagged_edge_leaves_tube()); an
         /// empty set falls back to the kind's union tube.
         InputSet m_feature_inputs = 0;
@@ -523,7 +523,7 @@ public:
     size_t tag_order2_edges(double eps, bool exact);
     /**
      * @brief Tag every tet edge tiling an input feature edge (`placed`, from the insertion)
-     * with the feature kind and the input_edges file it comes from, and build the tubes, of
+     * with the feature kind and the input curve it comes from, and build the tubes, of
      * half-width `eps` with the exact predicate when `exact`. Returns the number of tet edges
      * tagged.
      *
@@ -571,8 +571,8 @@ public:
 
     // Substructure widening for the link condition (preserve_topology): a tagged edge, of any
     // kind, is order-2 substructure, a vertex with two incident tagged edges is on a curve
-    // (order 2), with one or three-plus it is a curve endpoint or junction (order 3). The
-    // meaning of get_order_of_* is untouched.
+    // (order 2), with one or three-plus it is a curve endpoint or junction (order 3), and an
+    // anchor is a point (order 3). The meaning of get_order_of_* is untouched.
     size_t substructure_order_of_edge(const std::array<size_t, 2>& vids) const override;
     size_t substructure_order_of_vertex(size_t vid) const override;
     void substructure_feature_neighbors(size_t vid, std::vector<size_t>& out) const override;
@@ -621,6 +621,22 @@ public:
     /// Radius of each anchor's ball, beside m_feature_points. Per anchor, because each kind of
     /// feature has its own radius (see anchor_feature_points()).
     std::vector<double> m_feature_point_radius;
+    /// The input points' labels, which the output writes as its point block
+    /// (io::collect_point_tags()) and a receiver reads back as input points: names, bit i of an
+    /// input set m_point_names[i], and per input point -- in the order of anchor_feature_points()'s
+    /// input_point_vids -- the bit of its label, set by the application before the anchoring;
+    /// empty, the points carry no label. Per anchor, beside m_feature_points, the labels of the
+    /// input points it stands for, 0 for a curve end or junction (which the tags give again),
+    /// filled by anchor_feature_points(). Until 2026-11 no output marked the input points.
+    std::vector<std::string> m_point_names;
+    std::vector<int> m_input_point_labels;
+    std::vector<InputSet> m_feature_point_inputs;
+    /// Beside m_feature_points: whether the anchor stands for an end or a junction of the
+    /// feature curves (1 or 3+ edges tagged `feature`) or for an input point, set by
+    /// anchor_feature_points(). Those are the feature points of a curve history
+    /// (tracked_feature_points()), as the input's curves have them (history::
+    /// curves_from_input()); an anchor of an order-2 curve alone is not one.
+    std::vector<uint8_t> m_curve_feature_point;
     /// Whether the shared operations maintain and enforce the anchors
     /// (enable_feature_point_tracking()).
     bool m_track_feature_points = false;
@@ -680,12 +696,17 @@ public:
      *
      * With m_input_curves set, the ball of a curve end or junction is centred on the nearest of
      * the input's own curve points when one lies in it, and at the vertex otherwise (see
-     * InputCurves). An input point is anchored as before: it is the input's.
+     * InputCurves). An input point is the input's, and keeps its own position -- unless
+     * m_reference_points is set: its ball is then centred on the nearest of the reference's
+     * points of its label within it, and a point with none throws (see there).
      */
     size_t anchor_feature_points(
         const std::vector<size_t>& input_point_vids,
         double order2_radius,
         double feature_radius);
+    /// At the end of anchor_feature_points(): each anchor's labels (m_feature_point_inputs), the
+    /// bits m_input_point_labels gives the input points it stands for.
+    void label_feature_points(const std::vector<size_t>& input_point_vids);
 
     /**
      * True iff collapsing v1 into v2 would drop or displace a feature-point anchor. False
@@ -762,6 +783,70 @@ public:
         bool exact);
 
     /**
+     * @name A mesh from exact positions
+     *
+     * What tetwild and simwild both do to the tets they are given with exact positions -- the
+     * insertion's output, or simwild's tagged mesh with rational coordinates -- done once, here.
+     * Until 2026-11 each kept a copy (TetWildMesh::init_from_Volumeremesher(),
+     * SimWildMesh::init_from_image()), simwild's rounding copied from tetwild's (a8d9e65d50) in
+     * 0f617ab966. They had drifted only in how the box faces were found -- tetwild's in parallel
+     * and in place (5e466d9d35, aff96d866c), simwild's serially over a list of every face -- and
+     * in when the direct points were found. Same flags either way; the list was the peak of the
+     * run on the larger tetwild inputs.
+     * @{
+     */
+    /// Coordinate k of vertex vid's exact position, as the caller holds it (a vector of Vector3r,
+    /// a MatrixXr), by reference: reading it copies no Rational.
+    using ExactCoordinate = std::function<const Rational&(size_t vid, int k)>;
+
+    /**
+     * @brief Set the position of every vertex (vert_capacity() of them) from its exact one, and
+     * return, per vertex, whether it is a direct point: one whose exact position is already a
+     * double. A direct point is rounded here and stores nothing -- its double is its exact
+     * position, so rounding it cannot invert a tet. An indirect point keeps its rational,
+     * unrounded, until round_indirect_vertices().
+     */
+    std::vector<char> set_exact_positions(const ExactCoordinate& exact);
+
+    /**
+     * @brief Round every indirect vertex that can be, once the tets are final. `is_direct_point`
+     * and `exact` as set_exact_positions() took and returned them; `exact` reverts a vertex.
+     */
+    void round_indirect_vertices(
+        const std::vector<char>& is_direct_point,
+        const ExactCoordinate& exact);
+
+    /**
+     * @brief Flag each face in a plane of the box [box_min, box_max] with that plane
+     * (m_is_bbox_fs: 2 k on the min side of axis k, 2 k + 1 on the max side) and give each of its
+     * vertices the plane (on_bbox_faces, sorted, once each). Exact: compares the exact positions.
+     */
+    void tag_bbox_faces(const Vector3d& box_min, const Vector3d& box_max);
+    /** @} */
+
+    /**
+     * @brief Throws unless the mesh fills its box: every boundary face (no tet across) a face of
+     * the box (m_is_bbox_fs >= 0) and untracked, naming the count of each kind found otherwise --
+     * the tracked boundary faces, and the untracked ones in no plane of the box. `who` names the
+     * run in the message. Call after init, with the tracked faces and the box flags set.
+     *
+     * The box rule holds the wall (a box vertex is not smoothed, collapses only along its planes,
+     * a split stays on the planes both ends share), and only the box's faces. An untracked
+     * boundary face in no plane would be held by nothing, and the domain would move with it. A
+     * tracked boundary face is a filtered mesh's boundary: no insertion puts one there (the
+     * background box is padded past the input), and the operations hold a tracked face from the
+     * tet across it -- collapse_edge_before() checks a merged tracked face in the tet beyond it,
+     * and a boundary face has none. Measured on a filtered unit cube held by its envelopes:
+     * corner collapses left faces 25 eps off it. tetwild's tagged route and the topological
+     * offset take a mesh so; a filtered mesh goes back in as its surfaces. Until 2026-11 tetwild
+     * kept its own copy (TetWildMesh::init_from_tagged_mesh()). The 2D twin is
+     * TriOptimizerMesh::require_box_boundary(). simwild takes a mesh so too since 2026-11-05;
+     * until then it checked only the tracked kind and took an object's tet mesh, its boundary in
+     * no plane of a box and held by nothing.
+     */
+    void require_box_boundary(const std::string& who) const;
+
+    /**
      * @name A reference held to
      *
      * An `envelope` input that is a labelled reference (io::read_labelled_envelope()), the first
@@ -782,10 +867,32 @@ public:
     /// The reference's feature curves: an input edge per edge and label, edge_input the feature
     /// input of the label (m_feature_edge_names).
     utils::FeatureInputs m_reference_curves;
+    /**
+     * @brief The reference's input points (its point block), each with the labels of this mesh's
+     * input points it carries (bit j: m_point_names[j]).
+     *
+     * Set, anchor_feature_points() centres the ball of each received input point on the nearest
+     * of them with its label in the ball, as it centres a curve end on the nearest of the
+     * reference's curve points (InputCurves): so a received point is held to the first
+     * component's, within one radius however many components came before, where anchored where it
+     * arrives it could end up to one radius further at every stage. Unlike a curve end, a point
+     * with none in reach throws, before anything runs: a simplification makes curve ends, but no
+     * component makes input points, so such a point is not this reference's. Unset -- no
+     * `envelope` given -- an input point is anchored where it is, as before. Set by the
+     * application before init, by set_reference_points().
+     */
+    struct ReferencePoints
+    {
+        std::vector<Vector3d> V;
+        std::vector<InputSet> labels;
+    };
+    std::optional<ReferencePoints> m_reference_points;
+    /// Set m_reference_points from the reference's points `P` (rows, x y z) and their labels.
+    void set_reference_points(const MatrixXd& P, const std::vector<InputSet>& labels);
     /// Names of the feature curves' inputs: bit i of a feature edge's input set
     /// (FeatureEdgeAttributes::inputs(feature)) is m_feature_edge_names[i], the output's edge tag
-    /// (io::collect_feature_edge_tags()). Set by the application: feature_<i> for input_edges
-    /// file i, or the edge tags of a tagged mesh input.
+    /// (io::collect_feature_edge_tags()). Set by the application: the label of its i-th input
+    /// curve, or the edge tags of a tagged mesh input.
     std::vector<std::string> m_feature_edge_names;
     /// The label of bit `bit` of a face's input set, as the output names it; the application's,
     /// for the reference checks to name a label by.
@@ -999,6 +1106,50 @@ public:
     /// The edges tagged `feature` (m_feature_edge_attribute) that are edges of tracked faces.
     std::vector<std::array<size_t, 2>> tracked_feature_edges() const override;
 
+    /// For a curve history (TetMesh::start_curve_history): the tracked curves are the edges
+    /// tagged `feature`, the input's feature curves, wherever they lie. Not the order-2 edges:
+    /// they are edges of tracked faces, which the surface history keeps as curves (SurfaceMap
+    /// flattens each side of an edge with other than two faces separately).
+    bool is_tracked_edge(size_t tid, int j) const override;
+    /// The feature points of a curve history: the anchored vertices that stand for an end or a
+    /// junction of the feature curves, or for an input point (m_curve_feature_point). Not those
+    /// anchored for an order-2 curve alone, which the input's curves do not have.
+    std::vector<size_t> tracked_feature_points() const override;
+
+    /// A tracked edge by its ends' positions, sorted.
+    using SegmentKey = std::array<std::array<double, 3>, 2>;
+    static SegmentKey segment_key(const Vector3d& a, const Vector3d& b);
+    /// Where the tracked edges lie on the input's feature curves: by segment key, sorted, the
+    /// input segments (rows of utils::FeatureInputs::edges). Filled at insertion when a curve
+    /// history is to start from the input; record_curve_history takes it. Keyed by position, as
+    /// m_insertion_sources is: the mesh is consolidated between the insertion and the recording.
+    std::vector<std::pair<SegmentKey, std::vector<uint32_t>>> m_insertion_curve_sources;
+    /// Fill m_insertion_curve_sources from where the insertion put the feature curves: each tet
+    /// edge of `placed`'s tiling, by its ends' positions (`position` of a vertex of the tiling),
+    /// with the input segments it tiles -- several where input segments overlap.
+    void set_insertion_curve_sources(
+        const utils::EmbedFeaturesResult& placed,
+        const std::function<Vector3d(size_t)>& position);
+    /// Start recording the tracked curves (TetMesh::start_curve_history), at m_posf, with
+    /// `metadata` (the application's parameters, say) saved along. Takes
+    /// m_insertion_curve_sources. The 3D twin of TriOptimizerMesh::record_curve_history().
+    void record_curve_history(const std::string& metadata);
+    /**
+     * @brief Check the recorded curves against the tracked edges, stop recording, log what the
+     * history holds and return it, for the application to save (tetwild and simwild:
+     * io::ComponentIO::save_curve_history). None if not recording. The 3D twin of
+     * TriOptimizerMesh::finish_curve_history().
+     *
+     * With `input`, the history of the input the mesh was made from (the feature curve files as
+     * read): the history returned is that, then the insertion -- each tracked edge on the input
+     * segments it lies on, from m_insertion_curve_sources -- then the recorded one, so it maps
+     * the input files to the output. The output names a point on the curves by two of its
+     * vertices, numbered as they are now: the mesh must be written as it is here, consolidated
+     * -- which this checks, throwing otherwise.
+     */
+    std::optional<history::CurveHistory> finish_curve_history(
+        const history::CurveHistory* input = nullptr);
+
     /// m_params.check_surface_folds; see there.
     bool checks_tracked_surface() const override { return m_params.check_surface_folds; }
     void tracked_surface_before(const std::vector<size_t>& vs, bool all) override;
@@ -1029,6 +1180,9 @@ public:
     size_t tracked_star_folds(const std::vector<std::array<size_t, 3>>& faces) const;
     /// The input triangles each face of the recorded surface's first state lies on.
     std::vector<std::vector<uint64_t>> m_recorded_sources;
+    std::shared_ptr<history::TrackedCurveRecorder> m_recorded_curves;
+    /// The input segments each segment of the recorded curves' first state lies on.
+    std::vector<std::vector<uint64_t>> m_recorded_curve_sources;
     int m_debug_print_counter = 0;
     /// WHICH PASS THE NEXT DEBUG FRAME BELONGS TO, e.g. "split", "smooth", "collapse-skipped"
     /// (a group whose op count was 0 still writes its checkpoint frame). Set by every writer
@@ -1597,7 +1751,7 @@ protected:
         inverted, // a cell the collapse reshapes would invert
         quality, // collapse_quality_allowed() said no
         edge_leaves_envelope, // both ends on the surface, the edge on none and outside the envelope
-        substructure_link, // preserve_topology, both ends on the surface: substructure link
+        substructure_link, // preserve_topology, both ends on the surface or a tagged curve
         feature_leaves_tube, // an edge tagged `feature` the collapse moves would leave its tube
         order2_leaves_tube, // an edge tagged `order2` the collapse moves would leave its tube
         feature_point, // v1 stands for a feature point and v2 is outside its ball
@@ -1714,8 +1868,9 @@ protected:
         bool is_surface_flip = false;
         size_t sf_a = 0, sf_b = 0, sf_c = 0, sf_d = 0;
         FaceAttributes sf_face_attr;
-        /// Orientation of the flipped pair, measured along [a,b,c] (and so along [b,a,d]).
-        int sf_orientation = 0;
+        /// Orientation of the flipped pair, measured along [a,b,c] (and so along [b,a,d]): an
+        /// attribute record holding only it, per input with WMTK_PER_INPUT_ORIENTATION.
+        FaceAttributes sf_orientation;
         /// The pair's two faces were not oriented alike; see prepare_surface_flip.
         bool sf_orientation_mismatch = false;
     };
@@ -1748,9 +1903,10 @@ protected:
         /// face with (v2,x,y) -- for the containment check, which runs before they are written.
         std::vector<std::pair<std::array<size_t, 3>, FaceAttributes>> surface_faces;
         /// Oriented faces (v1,x,y) the collapse renames in place to (v2,x,y), as {v2,x,y} with
-        /// the orientation measured along that order. Their attribute stays in its slot, so
-        /// without this the value would be read against the wrong vertex set.
-        std::vector<std::pair<std::array<size_t, 3>, int>> renamed_orientations;
+        /// the orientation measured along that order (an attribute record holding only it, per
+        /// input with WMTK_PER_INPUT_ORIENTATION). Their attribute stays in its slot, so without
+        /// this the value would be read against the wrong vertex set.
+        std::vector<std::pair<std::array<size_t, 3>, FaceAttributes>> renamed_orientations;
         std::vector<std::array<size_t, 2>> boundary_edges;
         std::vector<size_t> changed_tids;
         std::vector<double> changed_energies;

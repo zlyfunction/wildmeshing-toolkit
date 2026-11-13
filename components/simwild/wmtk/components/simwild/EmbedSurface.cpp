@@ -153,6 +153,20 @@ void embed_surface(
         features,
         features_out);
 
+    // check for consistent orientation of tets: every oriented face must be unique
+    // (utils::repeated_oriented_faces()). A repeated face is two tets on one side of it, not a tet
+    // mesh, so it throws, as tetwild's does. From 33fbfc9b70 (2026-07, with a VolumeRemesher bump)
+    // until 2026-11 simwild only warned. MEASURED (2026-11-10, VolumeRemesher 0258037): 0 repeats
+    // in 72 insertions -- two identical, 1e-9-shifted and 1e-7-rotated spheres, identical,
+    // face-sharing and staircase cubes, and every model of data/models under 3 MB. Until 2026-11
+    // checked after the sanity checks of EmbedSurface::embed_surface(), on the same tets.
+    logger().info("Check for consistent orientation between tets...");
+    const auto repeated = wmtk::utils::repeated_oriented_faces(tets_after);
+    if (!repeated.empty()) {
+        log_and_throw_error("Face {} appears more than once in the tet list", repeated.front());
+    }
+    logger().info("done");
+
     if (facet_sources != nullptr) {
         // By the positions the facet's corners have here and in the mesh made from this.
         facet_sources->clear();
@@ -638,7 +652,8 @@ bool EmbedSurface::embed_surface(
     const bool flood_fill,
     const bool tag_from_winding_number,
     const bool provenance,
-    const utils::FeatureInputs* features)
+    const utils::FeatureInputs* features,
+    const std::vector<bool>& is_volume)
 {
     logger().info("Embed with VolumeInsertion");
 
@@ -824,33 +839,6 @@ bool EmbedSurface::embed_surface(
         logger().info("done");
     }
 
-    // check for consistent orientation of tets
-    logger().info("Check for consistent orientation between tets...");
-    std::set<std::array<int, 3>> face_set; // each face must be unique
-    for (int i = 0; i < m_T_emb.rows(); ++i) {
-        const Vector4i& t = m_T_emb.row(i);
-        std::array<std::array<int, 3>, 4> faces = {{
-            {{t[1], t[3], t[2]}}, // opposite t[0]
-            {{t[0], t[2], t[3]}}, // opposite t[1]
-            {{t[0], t[3], t[1]}}, // opposite t[2]
-            {{t[0], t[1], t[2]}}, // opposite t[3]
-        }};
-        // Rotate vertex IDs in faces to start with the lowest vertex ID. This ensures that the
-        // same face is represented by the same set of vertex IDs, regardless of the order in
-        // which they appear in the tet.
-        for (auto& f : faces) {
-            std::rotate(f.begin(), std::min_element(f.begin(), f.end()), f.end());
-        }
-
-        for (const auto& f : faces) {
-            if (face_set.count(f) > 0) {
-                logger().warn("Face {} appears more than once in the tet list", f);
-            }
-            face_set.insert(f);
-        }
-    }
-    logger().info("done");
-
     // const bool all_rounded = VF_rational_to_double(m_V_emb_r, m_T_emb, m_V_emb);
     // if (!all_rounded) {
     //     // log_and_throw_error("Tets are inverted after converting to double precision.");
@@ -880,7 +868,7 @@ bool EmbedSurface::embed_surface(
     }
     if (tag_from_winding_number) {
         logger().info("Tag tets from winding number");
-        this->tag_from_winding_number();
+        this->tag_from_winding_number(is_volume);
     } else {
         logger().info("Tag tets from provenance");
         tag_from_provenance();
@@ -1326,7 +1314,7 @@ void EmbedSurface::tag_from_provenance()
         m_tags.size());
 }
 
-void EmbedSurface::tag_from_winding_number()
+void EmbedSurface::tag_from_winding_number(const std::vector<bool>& is_volume)
 {
     m_T_tags.resize(m_T_emb.rows(), Fs.size());
     m_T_tags.setZero();
@@ -1352,7 +1340,11 @@ void EmbedSurface::tag_from_winding_number()
         if (utils::orient_winding_number(W)) {
             logger().info("Correcting winding number for input {}", i);
         }
-        if (!utils::any_winding_number_inside(W)) {
+        // A surface input encloses nothing by its type, so tagging no tet is no defect of it; its
+        // column is dropped (read_mesh()). Until 2026-11 every input warned
+        // (simwild-warns-only-for-an-input-meant-to-enclose).
+        const bool volume = i >= is_volume.size() || is_volume[i];
+        if (volume && !utils::any_winding_number_inside(W)) {
             logger().warn(
                 "No winding number above 0.5 for input {}: it tags no tet. An open surface "
                 "encloses nothing, so it cannot define a material.",

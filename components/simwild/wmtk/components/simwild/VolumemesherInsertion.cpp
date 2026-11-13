@@ -1,6 +1,7 @@
 #include <bitset>
 #include <fstream>
 #include <set>
+#include <wmtk/io/tagged_mesh_data.hpp>
 #include <wmtk/utils/Delaunay.hpp>
 #include <wmtk/utils/predicates.hpp>
 #include "SimWildMesh.h"
@@ -16,7 +17,8 @@ void SimWildMesh::init_from_image(
     const MatrixSi& F_tags,
     const std::vector<std::string>& face_tag_names,
     const utils::FeatureInputs* features,
-    const utils::EmbedFeaturesResult* features_placed)
+    const utils::EmbedFeaturesResult* features_placed,
+    const MatrixSi& F_orientation)
 {
     assert(V.cols() == 3);
     assert(T.cols() == 4);
@@ -32,13 +34,12 @@ void SimWildMesh::init_from_image(
     m_tet_attribute.resize(T.rows());
     m_face_attribute.resize(T.rows() * 4);
 
-    auto& VA = m_vertex_attribute;
-
-    for (int i = 0; i < vert_capacity(); i++) {
-        const Vector3r r = V.row(i);
-        VA[i].set_pos(r);
-        VA[i].m_posf = to_double(r);
-    }
+    // The exact positions, each direct point rounded at once (set_exact_positions()), as
+    // tetwild's insertion route sets them. Until 2026-11 the direct points were found only before
+    // the rounding below; in between only is_inverted() reads m_is_rounded, to pick between two
+    // exact tests.
+    const ExactCoordinate exact = [&V](size_t i, int k) -> const Rational& { return V(i, k); };
+    const std::vector<char> is_direct_point = set_exact_positions(exact);
 
     if (m_params.perform_sanity_checks) {
         for_each_tetra([this](const Tuple& t) {
@@ -63,8 +64,13 @@ void SimWildMesh::init_from_image(
         m_tag_name_to_id[tag_names[i]] = i;
     }
 
-    init_face_tags(F_tagged, F_tags, face_tag_names);
+    init_face_tags(F_tagged, F_tags, face_tag_names, F_orientation);
     init_surfaces_and_boundaries(features, features_placed);
+    // The tagged mesh fills its box, as on tetwild's tagged route (require_box_boundary() says
+    // why). Until 2026-11-05 only tracked boundary faces were refused, and an object's tet mesh --
+    // its untracked boundary in no plane of the box -- was taken and held by nothing there:
+    // smooth_before() freezes only the vertices on the box's planes.
+    require_box_boundary("simwild");
 
     if (m_params.preserve_topology) {
         init_vertex_order();
@@ -80,114 +86,9 @@ void SimWildMesh::init_from_image(
         logger().info("done");
     }
 
-    // rounding
-    {
-        std::vector<char> is_direct_point(vert_capacity(), 0);
-        // Per-vertex, independent: each i writes only its own m_pos/m_posf/
-        // m_is_rounded/is_direct_point; the rational->double conversion and the
-        // exact comparison read only local data.
-        threading::parallel_for(
-            threading::range(0, vert_capacity()),
-            [&](const threading::range& range) {
-                for (size_t i = range.begin(); i < range.end(); ++i) {
-                    const Vector3r r = VA[i].pos();
-                    const Vector3r r_from_d = to_rational(VA[i].m_posf);
-                    is_direct_point[i] = (r_from_d == r);
-                    VA[i].m_is_rounded = is_direct_point[i];
-                    // A direct point's exact position is its double one; see ExactPosition.
-                    if (is_direct_point[i]) VA[i].set_pos_to_posf();
-                }
-            },
-            NUM_THREADS);
-
-        // Round the indirect vertices in parallel. Rounding snaps m_pos to its double
-        // and may not invert any incident tet, so it is not independent across adjacent
-        // vertices and the old code did it serially (round() per vertex, an exact-
-        // rational inversion check over each vertex's incident tets). Instead, snap all
-        // indirect vertices at once and then revalidate/revert the few conflicts:
-        //   1. snap every not-yet-rounded (indirect) vertex to its double (parallel);
-        //   2. scan all tets (parallel) -- any inverted tet must contain an indirect
-        //      vertex (a direct vertex never moves, so cannot cause an inversion), so
-        //      revert those indirect vertices to their exact rational coordinate;
-        //   3. repeat until no tet is inverted.
-        // This terminates: every non-empty pass un-rounds at least one vertex, and the
-        // all-rational mesh is valid. Direct points are skipped throughout.
-        for_each_vertex([&](const Tuple& v) {
-            const size_t i = v.vid(*this);
-            if (!VA[i].m_is_rounded) {
-                VA[i].set_pos_to_posf();
-                VA[i].m_is_rounded = true;
-            }
-        });
-
-        while (true) {
-            // A flag per vertex rather than a shared appended list: a vertex is reachable
-            // from several tets, so the old version took a lock per push and then pushed the
-            // same vid repeatedly. Every write here stores the same value to a slot indexed
-            // by vid, so the threads cannot disagree -- relaxed is enough, and the duplicates
-            // collapse for free.
-            std::vector<std::atomic<uint8_t>> to_revert(vert_capacity());
-            for (auto& f : to_revert) {
-                f.store(0, std::memory_order_relaxed);
-            }
-
-            std::atomic<bool> any{false};
-            for_each_tetra([&](const Tuple& t) {
-                if (is_inverted(t)) {
-                    for (const size_t vid : oriented_tet_vids(t)) {
-                        if (!is_direct_point[vid] && m_vertex_attribute[vid].m_is_rounded) {
-                            to_revert[vid].store(1, std::memory_order_relaxed);
-                            any.store(true, std::memory_order_relaxed);
-                        }
-                    }
-                }
-            });
-            if (!any.load(std::memory_order_relaxed)) {
-                break;
-            }
-            for (size_t vid = 0; vid < to_revert.size(); ++vid) {
-                if (!to_revert[vid].load(std::memory_order_relaxed)) {
-                    continue;
-                }
-                if (m_vertex_attribute[vid].m_is_rounded) {
-                    m_vertex_attribute[vid].set_pos(Vector3r(V.row(vid)));
-                    m_vertex_attribute[vid].m_is_rounded = false;
-                    m_all_rounded.store(false, std::memory_order_relaxed);
-                }
-            }
-        }
-
-        const auto vertices = get_vertices();
-        size_t cnt_round_parallel = 0;
-        for (const Tuple& v : vertices) {
-            if (VA[v.vid(*this)].m_is_rounded) {
-                ++cnt_round_parallel;
-            }
-        }
-
-        // Final serial sweep: the parallel batch reverts a vertex whenever it lies in
-        // any inverted tet, which can over-revert (a vertex may round fine once its
-        // neighbours are committed). Retry the leftovers one at a time -- round() is a
-        // no-op for the already-rounded majority, so this only pays for the few that
-        // remain, and recovers vertices the batch conservatively reverted.
-        for (const Tuple& v : vertices) {
-            round(v);
-        }
-
-        size_t cnt_round = 0;
-        for (const Tuple& v : vertices) {
-            if (VA[v.vid(*this)].m_is_rounded) {
-                ++cnt_round;
-            }
-        }
-
-        logger().info(
-            "Rounded vertices {}/{} (parallel {}, serial recovered {})",
-            cnt_round,
-            vertices.size(),
-            cnt_round_parallel,
-            cnt_round - cnt_round_parallel);
-    }
+    // rounding: the indirect vertices all at once, then the few that invert a tet reverted
+    // (round_indirect_vertices()).
+    round_indirect_vertices(is_direct_point, exact);
 
     // init qualities
     for_each_tetra(
@@ -213,7 +114,8 @@ void SimWildMesh::init_from_image(
     const MatrixSi& F_tags,
     const std::vector<std::string>& face_tag_names,
     const utils::FeatureInputs* features,
-    const utils::EmbedFeaturesResult* features_placed)
+    const utils::EmbedFeaturesResult* features_placed,
+    const MatrixSi& F_orientation)
 {
     assert(V.cols() == 3);
     assert(T.cols() == 4);
@@ -269,8 +171,9 @@ void SimWildMesh::init_from_image(
         m_tag_name_to_id[tag_names[i]] = i;
     }
 
-    init_face_tags(F_tagged, F_tags, face_tag_names);
+    init_face_tags(F_tagged, F_tags, face_tag_names, F_orientation);
     init_surfaces_and_boundaries(features, features_placed);
+    require_box_boundary("simwild"); // as in the overload above
 
     if (m_params.preserve_topology) {
         init_vertex_order();
@@ -284,7 +187,8 @@ void SimWildMesh::init_from_image(
 void SimWildMesh::init_face_tags(
     const MatrixXi& F_tagged,
     const MatrixSi& F_tags,
-    const std::vector<std::string>& face_tag_names)
+    const std::vector<std::string>& face_tag_names,
+    const MatrixSi& F_orientation)
 {
     m_face_tag_names = face_tag_names;
     for (Eigen::Index r = 0; r < F_tagged.rows(); ++r) {
@@ -297,7 +201,7 @@ void SimWildMesh::init_face_tags(
             if (F_tags.coeff(r, j) != 0) set |= InputSet(1) << j;
         auto& attr = m_face_attribute[std::get<1>(*face)];
         attr.set_input_set(attr.input_set() | set);
-        attr.set_orientation_along(vids, 1);
+        io::orient_tagged_row(attr, vids, set, F_orientation, r);
     }
 }
 
@@ -430,60 +334,7 @@ void SimWildMesh::init_surfaces_and_boundaries(
     init_label_envelopes(m_envelope_eps, !m_sim_params.use_sample_envelope);
 
     // track bounding box
-    for (size_t i = 0; i < faces.size(); i++) {
-        const auto vs = get_face_vertices(faces[i]);
-        std::array<size_t, 3> vids = {{vs[0].vid(*this), vs[1].vid(*this), vs[2].vid(*this)}};
-        int on_bbox = -1;
-        for (int k = 0; k < 3; k++) {
-            if (m_vertex_attribute[vids[0]].pos_coord_equals(k, m_sim_params.box_min[k]) &&
-                m_vertex_attribute[vids[1]].pos_coord_equals(k, m_sim_params.box_min[k]) &&
-                m_vertex_attribute[vids[2]].pos_coord_equals(k, m_sim_params.box_min[k])) {
-                on_bbox = k * 2;
-                break;
-            }
-            if (m_vertex_attribute[vids[0]].pos_coord_equals(k, m_sim_params.box_max[k]) &&
-                m_vertex_attribute[vids[1]].pos_coord_equals(k, m_sim_params.box_max[k]) &&
-                m_vertex_attribute[vids[2]].pos_coord_equals(k, m_sim_params.box_max[k])) {
-                on_bbox = k * 2 + 1;
-                break;
-            }
-        }
-        if (on_bbox < 0) {
-            continue;
-        }
-        assert(!faces[i].switch_tetrahedron(*this)); // face must be on boundary
-
-        const size_t fid = faces[i].fid(*this);
-        m_face_attribute[fid].m_is_bbox_fs = on_bbox;
-
-        for (const size_t vid : vids) {
-            m_vertex_attribute[vid].on_bbox_faces.push_back(on_bbox);
-        }
-    }
-
-    for_each_vertex(
-        [&](auto& v) { wmtk::vector_unique(m_vertex_attribute[v.vid(*this)].on_bbox_faces); });
-
-    // No tracked face on the mesh's boundary, as on tetwild's tagged route: a filtered mesh's
-    // boundary is its tracked faces, and the operations hold a tracked face from the tet across
-    // it (collapse_edge_before() checks a merged tracked face in the tet beyond it), which a
-    // boundary face has none of. The insertion's padded background box puts none there. An
-    // untracked boundary face in no plane of the box is taken as before: simwild remeshes an
-    // object's tet mesh, its regions inside (held by nothing there: smooth_before() freezes only
-    // the vertices on the box's planes).
-    size_t n_tracked = 0;
-    for (const Tuple& f : faces) {
-        if (!f.switch_tetrahedron(*this) && m_face_attribute[f.fid(*this)].m_is_surface_fs) {
-            ++n_tracked;
-        }
-    }
-    if (n_tracked > 0) {
-        log_and_throw_error(
-            "{} tracked faces of the tagged mesh lie on its boundary, as a filtered mesh's do: "
-            "simwild takes a mesh with its tracked faces inside (from tetwild, an output with "
-            "filter \"none\"); give a filtered mesh's surfaces as inputs",
-            n_tracked);
-    }
+    tag_bbox_faces(m_sim_params.box_min, m_sim_params.box_max);
 
     // The order-2 edges (open boundaries, non-manifold edges) are tagged and held by the base's
     // tube, with or without preserve_topology: keeping them in place is a geometric guarantee,
@@ -503,9 +354,9 @@ void SimWildMesh::init_surfaces_and_boundaries(
     const size_t n_order2 = tag_order2_edges(order2_eps, m_envelope && m_envelope->use_exact);
     logger().info("order-2 edges tagged: {}", n_order2);
 
-    // The input feature curves (input_edges), held as tetwild holds them, by the same code: the
-    // tet edges tiling them are tagged with their input_edges file and kept in tubes of
-    // feature_envelope_ratio x eps -- around the input curves, and one per file
+    // The input feature curves (the curve inputs), held as tetwild holds them, by the same code:
+    // the tet edges tiling them are tagged with their curve input and kept in tubes of
+    // feature_envelope_ratio x eps -- around the input curves, and one per input
     // (tag_feature_edges()) -- with the surface envelope's predicate, as the order-2 tubes.
     const double feature_eps =
         m_params.epsr * m_params.diag_l * m_sim_params.feature_envelope_ratio;
@@ -522,12 +373,12 @@ void SimWildMesh::init_surfaces_and_boundaries(
     // With a reference the tubes are around its curves, not around the edges received.
     if (m_has_reference) init_reference_feature_tubes(feature_eps, m_envelope->use_exact);
     // Before a remeshing, which holds the mesh to the reference: what was received must already
-    // lie in it. The tag operations hold nothing to it, and drop it.
+    // lie in it. The tag operations are given none (simwild.cpp).
     if (m_has_reference && m_sim_params.operation == "remeshing") {
         check_reference_containment(m_envelope_eps);
     }
 
-    // Where a tagged curve ends or three or more meet, and at every input point (input_points),
+    // Where a tagged curve ends or three or more meet, and at every input point (a point input),
     // the vertex is anchored (anchor_feature_points()), held like the curves: always. The radius
     // is the tube's of the kinds it is on, the smallest where it is on several.
     anchor_feature_points(input_points, order2_eps, feature_eps);
